@@ -207,4 +207,4 @@ document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("cha
 const q=new URLSearchParams(location.search); const s0=+(q.get("s")||1);
 document.querySelector("input[name=mode][value='"+s0+"']").checked=true; setS(s0);
 t = q.has("t") ? +q.get("t") : (still ? 4.5 : 0); show(); if(playing) start(); else play.textContent="播放";
-</script></body></html>
+</script><script>(function(){function s(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

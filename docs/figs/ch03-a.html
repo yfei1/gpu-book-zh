@@ -213,4 +213,4 @@ const q=new URLSearchParams(location.search);
 if(q.has("thr")) $("thrI").value=q.get("thr"); if(q.has("r")) $("rptI").value=q.get("r"); if(q.has("s")) $("smI").value=q.get("s");
 thr=+$("thrI").value; rpt=+$("rptI").value; smk=+$("smI").value; calc();
 t = q.has("t") ? +q.get("t") : (still ? end : 0); show(); if(playing) start(); else play.textContent="播放";
-</script></body></html>
+</script><script>(function(){function s(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

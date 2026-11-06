@@ -10,12 +10,17 @@ table{border-collapse:collapse;font-size:14px}td,th{border:1px solid #ccc;paddin
 iframe{width:100%;border:0;height:900px}
 hr{border:none;border-top:1px solid #ddd;margin:30px 0}
 .toc{background:#fbfbfa;border:1px solid #ddd;border-radius:8px;padding:10px 18px 10px 34px;font-size:15px}
-.fig{margin:22px -40px}.fig iframe{height:900px}
+.fig{margin:22px -40px;overflow-x:auto;-webkit-overflow-scrolling:touch}.fig iframe{height:900px;display:block}
 ul,ol{padding-left:1.5em}li{margin:4px 0}li>p{margin:4px 0}
 section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
-pre{font-size:13px;line-height:1.55;white-space:pre}table{display:block;overflow-x:auto;margin:14px 0}
-@media(max-width:860px){.fig{margin:22px 0}main{padding:0 14px}}</style>
-<script>function fit(f){try{const d=f.contentDocument;const h=Math.max(d.body.scrollHeight,d.documentElement.scrollHeight);f.style.height=(h+8)+"px";}catch(e){}}</script></head>
+h2 code,h3 code{font-size:.92em}
+pre{font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+table{display:block;overflow-x:auto;margin:14px 0}
+.slot{border:none;padding:4px 0;margin:10px 0;text-align:left;color:#9a9a9e;font-size:13px}
+@media(max-width:860px){.fig{margin:22px 0}main{padding:0 14px}}
+@media(max-width:600px){.fig iframe{min-width:640px}}</style>
+<script>function fit(f){try{const d=f.contentDocument;const h=d.querySelector("body>*:last-child");const b=d.body.getBoundingClientRect();f.style.height=Math.ceil(d.documentElement.scrollHeight)+"px";}catch(e){}}
+window.addEventListener("message",e=>{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";});});</script></head>
 <body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>
 <nav><ol class="toc"><li><a href="#preface">前言</a></li><li><a href="#ch00">第 0 章：单层模型算什么，最快能跑多快？</a></li><li><a href="#ch00_5">第 0.5 章：一段最小的 CUDA 程序</a></li><li><a href="#ch01">第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</a></li><li><a href="#ch02">第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</a></li><li><a href="#ch03">第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</a></li><li><a href="#ch04">第 4 章 [第 3 级]：点开 1 个 SMSP，调度器每个周期怎么选 warp 并发射指令？</a></li><li><a href="#ch05">第 5 章 [第 4 级]：指令发出去后，在哪个物理管线里算？</a></li><li><a href="#ch06">第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</a></li></ol></nav><section id="preface"><h1>前言</h1>
 <p>本书围绕公开的 GPU 内核优化竞赛（Open Kernel Challenge）展开。目标是在单张 NVIDIA <strong>H200</strong> GPU（<strong>Hopper</strong> 架构）上运行大模型 <strong>Muse Spark Open</strong>。单层是模型里重复堆叠的一段计算，本书要把单层推理耗时推到读完权重所需的最短时间附近。竞赛以开源推理服务框架 <strong>SGLang</strong> 的耗时除以参赛者耗时计分，所以全书用 SGLang 作为基线对照。</p>
@@ -197,7 +202,7 @@ if (threadIdx.x == 0) {
 <hr />
 <h2>5. gemv 演化（v2 → v3 → v4）：K-halves 切尾波与 L2 缓存留存提示</h2>
 <figure class="fig"><iframe src="figs/ch02-d.html" loading="lazy" title="图 2-4" onload="fit(this)"></iframe></figure>
-<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡单轮容量为 2,112 个 CTA，第二轮留下 <code>r = 192</code> 个尾波 CTA。由于 <code>192 ≤ 2,112 ÷ 2</code> 满足第 1 节“余数不超过单轮容量一半”的切半条件，<strong>v3</strong>（在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA），两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。尾波里每个 CTA 只有 <code>128 × 2 B = 256</code> 字节在途，算完一整行要走 <code>8,192 ÷ 128 = 64</code> 次串行往返（按单次约 0.33 µs 估算，图 2-4 读数为“不切半：一个 CTA 64 轮，约 21.4 µs”）。切半后每个半块只走 32 次往返，图 2-4 读数变为“切半：两个 CTA 各 32 轮 + L2 合并，约 11.2 µs”（估算省约 10 µs），第三行读数“实测（整个 kernel）：v1 58.88 µs → v3 <strong>48.26 µs</strong>”（<code>1.22×</code>，约为 7.9 µs 下界的 <code>16.3%</code>，实测省 10.6 µs）与这一估算吻合。</p>
+<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡单轮容量为 2,112 个 CTA，第二轮留下 <code>r = 192</code> 个尾波 CTA。由于 <code>192 ≤ 2,112 ÷ 2</code> 满足第 1 节“余数不超过单轮容量一半”的切半条件，<strong>v3</strong>（在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA）。两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。尾波里每个 CTA 只有 <code>128 × 2 B = 256</code> 字节在途，算完一整行要走 <code>8,192 ÷ 128 = 64</code> 次串行往返（按单次约 0.33 µs 估算，图 2-4 读数为“不切半：一个 CTA 64 轮，约 21.4 µs”）。切半后每个半块只走 32 次往返，图 2-4 读数变为“切半：两个 CTA 各 32 轮 + L2 合并，约 11.2 µs”（估算省约 10.2 µs）。第三行读数显示“实测（整个 kernel）：v1 58.88 µs → v3 <strong>48.26 µs</strong>”（<code>1.22×</code>，约为 7.9 µs 下界的 <code>16.3%</code>），实测节省的 10.6 µs 与上述串行往返估算吻合。</p>
 <p>接着 <strong>v4</strong>（每 SM 16 个 CTA，在途 4.0 KiB/SM）用 <code>createpolicy</code> 为中央 L2 加上留存提示（<code>.L1::evict_first</code> 同时提示本 SM 的 L1 优先淘汰流式数据）。权重 <code>W</code> 每字节只读 1 次，标为 <strong><code>evict_first</code></strong>（读完优先淘汰）；向量 <code>x</code>（16 KiB）被重复读取，标为 <strong><code>evict_last</code></strong>（优先留在 L2）。</p>
 <pre><code class="language-cuda">// v4：用 createpolicy 生成 L2 策略描述符，W 标 evict_first，x 标 evict_last
 asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;\n&quot;
