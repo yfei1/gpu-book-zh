@@ -11,8 +11,9 @@ SRC_FIGS = SRC_BOOK / "figs"
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 ORDER = ["preface", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "appA", "appB"]
-FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*[\d.]+-\d+).*?-->"
-POST_H = '<script>(function(){function s(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
+FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*[A-Z\d.]+-\d+).*?-->"
+POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
+FIG_FIX = "<style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style>"
 CSS = """
 body{margin:0;background:#f2f2ef;color:#2a2a2e;font:16px/1.85 -apple-system,"PingFang SC",system-ui,sans-serif}
 main{max-width:760px;margin:40px auto 120px;padding:0 24px}
@@ -72,13 +73,14 @@ README = """# GPU 是怎么工作的，以及怎么优化 GPU 性能
 {figures}
 """
 
-def write_readme(chapters, built):
+def write_readme(chapters, built, page):
     figs = []
     for nm, p in built.items():
         m = re.search(r"<title>(.*?)</title>", p.read_text())
         if m:
             figs.append((html.unescape(m.group(1)), nm))
-    figs.sort(key=lambda x: (float(re.search(r"图 ([\d.]+)-(\d+)", x[0]).group(1)), int(re.search(r"图 [\d.]+-(\d+)", x[0]).group(1))))
+    order = [m.group(1) for m in re.finditer(r'src="figs/([^"]+)\.html"', page)]
+    figs.sort(key=lambda x: order.index(x[1]) if x[1] in order else len(order))
     (REPO / "README.md").write_text(README.format(
         chapters="\n".join(f"- [{t}](book/{c}.md)" for c, t in chapters),
         figures="\n".join(f"- [{html.escape(t, quote=False)}](figs/{nm}.html)" for t, nm in figs)))
@@ -94,7 +96,7 @@ def main():
         if d.is_dir() and not d.name.startswith("_") and h.exists():
             built[d.name] = h
             t = h.read_text()
-            (DOCS / "figs" / h.name).write_text(t if "figH" in t else t.replace("</body>", POST_H + "</body>"))
+            (DOCS / "figs" / h.name).write_text(t.replace("</body>", FIG_FIX + POST_H + "</body>"))
             shutil.copy2(h, REPO / "figs" / h.name)
     def fig_rep(m):
         nm, num = m.group(1).strip(), m.group(2)
@@ -111,9 +113,9 @@ def main():
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = re.sub(FIG_PAT, fig_rep, t, flags=re.S)
         t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
-        chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, md.render(t))}</section>'); toc.append(f'<li><a href="#{c}">{title}</a></li>')
+        chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, md.render(t))}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title)}</a></li>')
     (DOCS / "index.html").write_text(TMPL.format(css=CSS, toc="".join(toc), secs="".join(secs)))
-    write_readme(chapters, built)
+    write_readme(chapters, built, (DOCS / "index.html").read_text())
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
     print(f"chapters {len(secs)}, figures embedded {sum(1 for _ in re.finditer('<iframe', (DOCS/'index.html').read_text()))}")

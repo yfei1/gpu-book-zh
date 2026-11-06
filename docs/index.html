@@ -28,7 +28,7 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 </style>
 <script>addEventListener("message",e=>{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";});});</script></head>
 <body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>
-<nav><ol class="toc"><li><a href="#preface">前言</a></li><li><a href="#ch00">第 0 章：单层模型算什么，最快能跑多快？</a></li><li><a href="#ch00_5">第 0.5 章：一段最小的 CUDA 程序</a></li><li><a href="#ch01">第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</a></li><li><a href="#ch02">第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</a></li><li><a href="#ch03">第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</a></li><li><a href="#ch04">第 4 章 [第 3 级]：点开 1 个 SMSP，调度器每个周期怎么选 warp 并发射指令？</a></li><li><a href="#ch05">第 5 章 [第 4 级]：指令发出去后，在哪个物理管线里算？</a></li><li><a href="#ch06">第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</a></li><li><a href="#ch07">第 7 章：实战案例库（上篇：第 0 级至第 2 级）—— 时间线、整卡波次与片上存储</a></li><li><a href="#ch08">第 8 章：实战案例库（下篇：第 3 级至第 5 级）—— 调度器、执行管线与指令比特</a></li><li><a href="#ch09">第 9 章：性能诊断法：给你一个慢 kernel，怎样按第 0 级到第 5 级找出真瓶颈？</a></li><li><a href="#appA">附录 A：从 Hopper（`H200 sm_90a`）到 Blackwell（`B200 sm_100a`）变了什么？</a></li></ol></nav><section id="preface"><h1>前言</h1>
+<nav><ol class="toc"><li><a href="#preface">前言</a></li><li><a href="#ch00">第 0 章：单层模型算什么，最快能跑多快？</a></li><li><a href="#ch00_5">第 0.5 章：一段最小的 CUDA 程序</a></li><li><a href="#ch01">第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</a></li><li><a href="#ch02">第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</a></li><li><a href="#ch03">第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</a></li><li><a href="#ch04">第 4 章 [第 3 级]：点开 1 个 SMSP，调度器每个周期怎么选 warp 并发射指令？</a></li><li><a href="#ch05">第 5 章 [第 4 级]：指令发出去后，在哪个物理管线里算？</a></li><li><a href="#ch06">第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</a></li><li><a href="#ch07">第 7 章：实战案例库（上篇：第 0 级至第 2 级）—— 时间线、整卡波次与片上存储</a></li><li><a href="#ch08">第 8 章：实战案例库（下篇：第 3 级至第 5 级）—— 调度器、执行管线与指令比特</a></li><li><a href="#ch09">第 9 章：性能诊断法：给你一个慢 kernel，怎样按第 0 级到第 5 级找出真瓶颈？</a></li><li><a href="#appA">附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>sm_100a</code>）变了什么？</a></li><li><a href="#appB">附录 B：Hopper（<code>sm_90a</code>）<code>CUDA C++ → PTX → SASS</code> 速查表</a></li></ol></nav><section id="preface"><h1>前言</h1>
 <p>本书围绕公开的 GPU 内核优化竞赛（Open Kernel Challenge）展开。目标是在单张 NVIDIA <strong>H200</strong> GPU（<strong>Hopper</strong> 架构）上运行大模型 <strong>Muse Spark Open</strong>。单层是模型里重复堆叠的一段计算，本书要把单层推理耗时推到读完权重所需的最短时间附近。竞赛以开源推理服务框架 <strong>SGLang</strong> 的耗时除以参赛者耗时计分，所以全书用 SGLang 作为基线对照。</p>
 <p>全书顺着 <strong>profiler</strong>（性能剖析器）由粗到细的六级放大顺序（第 0 级 → 第 5 级）推进。从第 2 章起，每章只拆开上一章刚看到的那个硬件部件，因为先看清部件的物理边界，才能判断哪项代码改动缩短耗时。从第 0.5 章起每章结尾给出 <code>gemv_kernel</code> 的一个新版本，展示本章机制带来的代码改动。</p>
 <hr />
@@ -36,11 +36,11 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 <ul>
 <li>第 0 章（工作负载）：单层模型做哪几步计算，理论最短时间是多少？</li>
 <li>第 0.5 章（最小 CUDA 程序）：一段 20 行的代码怎样算出全部输出行？</li>
-<li>第 1 章 [第 0 级：时间线]：一串小 kernel 之间的时间空隙从哪里来？</li>
-<li>第 2 章 [第 1 级：整张芯片]：132 个 SM 怎样接住一个 kernel？</li>
+<li>第 1 章 [第 0 级：时间线]：一串小 <strong>kernel</strong>（GPU 上运行的一个函数）之间的时间空隙从哪里来？</li>
+<li>第 2 章 [第 1 级：整张芯片]：<strong>SM</strong>（执行指令的处理器，H200 有 132 个）怎样接住一个 kernel？</li>
 <li>第 3 章 [第 2 级：单个 SM]：单个 SM 的资源池、合并访问与片上搬运各自限制什么？</li>
-<li>第 4 章 [第 3 级：单个 SMSP]：子分区调度器每个周期怎么选 warp 并发射指令？</li>
-<li>第 5 章 [第 4 级：执行管线与 Tensor Core]：指令发出去后在哪个物理管线里算？</li>
+<li>第 4 章 [第 3 级：单个 <strong>SMSP</strong>（SM 的 4 个子分区之一）]：子分区调度器每个周期怎么选 <strong>warp</strong>（32 个线程一组）并发射指令？</li>
+<li>第 5 章 [第 4 级：执行管线与 <strong>Tensor Core</strong>（矩阵乘单元）]：指令发出去后在哪个物理管线里算？</li>
 <li>第 6 章 [第 5 级：单条指令与比特]：一行代码如何变成机器指令与寄存器比特？</li>
 <li>第二部分（第 7–8 章：实战案例库）：五道竞赛计时题的演进与反例怎样复盘？</li>
 <li>第三部分（第 9 章：性能诊断法）：如何用剖析器定位瓶颈？</li>
@@ -78,8 +78,8 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 <pre><code class="language-text">floor = max( 总搬运字节数 Bytes ÷ 4.8 TB/s , 总浮点运算次数 FLOPs ÷ 989 TFLOP/s )
 </code></pre>
 <p>一个阶段的总浮点运算次数除以总显存读写字节数称为 <strong>arithmetic intensity</strong>（算术强度，单位 <code>FLOP/B</code>）。用算力上限除以带宽上限得到 <code>989 ÷ 4.8 ≈ 206 FLOP/B</code>，称为 <strong>ridge point</strong>（平衡点）。算术强度低于 206 时，读 1 字节的耗时比矩阵单元算完对应运算还长，所以计算单元等 HBM 返回数据。高于 206 时，数据等矩阵单元。</p>
-<p>小模型先猜候选词、再由大模型一次并行检验的做法称为 <strong>speculative decoding</strong>（投机解码），这一检验步称为 <strong>verify</strong>。32 个并发请求各检验 8 个候选词时，全批总词数 <code>T</code> 增大到 256。在图 0-2 中，只有 <code>qkv_gate</code>、<code>pooler</code>、<code>unpooler</code> 这 3 个大矩阵乘略微跨过了 206。<code>o</code>、<code>router</code> 与注意力依然留在平衡点以下。1 次乘加含 2 FLOP，1 个 BF16 权重占 2 字节，权重被 <code>T</code> 个 token 共享后仅按权重算强度为 <code>2 × T ÷ 2 = T FLOP/B</code>（计入激活读写后 <code>qkv_gate</code> 约为 224）。但 <code>router</code> 权重是 4 字节 FP32，仅按权重算强度减半为 <code>T ÷ 2 = 128</code>，加上激活读写后降至约 84。历史 KV cache 属于每个请求私有、无法跨请求共享，所以注意力强度不随 <code>T</code> 增大。</p>
-<p><code>T = 1</code> 时，BF16 稠密层强度只有 <code>2 × 1 ÷ 2 = 1 FLOP/B</code>。全层所有阶段都远低于 206，所以单请求 <code>decode</code> 下 GPU 绝大部分时间在等 HBM。在图 0-1 中选滑窗层，读数为“滑窗层：一步共读 191.9 MB”。第二行读数为“最短用时 <strong>40.0 µs</strong>（读得最多的是 pooler 和 MoE 专家）”，这正是全书追踪的 40 µs 单层基准下界。切到全长层，读数变为“全长层：一步共读 211.9 MB”与“最短用时 44.1 µs（读得最多的是 pooler 和 MoE 专家）”。其中第一阶段 <code>qkv_gate</code> 单独读 37.7 MB，下界约 7.9 µs，这是后续各章 <strong>gemv</strong>（矩阵乘向量，即 <code>y = W · x</code>）演化的终点线。</p>
+<p>小模型先猜候选词、再由大模型一次并行检验的做法称为 <strong>speculative decoding</strong>（投机解码），这一检验步称为 <strong>verify</strong>。32 个并发请求各检验 8 个候选词时，全批总词数 <code>T</code> 增大到 256。如图 0-2 所示，在模式选项里选“verify：T = 256”，读数写着“verify，T = 256：qkv_gate 224 · pooler 与 unpooler 234 · o 约 200 · router 约 84”与“超过 206 的只有 3 个；attention 127.5 · MoE 约 75 仍在斜线上”。也就是只有 <code>qkv_gate</code>、<code>pooler</code>、<code>unpooler</code> 这 3 个大矩阵乘略微跨过了 206。<code>o</code>、<code>router</code> 与注意力依然留在平衡点以下。1 次乘加含 2 FLOP，1 个 BF16 权重占 2 字节，权重被 <code>T</code> 个 token 共享后仅按权重算强度为 <code>2 × T ÷ 2 = T FLOP/B</code>（计入激活读写后 <code>qkv_gate</code> 约为 224）。但 <code>router</code> 权重是 4 字节 FP32，仅按权重算强度减半为 <code>T ÷ 2 = 128</code>，加上激活读写后降至约 84。历史 KV cache 属于每个请求私有、无法跨请求共享，所以注意力强度不随 <code>T</code> 增大。</p>
+<p><code>T = 1</code> 时，BF16 稠密层强度只有 <code>2 × 1 ÷ 2 = 1 FLOP/B</code>。全层所有阶段都远低于 206，所以单请求 <code>decode</code> 下 GPU 绝大部分时间在等 HBM。在图 0-2 中选“decode：T = 1”，读数为“decode，T = 1：七个阶段都在斜线上，强度 0.5–16 FLOP/B（平衡点 206）”。在图 0-1 中选滑窗层，读数为“滑窗层：一步共读 191.9 MB”。第二行读数为“最短用时 <strong>40.0 µs</strong>（读得最多的是 pooler 和 MoE 专家）”，这正是全书追踪的 40 µs 单层基准下界。切到全长层，读数变为“全长层：一步共读 211.9 MB”与“最短用时 44.1 µs（读得最多的是 pooler 和 MoE 专家）”。其中第一阶段 <code>qkv_gate</code> 单独读 37.7 MB，下界约 7.9 µs，这是后续各章 <strong>gemv</strong>（矩阵乘向量，即 <code>y = W · x</code>）演化的终点线。</p>
 <hr />
 <p><strong>带走一句话：</strong> 单请求 decode 下滑窗层读 192 MB 权重与缓存，按 4.8 TB/s 算出的单层下界是 40 µs（其中 <code>qkv_gate</code> 占 7.9 µs）。</p>
 <p><strong>下一章要回答的问题：</strong> 第一阶段 <code>qkv_gate</code> 把 <code>[M, K]</code> 的权重矩阵 <code>W</code> 乘上长 <code>K</code> 的输入向量 <code>x</code>（<code>y = W · x</code>），这个计算写成一段最小的 CUDA C++ 程序长什么样，代码里的每个关键字规定了什么并行与共享规则？→ 进入 第 0.5 章：一段最小的 CUDA 程序</p>
@@ -111,6 +111,7 @@ __global__ void gemv_kernel(const __nv_bfloat16* W, const __nv_bfloat16* x,
 }
 gemv_kernel&lt;&lt;&lt;M, 128, 0, stream&gt;&gt;&gt;(W, x, y, K);                // → 第 1 章..第 3 章
 </code></pre>
+<p>如图 0.5-1 所示，用 row 与 tid 两个滑块选定一个线程，再播放时间轴，就能看到它逐轮读数。例如 row = 2、tid = 5 的线程读到第 24 轮时，读数写着“row = 2 · tid = 5 · 第 24 / 64 轮 · k = 2949”与“读 W[19333] 与 x[2949]，各 2 B · acc 已累加 24 项”。点击左栏的某一行代码，可以查看它对应的语言结构。</p>
 <hr />
 <h2>2. 启动语句与五个关键字各规定了什么？</h2>
 <p>当 CPU 执行完最后一行启动语句继续往下走时，输出数组 <code>y</code> 往往还没有算出来（此时 GPU 可能还没开始算第 0 行）。这是由于启动语句只把命令放进队列就立刻返回，不等 GPU 算完。函数的启动与块内共享遵循下面五组规则。</p>
@@ -129,7 +130,7 @@ for (int k = 0; k &lt; K; ++k) acc += __bfloat162float(W[row * K + k]) * __bfloa
 // v1：1 个 CTA 的 128 个相邻线程协作分段读同一行（见第 1 节完整代码）
 for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * __bfloat162float(x[k]);
 </code></pre>
-<p>v0 只有 18 个 CTA，全卡 132 个 <strong>SM</strong>（Streaming Multiprocessor，流式多处理器，即执行指令的独立处理器）里只有 18 个分到工作。并且 v0 相邻线程读的地址相隔一整行（16 KiB）。v1 派出 2,304 个 CTA 铺满全部 132 个 SM，让每个 CTA 的 128 个相邻线程紧挨着读同一行的相邻元素（为什么铺满 SM 与相邻地址能拉高带宽，见第 2、3 章）。H200 实测（每次迭代前写 512 MiB 清空缓存的冷缓存中位数，下同）：<code>675.71 →</code> <strong>58.88 µs</strong>（<code>11.5×</code>），约为 7.9 µs 下界的 <code>13.4%</code>。同一测具下空 kernel 的启动与事件计时固定开销约为 3.68 µs，后续各版本的实测耗时都包含这约 3.7 µs 固定开销，因此单次实测永远不会达到下界的 100%。</p>
+<p>v0 只有 18 个 CTA，全卡 132 个 <strong>SM</strong>（Streaming Multiprocessor，流式多处理器，即执行指令的独立处理器）里只有 18 个分到工作。并且 v0 相邻线程读的地址相隔一整行（16 KiB）。v1 派出 2,304 个 CTA 铺满全部 132 个 SM，让每个 CTA 的 128 个相邻线程紧挨着读同一行的相邻元素（为什么铺满 SM 与相邻地址能拉高带宽，见第 2、3 章）。H200 实测（每次迭代前写 512 MiB 清空缓存的冷缓存中位数，下同）：<code>675.71 →</code> <strong>58.88 µs</strong>（<code>11.5×</code>），约为 7.9 µs 下界的 <code>13.4%</code>。同一测具下空 kernel 的启动与事件计时固定开销约为 3.68 µs，后续各版本的实测耗时都包含这约 3.7 µs 固定开销，因此单次实测永远不会达到下界的 100%。把图 0.5-1 的时间轴拖到最后一步，读数写着“整个 kernel 实测 58.88 µs（下界 7.9 µs 的 13.4%）”。</p>
 <hr />
 <p><strong>带走一句话：</strong> v1 用 2,304 个 128 线程 CTA 铺满全卡 132 个 SM，使 <code>qkv_gate</code> 实测耗时从 675.71 µs 降到 58.88 µs（11.5 倍）。</p>
 <p><strong>下一章要回答的问题：</strong> 当一层模型连续向 <code>stream</code> 发起一串小 kernel 时，它们之间的时间空隙是怎么产生的，怎样把空隙与等待压到最低？→ 进入 第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</p>
@@ -139,8 +140,8 @@ for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * 
 <hr />
 <h2>1. 队列排空、算子融合与 CUDA Graph 整图重放</h2>
 <figure class="fig"><iframe src="figs/ch01-a.html" loading="lazy" title="图 1-1"></iframe></figure>
-<p>图 1-1 第一行里，GPU 有一段时间停下空等。单个小 kernel 在 GPU 上只跑几微秒，而逐个流启动的准备时间比它还长。由于 CPU 跟不上 GPU，<code>stream</code> 队列（见第 0.5 章）就会排空。所以在线推理服务默认启用 <strong>CUDA Graph</strong>（计算图录制与重放），SGLang 的 decode 基线也是这样。预热时，<code>cudaStreamBeginCapture</code> 与 <code>cudaStreamEndCapture</code> 把整层调用顺序和固定显存地址录成静态图并实例化。运行时 CPU 只调一次 <code>cudaGraphLaunch</code>，由片上硬件派发器（从 <code>stream</code> 读命令并派发 CTA 的硬件，NVIDIA 未公开其内部结构）自主重放整张图。</p>
-<p>但图 1-1 第二行显示，开启 CUDA Graph 后基线仍有两处损耗。第一，未融合的层间小操作各自把中间向量写回 HBM 再读出来，占了单请求 decode 单层耗时的约四分之一。第二，同一 <code>stream</code> 里后一个图节点必须等前一个节点的所有 CTA 退出、写入全部可见后才能开始。这道隐式栅栏在相邻图节点切换时留下约 1 µs 的硬件切换空隙。因此第 0 级的第一步优化是做 <strong>kernel fusion</strong>（算子融合），把层间小操作融进相邻的矩阵乘与注意力 kernel 中。每少一次启动就省掉一次切换空隙和一次 HBM 往返，这把单请求 decode（<code>T = 1</code>）的单层启动从 SGLang 基线估计的约 17 次压到 <strong>11</strong> 次。</p>
+<p>如图 1-1 所示，在模式选项里选“逐个流启动”，读数写着“17 次启动 · 每次准备约 4.7 µs（空 kernel，含事件计时）”与“合计约 17 × 4.7 ≈ 80 µs，而单层下界是 40 µs（滑窗层）”。图 1-1 第一行里，GPU 有一段时间停下空等。单个小 kernel 在 GPU 上只跑几微秒，而逐个流启动的准备时间比它还长。由于 CPU 跟不上 GPU，<code>stream</code> 队列（见第 0.5 章）就会排空。所以在线推理服务默认启用 <strong>CUDA Graph</strong>（计算图录制与重放），SGLang 的 decode 基线也是这样。预热时，<code>cudaStreamBeginCapture</code> 与 <code>cudaStreamEndCapture</code> 把整层调用顺序和固定显存地址录成静态图并实例化。运行时 CPU 只调一次 <code>cudaGraphLaunch</code>，由片上硬件派发器（从 <code>stream</code> 读命令并派发 CTA 的硬件，NVIDIA 未公开其内部结构）自主重放整张图。</p>
+<p>但图 1-1 第二行显示，开启 CUDA Graph 后基线仍有两处损耗。第一，未融合的层间小操作各自把中间向量写回 HBM 再读出来，占了单请求 decode 单层耗时的约四分之一。第二，同一 <code>stream</code> 里后一个图节点必须等前一个节点的所有 CTA 退出、写入全部可见后才能开始。这道隐式栅栏在相邻图节点切换时留下约 1 µs 的硬件切换空隙。选“CUDA Graph 重放”，读数写着“17 个图节点 · 每次节点切换约 1.0 µs（中位数 1.024 µs）”与“合计约 17 × 1.0 ≈ 17 µs · CPU 只调 1 次”。因此第 0 级的第一步优化是做 <strong>kernel fusion</strong>（算子融合），把层间小操作融进相邻的矩阵乘与注意力 kernel 中。每少一次启动就省掉一次切换空隙和一次 HBM 往返，这把单请求 decode（<code>T = 1</code>）的单层启动从 SGLang 基线估计的约 17 次压到 <strong>11</strong> 次。选“算子融合 + PDL”，读数写着“11 个 kernel · 每条 PDL 串行边 0.64 µs”与“合计约 11 × 0.64 ≈ 7 µs · 预读权重与前序收尾重叠”。</p>
 <hr />
 <h2>2. 用 PDL（编程依赖启动）让前序收尾与后继读权重重叠</h2>
 <figure class="fig"><iframe src="figs/ch01-pdl.html" loading="lazy" title="图 1-2"></iframe></figure>
@@ -151,11 +152,11 @@ for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * 
 <li>后继预读静态权重。后继 kernel（如 <code>o</code> 或 <code>pooler</code>）进场后先不读前序尚未写完的激活向量，而是先从 HBM 预读自己最先要用的几块静态权重分块。</li>
 <li>后继等待前序数据可见。读取前序激活之前，后继调用 <code>cudaGridDependencySynchronize()</code> 停下等待，等前序显存写入全部落定后再继续执行。</li>
 </ul>
-<p>在 P1 全长层 decode（<code>T = 1</code>）测试中，把触发点放在前序函数开头反而比放在主体循环之后慢了近 <strong>2 µs</strong>。触发调用并不代表前序数据已写完。过早进场的后继 CTA 只能停在等待函数上，空占芯片上的 CTA 位置（见第 3 章）。</p>
+<p>在 P1 全长层 decode（<code>T = 1</code>）测试中，把触发点放在前序函数开头反而比放在主体循环之后慢了近 <strong>2 µs</strong>。触发调用并不代表前序数据已写完。过早进场的后继 CTA 只能停在等待函数上，空占芯片上的 CTA 位置（见第 3 章）。在图 1-2 中先选“PDL：触发在主体循环之后”，读数写着“PDL，触发在主体循环之后：串行边 0.64 µs”。再选“PDL：触发在函数开头（反例）”，读数写着“PDL，触发在函数开头：比 ② 慢 +1.95 µs（decode 1）”与“后继 CTA 停在等待函数上 9.86 µs，空占 SM 槽位”。</p>
 <hr />
 <h2>3. 合写成一个协作大 kernel 还是拆成两个 PDL 串联 kernel？</h2>
 <figure class="fig"><iframe src="figs/ch01-b.html" loading="lazy" title="图 1-3"></iframe></figure>
-<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 3 章）。图 1-3 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。</p>
+<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 3 章）。图 1-3 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。在图 1-3 中先选“合写成一个协作大 kernel”，读数写着“合写成一个协作 kernel：全网格栅栏 1.42 µs”。再选“拆成两个 PDL 串联 kernel”，读数写着“拆成两个 PDL 串联 kernel：交接边 0.64 µs”与“先算完的 SM 立即预读 w2 · 实测净快 0.70 / 0.82 µs（decode 16 / 32）”。</p>
 <hr />
 <h2>4. gemv 演化（v1 → v2）：把流启动链录进单张 CUDA Graph 重放</h2>
 <p>单层里 <strong>v1</strong>（见第 0.5 章）的 <code>gemv_kernel</code> 前后紧跟归一化（<code>rmsnorm</code>）与写缓存后处理（<code>rope_kv</code>）。若主机端从 Python 逐个流启动 <code>[rmsnorm, gemv_kernel, rope_kv]</code>，相邻 kernel 之间会暴露下发空隙。本章的 <strong>v2</strong> 在预热期把三步调用链录进同一张 CUDA Graph 并实例化，运行时单次重放。</p>
@@ -178,7 +179,7 @@ cudaGraphLaunch(graph_exec, stream);
 <p>只要总 CTA 数不是单轮容量的整数倍，最后一个 wave 就只有余数 <code>r</code> 个块在算（图 2-1 中 <code>r = 60</code>）。其余 <strong><code>132 − r</code></strong>（72）个 SM 空等到终点线，这段空等就是 <strong>tail</strong>（尾波）。图 2-1 按每个 CTA 用时固定画出了尾波上界。受 HBM 带宽限制的 kernel 在尾波里在算的 SM 更少、排队更短，单个 CTA 会跑得略快，所以实际尾波损失小于图中的上界。当最后一波的余数 <code>r</code> 不超过单轮容量的一半（单 CTA 模型下 <code>2r ≤ 132</code>，即 <code>r ≤ 66</code>）时，可把队尾工作块沿 <code>K</code> 维对半切开。这一做法称为 <strong>K-halves</strong>（勾选图 2-1 的切半开关可见）。切开后的 <code>2r</code> 个半块刚好放进最后一轮的空闲位置里，两半结果经跨 SM 同步合并（见第 4 节）即可把尾波缩短约半个 wave。</p>
 <hr />
 <h2>2. PDL 提前进场时发生了什么：观察到的 CTA 派发顺序</h2>
-<p>按第 1 章的触发规则，PDL 后继 CTA 会落进图 2-1 最后一个 wave 里那些刚空闲出来的 SM 中。P2 的后继阶段采用了 <strong>persistent kernel</strong>（持久 kernel）。全卡每个 SM 启动 1 个 CTA，依次处理按 <code>blockIdx.x</code> 预先分给它的工作块。本来每个 CTA 分到的工作量相同，应该同时结束。但实测发现编号最大的 131 号 CTA 比编号小的 CTA 晚开始约 <strong>2–3 µs</strong>，在 decode 批量 16–32 的多数输入种子下成为最慢的 CTA。前序 kernel 的 SM 是一批批退场的，H200 的硬件派发器在交接处按 <code>blockIdx.x</code> 从小到大的顺序把新 CTA 依次派给刚退出的 SM。所以在代码里给编号大的 CTA 略微少分一点工作量，就能让各 CTA 的结束时间更接近。</p>
+<p>按第 1 章的触发规则，PDL 后继 CTA 会落进图 2-1 最后一个 wave 里那些刚空闲出来的 SM 中。P2 的后继阶段采用了 <strong>persistent kernel</strong>（持久 kernel）。全卡每个 SM 启动 1 个 CTA，依次处理按 <code>blockIdx.x</code> 预先分给它的工作块。本来每个 CTA 分到的工作量相同，应该同时结束。但实测发现编号最大的 131 号 CTA 比编号小的 CTA 晚开始约 <strong>2–3 µs</strong>，在 decode 批量 16–32 的多数输入种子下成为最慢的 CTA。前序 kernel 的 SM 是一批批退场的，H200 的硬件派发器在交接处按 <code>blockIdx.x</code> 从小到大的顺序把新 CTA 依次派给刚退出的 SM。所以在代码里给编号大的 CTA 略微少分一点工作量，就能让各 CTA 的结束时间更接近。如图 2-5 所示，拖动时间线，可以看到后继 CTA 按 <code>blockIdx.x</code> 顺序依次填进空出来的 SM。</p>
 <hr />
 <h2>3. 全卡内存层次与利特尔法则：为什么每个 SM 要挂起约 <code>64 KiB</code> 在途读取？</h2>
 <figure class="fig"><iframe src="figs/ch02-b.html" loading="lazy" title="图 2-2"></iframe></figure>
@@ -204,7 +205,7 @@ if (threadIdx.x == 0) {
     }
 }
 </code></pre>
-<p>在图 2-3 的测试中，跨 SM 经 L2 交接一次的中位耗时约为 <strong>0.67 µs</strong>。这与第 1 章两个 kernel 之间的 PDL 交接（约 0.6 µs）同量级。所以能留在单 SM 内部完成的计算不跨 SM 交接。</p>
+<p>如图 2-3 所示，在模式选项里先选“只用 relaxed（不指定内存序）”，读数写着“relaxed：0 条栅栏 · B 侧交接链 497.2 + 54.4 = 551.6 个周期”与“结果：B 读到旧的部分和，y[r] 错”。再选“device 级 acq_rel”，读数写着“acq_rel：每次原子加 5 条 SASS（含 MEMBAR.ALL.GPU、CCTL.IVALL）”与“B 侧交接链 271.6 + 497.2 + 327.8 = 1096.6 个周期 · y[r] 正确”。在图 2-3 的测试中，跨 SM 经 L2 交接一次的中位耗时约为 <strong>0.67 µs</strong>。这与第 1 章两个 kernel 之间的 PDL 交接（约 0.6 µs）同量级。所以能留在单 SM 内部完成的计算不跨 SM 交接。</p>
 <hr />
 <h2>5. gemv 演化（v2 → v3 → v4）：K-halves 切尾波与 L2 缓存留存提示</h2>
 <figure class="fig"><iframe src="figs/ch02-d.html" loading="lazy" title="图 2-4"></iframe></figure>
@@ -212,9 +213,9 @@ if (threadIdx.x == 0) {
 <p>接着 <strong>v4</strong>（每 SM 16 个 CTA，在途 4.0 KiB/SM）用 <code>createpolicy</code> 为中央 L2 加上留存提示（<code>.L1::evict_first</code> 同时提示本 SM 的 L1 优先淘汰流式数据）。权重 <code>W</code> 每字节只读 1 次，标为 <strong><code>evict_first</code></strong>（读完优先淘汰）；向量 <code>x</code>（16 KiB）被重复读取，标为 <strong><code>evict_last</code></strong>（优先留在 L2）。</p>
 <pre><code class="language-cuda">// v4：用 createpolicy 生成 L2 策略描述符，W 标 evict_first，x 标 evict_last
 asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;\n&quot;
-             &quot;ld.global.L1::evict_first.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pW), &quot;=h&quot;(w) : &quot;l&quot;(Wp));
+             &quot;ld.global.L1::evict_first.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=&amp;l&quot;(pW), &quot;=h&quot;(w) : &quot;l&quot;(Wp));
 asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;\n&quot;
-             &quot;ld.global.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pX), &quot;=h&quot;(xv) : &quot;l&quot;(xp));
+             &quot;ld.global.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=&amp;l&quot;(pX), &quot;=h&quot;(xv) : &quot;l&quot;(xp));
 </code></pre>
 <p>测具在每次冷缓存计时前写入 512 MiB 清空 60 MiB 的 L2，H200 冷缓存实测：<code>48.26 →</code> <strong>43.94 µs</strong>（<code>1.10×</code>），约为 7.9 µs 下界的 <code>17.9%</code>。但在不清空 L2 的热缓存重复测试中，单层 <code>W</code>（37.7 MB）本可装进 60 MiB 的 L2。此时 <code>evict_first</code> 阻止了 <code>W</code> 留在 L2，使热缓存耗时反而从 <code>29.02 µs</code> 退化到 <code>42.88 µs</code>（真实多层推理中其他层本就会冲掉 <code>W</code>，冷缓存才是真实工作点）。</p>
 <hr />
@@ -232,7 +233,7 @@ asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;\n&quot;
 <li>warp 槽位（上限 64 个）。每个 CTA 含 <code>128 ÷ 32 = 4</code> 个 warp，最多放 <code>64 ÷ 4 = 16</code> 个 CTA。</li>
 <li>CTA 槽位（上限 32 个）。最多放 32 个 CTA。</li>
 <li><strong>SMEM</strong>（上限 228 KiB，即 <code>__shared__</code> 数组）。每 CTA 占 0.5 KiB，加系统保留的 1 KiB 共 1.5 KiB，可放 <code>⌊228 ÷ 1.5⌋ = 152</code> 个 CTA。</li>
-<li>寄存器（上限 65,536 个）。每线程不超过 <code>65,536 ÷ 2048 = 32</code> 个寄存器时至少可放 16 个 CTA；<code>v1</code> 占 22 个寄存器，不先触顶。</li>
+<li>寄存器（上限 65,536 个）。每线程不超过 <code>65,536 ÷ 2048 = 32</code> 个寄存器时至少可放 16 个 CTA，所以这一项不先触顶。</li>
 </ul>
 <p>取四项的最小值，1 个 SM 最多驻留 <strong>16</strong> 个 CTA。图 3-1 默认预设“gemv_kernel（22 个寄存器）”的读数为“驻留 16 个 CTA，共 64 个 warp（occupancy 100%）”。第二行读数为“先满的是：warp 槽位”。点击“寄存器加到 32”或拖动滑块，可观察先满的池子如何切换到寄存器或 SMEM。</p>
 <hr />
@@ -265,7 +266,7 @@ asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;\n&quot;
 <figure class="fig"><iframe src="figs/ch03-d.html" loading="lazy" title="图 3-5"></iframe></figure>
 <p>硬件上，SMEM 被切成 32 个并排的 <strong>bank</strong>（存储体），每个 bank 宽 4 字节，所以每连续 128 字节依次横跨全部 32 个 bank。当 1 个 warp 的 32 个 thread 在同一时刻访问不同 bank（或读同一地址触发广播）时，1 次即可读完。但当 1 个 warp 的 32 个 thread 同时读取每行 128 字节数组的同一列时，同列地址相差 128 字节的整数倍。这 32 个地址全部撞进同一个 bank。硬件把它们拆成 32 次串行请求，称为 <strong>bank conflict</strong>（存储体冲突），使读取吞吐量降为原来的 <strong><code>1/32</code></strong>。</p>
 <p>对于 32 个线程各读一行、同读单个 4 字节列的小数组（如路由计数表），可在每行末尾多填 1 个 4 字节空白字。行宽变为 <code>128 + 4 = 132</code> 字节后，每行向后错开 1 个 bank，32 行正好落进 32 个不同 bank（代价是多占 SMEM 且破坏 16 字节对齐）。</p>
-<p>对 TMA 搬运的矩阵分块，第 5 章的矩阵乘硬件每次让 8 个线程同时读取 8 行里同一列位置的 16 字节块（见图 3-5）。若 TMA 不开交错、按每行 128 字节直接存进 SMEM，这 8 行同列块的地址相差 128 字节，会撞在同一组 bank 上产生 8 路冲突。在张量描述符里打开 <strong>XOR Swizzle</strong>（异或地址交错，图 3-5）。TMA 写入时把每个 16 字节块的列块号与行号低三位按位异或（每 8 行一个周期）。这样不浪费任何 SMEM，就能让这 8 行 16 字节块散落在不同 bank 上。</p>
+<p>对 TMA 搬运的矩阵分块，第 5 章的矩阵乘硬件每次让 8 个线程同时读取 8 行里同一列位置的 16 字节块（见图 3-5）。若 TMA 不开交错、按每行 128 字节直接存进 SMEM，这 8 行同列块的地址相差 128 字节，会撞在同一组 bank 上产生 8 路冲突。在张量描述符里打开 <strong>XOR Swizzle</strong>（异或地址交错，图 3-5）。TMA 写入时把每个 16 字节块的列块号与行号低三位按位异或（每 8 行一个周期）。这样不浪费任何 SMEM，就能让这 8 行 16 字节块散落在不同 bank 上。如图 3-5 所示，先选“无交错（原样存放）”，读数写着“无交错：每次读 8 路冲突，8 个 wavefront，每周期送出 16 字节”与“读完 8 列块（1024 字节）共 64 个 wavefront · 不多占 SMEM”。再选“XOR Swizzle（128 字节交错）”，读数写着“XOR Swizzle：每次读无冲突，1 个 wavefront，每周期送出 128 字节”与“读完 8 列块（1024 字节）共 8 个 wavefront · 不多占 SMEM”。</p>
 <hr />
 <h2>6. gemv 演化（v4 → v5 → v6）：16 字节合并向量读取与单波次 32 线程 CTA</h2>
 <p>在 <strong>v4</strong>（<code>&lt;&lt;&lt;2496, 128&gt;&gt;&gt;</code>，在途 4.0 KiB/SM）基础上，<strong>v5</strong>（每 SM 16 个 CTA，共 64 个 warp）用 <code>uint4</code> 每次读取 16 字节（8 个 BF16）。随后用 <code>__bfloat1622float2</code> 转为浮点数乘加，使每 SM 在途字节跃升至 <code>64 × 512 B =</code> <strong>32.0 KiB/SM</strong>。H200 实测：<code>43.94 →</code> <strong>17.76 µs</strong>（<code>2.47×</code>），约为 7.9 µs 下界的 <code>44.3%</code>。接着 <strong>v6</strong> 把每 CTA 缩为 32 个线程（1 个 warp 算 1 行，启动 <code>&lt;&lt;&lt;2304, 32&gt;&gt;&gt;</code>），并撤掉 v3 的尾波切半。</p>
@@ -292,18 +293,18 @@ gemv_v6&lt;&lt;&lt;2304, 32, 0, stream&gt;&gt;&gt;(W, x, y, K);
 <p>与乱序执行的 CPU 核心不同，GPU 的每个 warp 按程序顺序发射指令。当 warp 发出一条内存读取（如 <code>W[row * K + k]</code> 或 <code>smem[i]</code>）时，请求本身不阻塞该 warp。硬件只是在 <strong>scoreboard</strong>（记分牌，记录每个寄存器是否还在等数据返回的硬件表）上把目标寄存器标为“未就绪”。该 warp 可继续发射后续不读该寄存器的独立指令。直到遇到第一条使用该目标寄存器的指令时，它才被挂起，由调度器换另一个 eligible warp 上场。按每周期发射 1 条指令计算，让 SMSP 发射槽不空所需的驻留 warp 数为：</p>
 <pre><code class="language-text">所需驻留 warp 数 ≈ ⌈ 读取返回延迟（周期） ÷ 从发出读取到首次使用前本 warp 能发出的指令数 n ⌉
 </code></pre>
-<p>第一个条件是让 SMSP 发射槽不空（掩盖片上 SMEM 短延迟）。从 SMEM 读取数据返回约需 23 个周期。若每个 warp 发出 1 条读取后紧跟 3 条独立指令（共 <code>n = 4</code> 条），单个 SMSP 只需驻留 <code>⌈23 ÷ 4⌉ =</code> <strong>6</strong> 个 warp。这 6 个 warp 轮流发射，就能实现 0 个 no eligible 空周期（图 4-2 下行）。若写成 <code>idx = len[i]; p = table[idx]; v = data[p];</code> 这样后一步地址依赖前一步结果的串行链，每步 <code>n = 1</code>。此时单个 warp 会连续停在记分牌上，必须提前为下一轮预取地址表以增大 <code>n</code>。</p>
+<p>第一个条件是让 SMSP 发射槽不空（掩盖片上 SMEM 短延迟）。从 SMEM 读取数据返回约需 23 个周期。若每个 warp 发出 1 条读取后紧跟 3 条独立指令（共 <code>n = 4</code> 条），单个 SMSP 只需驻留 <code>⌈23 ÷ 4⌉ =</code> <strong>6</strong> 个 warp。这 6 个 warp 轮流发射，就能实现 0 个 no eligible 空周期（图 4-2 下行）。如图 4-2 所示，选“6 个 warp，n = 4”，读数写着“6 个 warp，n = 4”与“发射槽忙 100% · no eligible 0 个周期 · 前 72 个周期内读取返回 12 次”。若写成 <code>idx = len[i]; p = table[idx]; v = data[p];</code> 这样后一步地址依赖前一步结果的串行链，每步 <code>n = 1</code>。此时单个 warp 会连续停在记分牌上，必须提前为下一轮预取地址表以增大 <code>n</code>。选“串行依赖链：1 个 warp，每步 n = 1”，读数写着“串行依赖链：1 个 warp，每步 n = 1”与“发射槽忙 7% · no eligible 67 个周期 · 前 72 个周期内读取返回 3 次”。</p>
 <p>第二个条件是让 HBM 带宽跑满，它与发射槽不空是两个独立条件。第 2 章约 0.33 µs 的空载单请求 HBM 读取折合约 600 个周期（按 1.8 GHz 换算，满载排队时更长）。若想靠条件一的轮流发射来掩盖 HBM 延迟，每个 warp 每次只挂 1 条读取（<code>n = 4</code>）时，<code>600 ÷ 4</code> 需要 150 个 warp，远超单 SMSP 的 16 个上限。这说明靠 warp 轮流发射掩盖不了 HBM 长延迟，必须靠第 2 章的在途字节数（见第 2 章第 3 节）。程序要么让每个线程同时挂起多条独立的 16 字节向量读取，要么像第 3 章那样用 TMA 环形缓冲把在途字节装进 SMEM。</p>
 <p>回头看第 0.5 章的 <code>gemv_kernel</code>（v1）。每个线程每轮只从 HBM 挂起 1 条 2 字节的 <code>W</code> 读取（<code>x</code> 仅 16 KiB，被所有 CTA 重复读取时命中缓存）。即使单 SM 驻留满 16 个 CTA（每个 128 线程），不展开循环时全 SM 同时在途的 HBM 读取也只有 <code>16 × 128 × 2 B = 4.0 KiB</code>。要凑够第 2 章图 2-2 普通读取约 64 KiB 的拐点，每个线程须同时挂起 <code>64 ÷ 4 = 16</code> 轮 2 字节读取。在图 4-1 中选 v1，读数为“发射槽忙 17% 的周期 · no eligible（没有可发射的 warp） 83% · 本 SMSP 最多同时在途 1.0 KiB”。再选第 4 节的 v7（图 4-1 按每 SMSP 4 个 warp 建模）。此时读数变为“发射槽忙 19% 的周期 · no eligible（没有可发射的 warp） 81% · 本 SMSP 最多同时在途 16 KiB”。此时 4 个 SMSP 合计最多同时在途 <strong>64 KiB</strong>（实际每 SM 平均 17.45 个 warp，合 69.8 KiB），到达图 2-2 的 64 KiB 拐点。两种配置下调度器都有超过八成的周期处于 no eligible 空闲，但 v7 的峰值在途字节是 v1 的 16 倍。单 token decode 受 HBM 带宽限制，只要满足条件二把 HBM 喂饱，即使发射槽有大量 no eligible 空周期也不会损失显存吞吐。</p>
 <hr />
 <h2>3. 条件掩码、branch divergence（分支分化）与锁步屏障规则</h2>
 <figure class="fig"><iframe src="figs/ch04-c.html" loading="lazy" title="图 4-3"></iframe></figure>
 <p>同一个 warp 的 32 个 thread 按 <strong>SIMT</strong>（单指令多线程）方式运行。warp 每次为走同一路径的活跃线程发一条指令，其余线程被掩码关闭。同一路径上的线程齐步执行，叫 <strong>lockstep</strong>（锁步）。每个 thread 有自己的程序位置（<strong>Independent Thread Scheduling</strong>，独立线程调度）。所以硬件不保证分开的线程自动回到锁步。</p>
-<p>编译器常把简短条件改写为 <strong>predication</strong>（谓词执行），由条件掩码控制哪几个 thread 写回结果，整个 warp 1 遍走完。单侧长分支（如第 0.5 章的 <code>if (tid == 0)</code>）会让其余 31 个 thread 被掩码屏蔽等待。若 <code>if</code> 和 <code>else</code> 两支都很长且同 warp 内不同 thread 走向不同分支，就会发生 <strong>branch divergence</strong>（分支分化，图 4-3）。此时调度器必须先跑完 <code>if</code> 子集再跑 <code>else</code> 子集，耗时为两支之和。</p>
+<p>编译器常把简短条件改写为 <strong>predication</strong>（谓词执行），由条件掩码控制哪几个 thread 写回结果，整个 warp 1 遍走完。单侧长分支（如第 0.5 章的 <code>if (tid == 0)</code>）会让其余 31 个 thread 被掩码屏蔽等待。若 <code>if</code> 和 <code>else</code> 两支都很长且同 warp 内不同 thread 走向不同分支，就会发生 <strong>branch divergence</strong>（分支分化，图 4-3）。此时调度器必须先跑完 <code>if</code> 子集再跑 <code>else</code> 子集，耗时为两支之和。如图 4-3 所示，在模式选项里依次选“谓词执行（短条件）”“单侧分支 if (tid == 0)”“双侧分支 if / else”。三档的第二行读数依次写着“2 条 warp 指令 · 活跃 lane 占比 52% · 不分化，不需要汇合”“260 条 warp 指令 · 活跃 lane 占比 4% · 分化后要 __syncwarp() 汇合”“515 条 warp 指令 · 活跃 lane 占比 50% · 分化后要 __syncwarp() 汇合”。</p>
 <p>分化后的线程要靠 <strong><code>__syncwarp()</code></strong> 等带掩码的同步原语才能强制本 warp 重新汇合。而 <code>__syncthreads()</code> 要求本 CTA 内的所有 thread 走同一控制流全员到达。若把 <code>__syncthreads()</code> 写进只有部分 thread 进入的分支，进了分支的 thread 永远等不到其余 thread。CUDA 规定这是未定义行为，常见结果是死锁。</p>
 <hr />
 <h2>4. gemv 演化（v6 → v7 → v8）：每线程挂起 8 条向量读取与 warp 洗牌归约</h2>
-<p>第 3 章的 <strong>v6</strong>（<code>&lt;&lt;&lt;2304, 32&gt;&gt;&gt;</code>）每 SM 平均驻留 17.45 个单 warp CTA，在途仅 8.7 KiB/SM。本章的 <strong>v7</strong> 让每个线程在首次乘加前先连发 8 条独立的 <code>uint4</code> 读取（单线程在途 <code>8 × 16 = 128</code> 字节）。v7 编译占 83 个寄存器（按 8 的倍数分配 88 个），寄存器池限制每 SM 最多放 <code>⌊65,536 ÷ (32 × 88)⌋ = 23</code> 个 CTA。每 SM 实际只需驻留 17.45 个（低于 23），所以全部行仍在一轮内同时驻留。全 SM 在途 <code>W</code> 字节跃升至 <code>17.45 × 32 × 128 B ≈</code> <strong>69.8 KiB/SM</strong>，跨过了图 2-2 的 64 KiB 拐点。H200 实测：<code>21.86 →</code> <strong>15.68 µs</strong>（<code>1.39×</code>），约为 7.9 µs 下界的 <code>50.2%</code>（实测显存带宽 <code>2,409 GB/s</code>，一举反超 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>）。</p>
+<p>第 3 章的 <strong>v6</strong>（<code>&lt;&lt;&lt;2304, 32&gt;&gt;&gt;</code>）每 SM 平均驻留 17.45 个单 warp CTA，在途仅 8.7 KiB/SM。本章的 <strong>v7</strong> 让每个线程在首次乘加前先连发 8 条独立的 <code>uint4</code> 读取（单线程在途 <code>8 × 16 = 128</code> 字节）。v7 编译占 83 个寄存器（按 8 的倍数分配 88 个），寄存器池限制每 SM 最多放 <code>⌊65,536 ÷ (32 × 88)⌋ = 23</code> 个 CTA。每 SM 实际只需驻留 17.45 个（低于 23），所以全部行仍在一轮内同时驻留。全 SM 在途 <code>W</code> 字节跃升至 <code>17.45 × 32 × 128 B ≈</code> <strong>69.8 KiB/SM</strong>，跨过了图 2-2 的 64 KiB 拐点。H200 实测：<code>21.86 →</code> <strong>15.68 µs</strong>（<code>1.39×</code>），约为 7.9 µs 下界的 <code>50.2%</code>（实测显存带宽 <code>2,409 GB/s</code>）。它反超了 <strong>cuBLAS</strong>（NVIDIA 官方线性代数库）的 <code>torch.mv</code>。<code>torch.mv</code> 是 PyTorch 的矩阵乘向量函数，内部调用 cuBLAS，实测 <code>21.12 µs</code>。</p>
 <figure class="fig"><iframe src="figs/ch04-d.html" loading="lazy" title="图 4-4"></iframe></figure>
 <p>接着 <strong>v8</strong> 引入图 4-4 所示的 <strong>warp shuffle</strong>（线程束洗牌：同一 warp 的线程直接读对方寄存器，5 层树形折半把 32 个值归约为 1 个总和）。在图 4-4 中选写法 1（v1），读数为“写法 1：128 次串行加法 + 1 次屏障”与“至少约 537 个周期 · 用到 SMEM”。再选写法 2（v8），读数变为“写法 2：5 层 shuffle”与“至少约 141 个周期 · 不用 SMEM”。</p>
 <pre><code class="language-cuda">// v7：每线程连发 8 条独立 uint4 读取（128 B 在途），随后再做乘加
@@ -328,7 +329,7 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 <li><strong>SFU</strong>（Special Function Unit，特殊函数单元，发射间隔 8 周期）管线。共 4 条通道，执行快速指数 <code>exp2f</code>、倒数与平方根倒数 <code>rsqrtf</code> 等超越函数。</li>
 <li>LSU（见第 3 章）。执行全局与共享内存读写地址生成。</li>
 </ul>
-<p>调度器在前一周期把指令发给某条管线后，下一周期可立刻把另一条指令发给其他管线。当本 SMSP 上的 warp 向同一管线发指令的速度超过它的发射间隔时，管线队列排满，调度器就会因 <strong>back-pressure</strong>（回压）停发。因此一段循环的理论最短周期数由累计占用周期数最多的那条最慢管线（或每周期 1 条的共享发射槽上限）决定。在 <code>gemv</code> 的 v9 循环（见第 4 节）中，每处理 1 个装有两个 BF16 的 32 位字，需要 2 条 ALU 整数移位掩码指令拆包，再配 2 条 FMA 乘加指令。FMA、ALU 与 SFU 的发射间隔相差 <strong>1 : 2 : 8</strong>。每 2 个元素的 FMA 只占 2 个周期，而 2 条 ALU 拆包要占 <code>2 × 2 = 4</code> 个周期，使 ALU 成为该循环的最慢管线。注意力采用 <strong>online Softmax</strong>（在线 Softmax，即边读分块边做指数归一化，FlashAttention 的做法）。同理，其中每个元素做 2 条 FMA 配 1 条 8 周期的 <code>exp2f</code>，SFU 就是最慢管线。</p>
+<p>调度器在前一周期把指令发给某条管线后，下一周期可立刻把另一条指令发给其他管线。当本 SMSP 上的 warp 向同一管线发指令的速度超过它的发射间隔时，管线队列排满，调度器就会因 <strong>back-pressure</strong>（回压）停发。因此一段循环的理论最短周期数由累计占用周期数最多的那条最慢管线（或每周期 1 条的共享发射槽上限）决定。在 <code>gemv</code> 的 v9 循环（见第 4 节）中，每处理 1 个装有两个 BF16 的 32 位字，需要 2 条 ALU 整数移位掩码指令拆包，再配 2 条 FMA 乘加指令。FMA、ALU 与 SFU 的发射间隔相差 <strong>1 : 2 : 8</strong>。每 2 个元素的 FMA 只占 2 个周期，而 2 条 ALU 拆包要占 <code>2 × 2 = 4</code> 个周期，使 ALU 成为该循环的最慢管线。在图 5-1 中先选“v9 循环：ALU 与 FMA 交替发”，读数写着“每个字 4 周期 · 4 个字共空转 0 周期 · ALU 每字占 4 周期”。再选“v9 循环：两条 ALU 挨着发”，读数写着“每个字 5 周期 · 4 个字共空转 4 周期 · ALU 每字占 4 周期”。注意力采用 <strong>online Softmax</strong>（在线 Softmax，即边读分块边做指数归一化，FlashAttention 的做法）。同理，其中每个元素做 2 条 FMA 配 1 条 8 周期的 <code>exp2f</code>，SFU 就是最慢管线。选“在线 Softmax 循环：缩放 FMA、exp2f、累加 FMA”，读数写着“FMA 32 通道 · ALU 16 通道 · SFU 4 通道 · 发射间隔 1 : 2 : 8”与“每个元素 8 周期 · 4 个元素共空转 15 周期 · SFU 结果延迟约 17 周期”。</p>
 <hr />
 <h2>2. 最宽的矩阵管线 Tensor Core：<code>mma.sync</code>（16 行）与 <code>wgmma</code>（64 行）</h2>
 <figure class="fig"><iframe src="figs/ch05-b.html" loading="lazy" title="图 5-2"></iframe></figure>
@@ -339,12 +340,12 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 <li><strong><code>wgmma</code></strong>（warpgroup 异步矩阵乘，每次算 <strong>64 行</strong> × N 列）。由 1 个 warpgroup（见第 3 章）的全部 128 个线程联手发起。这要求 4 个 warp 都不分化、128 个线程同时走到同一条 <code>wgmma</code>（分化见第 4 章），若分支让部分线程跳过该指令，硬件行为是未定义的。其右矩阵 <code>B</code> 由硬件根据 <strong>matrix descriptor</strong>（矩阵描述符，编码 SMEM 地址、步长与 swizzle 模式的整数）从 SMEM 读取。</li>
 <li><code>wgmma</code> 的两种左矩阵模式。左矩阵 <code>A</code> 可选从 SMEM 读取的 <strong>SS mode</strong>（Shared-Shared 模式，<code>N ≥ 64</code> 时耗时约 <code>N / 2</code> 周期）。它也可选从私有寄存器读取的 <strong>RS mode</strong>（Register-Shared 模式）。例如注意力里刚算出的权重已在寄存器中，用 RS 模式即可省掉写回 SMEM 的步骤。</li>
 </ul>
-<p>如果某个专家只分到 1 个 token 并直接放在 <code>wgmma</code> 固定 64 行的那一维，64 行里只有 <code>1 ÷ 64 ≈ 1.6%</code> 的行有用，其余 63 行全是零填充（图 5-2）。在 decode 下，这些空行会锁住 4 个 warp 和它们的累加器寄存器；一旦进入受算力限制的区间，空算更会拖慢耗时。因此当 token 数很少时，要么利用转置恒等式 <code>(A · B)^T = B^T · A^T</code> 交换 <code>A</code> 和 <code>B</code> 让权重的输出维填满 64 行、把少量 token 放在 <code>N</code> 维，要么改用只占 16 行的 <code>mma.sync</code>。</p>
+<p>如果某个专家只分到 1 个 token 并直接放在 <code>wgmma</code> 固定 64 行的那一维，64 行里只有 <code>1 ÷ 64 ≈ 1.6%</code> 的行有用，其余 63 行全是零填充（图 5-2）。在图 5-2 中把模式选为“wgmma SS，token 直接放 64 行”、token 数选 1，读数写着“wgmma SS，token 直接放 64 行：token 数 T = 1”与“1 条 wgmma · 张量管线 64 周期 · 有用算力 1.6%”。改选“wgmma SS，权重放 64 行”、token 数选 8，读数写着“wgmma SS，权重放 64 行（交换 A、B）：token 数 T = 8”与“2 条 wgmma · 张量管线 37 周期 · 有用算力 22%”。改选“mma.sync，16 行”、token 数仍为 8，读数写着“mma.sync，16 行：token 数 T = 8”与“8 条 mma.sync · 张量管线 12 周期 · 有用算力 67%”。在 decode 下，这些空行会锁住 4 个 warp 和它们的累加器寄存器；一旦进入受算力限制的区间，空算更会拖慢耗时。因此当 token 数很少时，要么利用转置恒等式 <code>(A · B)^T = B^T · A^T</code> 交换 <code>A</code> 和 <code>B</code> 让权重的输出维填满 64 行、把少量 token 放在 <code>N</code> 维，要么改用只占 16 行的 <code>mma.sync</code>。</p>
 <hr />
 <h2>3. 异步矩阵乘的寄存器所有权与 <code>wait_group&lt;1&gt;</code> 跨管线重叠</h2>
 <figure class="fig"><iframe src="figs/ch05-c.html" loading="lazy" title="图 5-3"></iframe></figure>
 <p>要让总耗时只等于最慢管线、而不是各管线之和，就必须让 Tensor Core 与算术管线同时忙碌。<code>wgmma</code> 发出后，warp 无需停下等待，下一周期即可向 FMA、ALU 或 SFU 管线发射其他指令。这与第 4 章受 scoreboard 自动保护的普通指令不同。在 <code>wgmma</code> 后台运行期间，硬件 scoreboard 不会阻止线程读写正在被 Tensor Core 使用的累加器或 RS 模式输入寄存器 <code>A</code>。如果不加等待就读取累加器，硬件不会停顿，结果是未定义的（可能读到尚未写完的值）。</p>
-<p>因此，程序必须用 <code>commit_group</code> 把已发出的 <code>wgmma</code> 打包成组。访问相关寄存器或向第 3 章的 <code>empty[s]</code> 报到前，程序必须调用 <strong><code>wait_group&lt;N&gt;</code></strong>（阻塞等待，直到在途未完成的 <code>wgmma</code> 组数不超过 <code>N</code>）。最后一条指令发出到结果写回累加器的尾延迟称为 <strong>drain latency</strong>（排空延迟）。如图 5-3 所示，<code>wait_group&lt;0&gt;</code> 每次都会暴露约 53 个周期的排空延迟。反之，在寄存器里准备两套交替使用的输入缓冲，发完前一组 <code>wgmma</code> 后立刻用 ALU 和 FMA 管线准备下一组数据。等下一组也提交后再调 <strong><code>wait_group&lt;1&gt;</code></strong>。这会等到最多剩 1 组在途（前一组已完成，最新 1 组在 Tensor Core 上算），使算术管线与 Tensor Core 并行重叠。</p>
+<p>因此，程序必须用 <code>commit_group</code> 把已发出的 <code>wgmma</code> 打包成组。访问相关寄存器或向第 3 章的 <code>empty[s]</code> 报到前，程序必须调用 <strong><code>wait_group&lt;N&gt;</code></strong>（阻塞等待，直到在途未完成的 <code>wgmma</code> 组数不超过 <code>N</code>）。最后一条指令发出到结果写回累加器的尾延迟称为 <strong>drain latency</strong>（排空延迟）。如图 5-3 所示，<code>wait_group&lt;0&gt;</code> 每次都会暴露约 53 个周期的排空延迟。反之，在寄存器里准备两套交替使用的输入缓冲，发完前一组 <code>wgmma</code> 后立刻用 ALU 和 FMA 管线准备下一组数据。等下一组也提交后再调 <strong><code>wait_group&lt;1&gt;</code></strong>。这会等到最多剩 1 组在途（前一组已完成，最新 1 组在 Tensor Core 上算），使算术管线与 Tensor Core 并行重叠。在图 5-3 中先选“wait_group&lt;0&gt;：每组都等完”，读数写着“wait_group&lt;0&gt;：每组都等完：每组都暴露约 53 周期排空，共约 214 周期”。再选“wait_group&lt;1&gt;：A0 / A1 两套交替”，读数写着“wait_group&lt;1&gt;：两套 A 交替：只暴露最后一组的约 53 周期排空”。若只留一套 A，读数写着“wait_group&lt;1&gt;，但只有一套 A（错误）：覆写了正在被读的 A 寄存器 3 次”。</p>
 <hr />
 <h2>4. gemv 演化（v8 → v9）：ALU 整数位移拆包与 8 路独立累加链</h2>
 <figure class="fig"><iframe src="figs/ch05-d.html" loading="lazy" title="图 5-4"></iframe></figure>
@@ -354,7 +355,7 @@ float w_lo = __uint_as_float(w &lt;&lt; 16), w_hi = __uint_as_float(w &amp; 0xff
 float x_lo = __uint_as_float(xv &lt;&lt; 16), x_hi = __uint_as_float(xv &amp; 0xffff0000u);
 acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 </code></pre>
-<p>warp 按程序顺序发射指令（见第 4 章），拆成 8 路独立累加链可避免单条串行累加链阻塞后续读取发射。剖析器显示全核执行的指令总数从 <code>2.67 M</code> 降到 <code>2.02 M</code>（减少 <code>24%</code>）。但由于单 token decode 受 HBM 带宽限制，H200 实测耗时为 <code>15.62 →</code> <strong>15.58 µs</strong>（<code>1.00×</code>，约为 7.9 µs 下界的 <code>50.5%</code>），印证了总耗时由最慢资源决定。</p>
+<p>warp 按程序顺序发射指令（见第 4 章），拆成 8 路独立累加链可避免单条串行累加链阻塞后续读取发射。在图 5-4 中先选“单条 acc：8 个元素排成一条依赖链”，读数写着“单条 acc 串行依赖链：下一次读在第 30 周期发出”与“空转 14 周期 · ALU 占 16 周期 · 实测 v8→v9：15.62 → 15.58 µs”。再选“8 路独立 acc：v9 的写法”，读数写着“8 路独立 acc（v9）：下一次读在第 16 周期发出”与“空转 0 周期 · ALU 占 16 周期 · 实测 v8→v9：15.62 → 15.58 µs”。剖析器显示全核执行的指令总数从 <code>2.67 M</code> 降到 <code>2.02 M</code>（减少 <code>24%</code>）。但由于单 token decode 受 HBM 带宽限制，H200 实测耗时为 <code>15.62 →</code> <strong>15.58 µs</strong>（<code>1.00×</code>，约为 7.9 µs 下界的 <code>50.5%</code>），印证了总耗时由最慢资源决定。</p>
 <hr />
 <p><strong>带走一句话：</strong> FMA、ALU 与 SFU 按 <strong>1 : 2 : 8</strong> 的发射间隔并行工作，异步 <code>wgmma</code> 配合双缓冲与 <code>wait_group&lt;1&gt;</code> 可隐藏约 53 周期的排空延迟。</p>
 <p><strong>下一章要回答的问题：</strong> 编译器是怎样把一行代码变成底层机器指令与寄存器比特的，这一步会怎样毁掉或保住前五章的优化？→ 进入 第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</p>
@@ -365,11 +366,11 @@ acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 <h2>1. 从 CUDA C++ 到 PTX 再到 SASS：为什么一个分支会让 <code>wgmma</code> 串行化？</h2>
 <figure class="fig"><iframe src="figs/ch06-a.html" loading="lazy" title="图 6-1"></iframe></figure>
 <p>CUDA C++ 代码经两步编译在 H200 上运行。前端编译器先把 C++ 翻译成虚拟汇编 <strong>PTX</strong>（Parallel Thread Execution）。后端编译器 <strong><code>ptxas</code></strong> 再针对 H200（<code>sm_90a</code>）做寄存器分配和编译期指令调度，生成 128 位 <strong>SASS</strong> 机器指令。GPU 不在运行时重排指令（见第 4 章），每条指令的操作码与寄存器编号都在编译期由 <code>ptxas</code> 写死在 128 位指令字里。</p>
-<p>从发出 <code>wgmma</code> 到对应 <code>wait_group</code> 返回之间的指令段称为 <strong>asynchronous region</strong>（异步区间）。在 SASS 中，第 5 章的 <code>wgmma</code> 叫 <strong><code>HGMMA</code></strong>，<code>wait_group</code> 叫 <strong><code>WARPGROUP.DEPBAR.LE</code></strong>。异步区间里一旦混进条件分支，<code>ptxas</code> 就报出性能告警 <strong>C7515</strong>。同时 <code>ptxas</code> 会在每一条 <code>HGMMA</code> 紧后面插入一条 <code>WARPGROUP.DEPBAR.LE 0</code>（即 <code>wait_group&lt;0&gt;</code>）。每条矩阵乘都要等排空才发下一条，异步执行退化成了串行执行。在 P4 批量 <code>T = 128</code> 个 token 的 <code>qkv_gate</code> 矩阵乘中，这使主循环耗时从 8.84 µs 变成 <strong>20.74 µs</strong>（图 6-1）。所以 <code>wgmma</code> 主循环的异步区间里不能写条件分支，编译后要检查 <code>ptxas</code> 告警和 SASS 反汇编。</p>
+<p>从发出 <code>wgmma</code> 到对应 <code>wait_group</code> 返回之间的指令段称为 <strong>asynchronous region</strong>（异步区间）。在 SASS 中，第 5 章的 <code>wgmma</code> 叫 <strong><code>HGMMA</code></strong>，<code>wait_group</code> 叫 <strong><code>WARPGROUP.DEPBAR.LE</code></strong>。异步区间里一旦混进条件分支，<code>ptxas</code> 就报出性能告警 <strong>C7515</strong>。同时 <code>ptxas</code> 会在每一条 <code>HGMMA</code> 紧后面插入一条 <code>WARPGROUP.DEPBAR.LE 0</code>（即 <code>wait_group&lt;0&gt;</code>）。每条矩阵乘都要等排空才发下一条，异步执行退化成了串行执行。在 P4 批量 <code>T = 128</code> 个 token 的 <code>qkv_gate</code> 矩阵乘中，这使主循环耗时从 8.84 µs 变成 <strong>20.74 µs</strong>（图 6-1）。在图 6-1 中先选“正常：异步区间里没有分支”，读数写着“主循环 8.84 µs（P4 qkv_gate，T = 128）”与“DEPBAR 只在末尾 1 条 · ptxas 告警：无”。再选“异步区间里有条件分支（告警 C7515）”，读数写着“主循环 20.74 µs（慢 2.35 倍）”与“每条 HGMMA 后 1 条 DEPBAR.LE 0 · 告警 C7515”。所以 <code>wgmma</code> 主循环的异步区间里不能写条件分支，编译后要检查 <code>ptxas</code> 告警和 SASS 反汇编。</p>
 <hr />
 <h2>2. 32 位寄存器里的浮点比特排布：FP32、BF16 与 4 位 NVFP4</h2>
 <figure class="fig"><iframe src="figs/ch06-b.html" loading="lazy" title="图 6-2"></iframe></figure>
-<p>一条 SASS 指令操作的每个线程寄存器都是 32 位宽，可以把不同位宽的数值打包存放在同一个寄存器里（图 6-2）。4 位浮点 <strong>NVFP4</strong> 编码为 <strong>E2M1</strong>（1 位符号、2 位指数、1 位尾数），每 16 个权重配 1 个 8 位 <strong>E4M3</strong>（1+4+3 位）缩放因子。H200 上没有把 E2M1 直接转成 BF16 的硬件指令，但解码时不需要查表或逐位算指数。把 4 位权重的符号位对齐到 BF16 最高位，再把低 3 位数值位放到 BF16 指数最低两位与尾数最高位上（其余位清零）。这样拼出的 16 位比特串在数学上就等于原始权重乘上 <code>2^-126</code>（图 6-2 下方，如 E2M1 的 <code>0 01 1</code> = 1.5 放入对应位得 BF16 的 <code>0 00000001 1000000</code> = <code>1.5 × 2^-126</code>）。这是由于两者的符号、指数与尾数位域顺序一致，只差一个固定指数偏置。</p>
+<p>一条 SASS 指令操作的每个线程寄存器都是 32 位宽，可以把不同位宽的数值打包存放在同一个寄存器里（图 6-2）。4 位浮点 <strong>NVFP4</strong> 编码为 <strong>E2M1</strong>（1 位符号、2 位指数、1 位尾数），每 16 个权重配 1 个 8 位 <strong>E4M3</strong>（1+4+3 位）缩放因子。H200 上没有把 E2M1 直接转成 BF16 的硬件指令，但解码时不需要查表或逐位算指数。把 4 位权重的符号位对齐到 BF16 最高位，再把低 3 位数值位放到 BF16 指数最低两位与尾数最高位上（其余位清零）。这样拼出的 16 位比特串在数学上就等于原始权重乘上 <code>2^-126</code>（图 6-2 下方，如 E2M1 的 <code>0 01 1</code> = 1.5 放入对应位得 BF16 的 <code>0 00000001 1000000</code> = <code>1.5 × 2^-126</code>）。这是由于两者的符号、指数与尾数位域顺序一致，只差一个固定指数偏置。在图 6-2 中依次选“FP32：1 个数”“BF16x2：2 个数”“NVFP4 E2M1×8：8 个数”，第二行读数依次写着“16 个权重 = 16 个寄存器 = 64 B”“16 个权重 = 8 个寄存器 = 32 B”“16 个权重 = 2 个寄存器 + 1 B 缩放 = 9 B”。</p>
 <ul>
 <li>标准单精度 FP32 与 16 位 BF16。BF16 截去 FP32 的低 16 位尾数，保留了与 FP32 相同的 1 位符号与 8 位指数。因此把 BF16 升成 FP32（如 <code>__bfloat162float</code> 与第 5 章的 v9）无需走 SFU。编译器只需生成 1 条字节重排指令 <code>PRMT</code>（按字节重排寄存器内容，走 ALU 管线）或移位掩码，把高 16 位对齐、低 16 位补零。</li>
 <li>4 位浮点 NVFP4 与 BF16 的位域对齐。指数位全零的小数称为 <strong>subnormal</strong>（非规格化数）。硬件 BF16 乘法默认保留非规格化数不归零，使得规格化与非规格化的 E2M1 放入 BF16 对应位后都满足同一个 <code>2^-126</code> 缩放关系。</li>
@@ -377,7 +378,7 @@ acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 <hr />
 <h2>3. 用 8 条整数指令在 ALU 与 FMA 管线上解码 4 位权重</h2>
 <figure class="fig"><iframe src="figs/ch06-c.html" loading="lazy" title="图 6-3"></iframe></figure>
-<p>单 token decode 等的是 HBM，解码指令藏在显存等待里。但在算力受限的 verify / prefill 阶段，解码指令的管线占用决定 Tensor Core 会不会停下等权重。单 warp <code>mma.sync</code> 路径也是如此，因为每个 warp 每步都要在寄存器里解码权重。加载模型权重时先对权重字节做一次按位重排。随后在 kernel 内只需执行 8 条整数位运算指令（图 6-3），就能把 1 个 32 位寄存器里的 8 个 4 位权重拆成 4 个打包的 <code>BF16x2</code> 寄存器。如果把这 8 条整数指令全塞给 ALU 管线（每条占 2 个周期，见第 5 章），每解 1 个源寄存器就要占 <code>8 × 2 = 16</code> 个周期。把其中 2 条移位改用 FMA 重型子管线分担后，ALU 管线只剩 6 条指令，周期负担降至 <code>(2 + 4) × 2 =</code> <strong>12</strong> 个周期（减掉四分之一）。这是因为 ALU 管线与 FMA 重型子管线是两条独立管线，可以并行分担移位。</p>
+<p>单 token decode 等的是 HBM，解码指令藏在显存等待里。但在算力受限的 verify / prefill 阶段，解码指令的管线占用决定 Tensor Core 会不会停下等权重。单 warp <code>mma.sync</code> 路径也是如此，因为每个 warp 每步都要在寄存器里解码权重。加载模型权重时先对权重字节做一次按位重排。随后在 kernel 内只需执行 8 条整数位运算指令（图 6-3），就能把 1 个 32 位寄存器里的 8 个 4 位权重拆成 4 个打包的 <code>BF16x2</code> 寄存器。如果把这 8 条整数指令全塞给 ALU 管线（每条占 2 个周期，见第 5 章），每解 1 个源寄存器就要占 <code>8 × 2 = 16</code> 个周期。把其中 2 条移位改用 FMA 重型子管线分担后，ALU 管线只剩 6 条指令，周期负担降至 <code>(2 + 4) × 2 =</code> <strong>12</strong> 个周期（减掉四分之一）。这是因为 ALU 管线与 FMA 重型子管线是两条独立管线，可以并行分担移位。在图 6-3 中先选“8 条整数指令全走 ALU”，读数写着“ALU 管线占用 16 clk（8 条 × 2 clk）”与“FMA 管线占用 8 clk（4 条 HMUL2）”。再选“2 条移位改走 FMA-heavy 管线”，读数写着“ALU 管线占用 12 clk（(2 + 4) × 2 clk）”与“FMA 管线占用 12 clk（2 条 IMAD.SHL + 4 条 HMUL2）”。</p>
 <ul>
 <li>平摊到两条管线的移位。结合双寄存器移位 <code>SHF</code>（2 条，走 ALU 管线）与整数乘加移位 <code>IMAD.SHL</code>（2 条，走 FMA 重型子管线），把各权重的数值位移到目标寄存器的对应位置。</li>
 <li>三输入按位逻辑合并（<code>LOP3</code>）。执行 4 条三输入按位逻辑指令 <code>LOP3</code>（走 ALU 管线），用掩码一步把符号位与数值位合并、其余位清零。</li>
@@ -386,142 +387,1081 @@ acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 <hr />
 <h2>4. gemv 演化（v9 → v10，排行榜提交版）：12 位无损打包与寄存器位运算解码</h2>
 <p>进入最终版前，先设对照版 <strong>v10c</strong>。排行榜提交内核在单个 CTA 内合并处理 4 行输出，并在尾声融合归一化。它采用每 CTA 4 个 warp 各算 1 行的形状（启动 576 个 CTA，每 SM 驻留 17.45 个 warp）。v10c 只换这一形状并把每线程在途读取减为 4 条（在途降为 <code>34.9 KiB/SM</code>），同时保留 16 位 BF16 权重，用来单独隔离 12 位权重格式的收益。由于 <code>34.9 KiB/SM</code> 掉到了第 2 章图 2-2 拐点（64 KiB）以下，H200 实测 v10c 退化为 <code>15.58 →</code> <strong>20.00 µs</strong>（<code>0.78×</code>，约为 7.9 µs 下界的 <code>39.3%</code>）。</p>
+<figure class="fig"><iframe src="figs/ch06-d.html" loading="lazy" title="图 6-4"></iframe></figure>
 <p>如图 6-4 所示，最后排行榜提交的 <strong>v10</strong> 利用了赛题权重分布的一个特殊性质：绝大多数 BF16 权重的指数高 7 位落在同一个 8 值窗口内。该性质只对本赛题给定的权重成立，不适用于任意模型。预处理保留每个权重的低字节（最低 1 位指数与 7 位尾数），把符号与 3 位指数偏移压成半字节，合为 12 位 C12 无损格式。这把主权重从 37.7 MB 压到 <strong>28.3 MB</strong>（连同窗口外旁路表合计约 28.4 MB），按 4.8 TB/s 算出的理论下界从 7.9 µs 移至 <code>28.4 MB ÷ 4.8 TB/s ≈</code> <strong>5.9 µs</strong>。</p>
 <pre><code class="language-cuda">// v10（C12）：在寄存器中用按位与（0x87878787）、整数加法与漏斗移位把 12 位权重还原为 BF16/FP32
 asm(&quot;shf.r.wrap.b32 %0, %1, %2, 4;&quot; : &quot;=r&quot;(hi_nibbles) : &quot;r&quot;(packed), &quot;r&quot;(packed));
 uint32_t bf16_pair = (( hi_nibbles &amp; 0x87878787u ) + EXP_BASE) ...; // 再经异或补丁修正窗口外权重
 </code></pre>
-<p>但 v10 每线程只保持 3 条 16 字节 C12 平面在途，全 SM 在途进一步降至 <code>26.2 KiB/SM</code>。对照第 2 章图 2-2 在 16 与 32 KiB 之间的曲线（约 3.2 TB/s），少读 25% 字节的收益几乎被较低的在途带宽抵消。H200 实测印证了这笔账：v10 耗时为 <code>20.00 →</code> <strong>15.49 µs</strong>（相对同形状的 v10c 提速 <code>1.29×</code>，相对在途充足的 v9 为 <code>1.01×</code>）。这一成绩约为 7.9 µs BF16 下界的 <code>50.8%</code>、自身 5.92 µs C12 下界的 <code>38.2%</code>。同时 v10 融合了 QK 归一化、RoPE 与写 KV 缓存尾声，且 v7–v10 均显著快于 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>。</p>
+<p>但 v10 每线程只保持 3 条 16 字节 C12 平面在途，全 SM 在途进一步降至 <code>26.2 KiB/SM</code>。对照第 2 章图 2-2 在 16 与 32 KiB 之间的曲线（约 3.2 TB/s），少读 25% 字节的收益几乎被较低的在途带宽抵消。H200 实测印证了这笔账：v10 耗时为 <code>20.00 →</code> <strong>15.49 µs</strong>（相对同形状的 v10c 提速 <code>1.29×</code>，相对在途充足的 v9 为 <code>1.01×</code>）。这一成绩约为 7.9 µs BF16 下界的 <code>50.8%</code>、自身 5.92 µs C12 下界的 <code>38.2%</code>。同时 v10 融合了 QK 归一化、RoPE 与写 KV 缓存尾声，且 v7–v10 均显著快于 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>。在图 6-4 中先选“v9：16 位 BF16 权重”，读数写着“v9：BF16，16 位 / 权重，主权重 37.7 MB”与“实测 15.58 µs · 每 SM 在途 61.1 KiB”。再选“v10：12 位 C12 权重”，读数写着“v10：C12，12 位 / 权重，主权重 28.3 MB”与“实测 15.49 µs · 每 SM 在途 26.2 KiB”。最后选“全程 v0 → v10 的实测耗时”，读数写着“v0 → v10：675.71 → 15.49 µs（约 44 倍）”与“实测，冷 L2 中位数，同一块 H200”。</p>
 <hr />
-<p><strong>带走一句话：</strong> 12 位无损打包把 <code>qkv_gate</code> 理论下界从 7.9 µs 推到 5.9 µs，在 H200 上将端到端实测耗时推进到 15.49 µs（相对 v0 提速 44 倍，超越 cuBLAS 的 21.12 µs）。</p>
+<p><strong>带走一句话：</strong> 12 位无损打包把 <code>qkv_gate</code> 理论下界从 7.9 µs 推到 5.9 µs，在 H200 上将单独计时的 <code>qkv_gate</code> kernel 实测耗时推进到 15.49 µs（相对 v0 提速 44 倍，超越 cuBLAS 的 21.12 µs）。</p>
 <p><strong>下一章要回答的问题：</strong> 在真实的 P1–P5 竞赛演进与开源工业界内核中，第 0 级到第 5 级这六级机制是怎么组合起来一步步逼近理论下界的？→ 进入 第 7 章（第二部分 实战案例库上篇）：从时间线到比特位的实战优化与反例复盘</p>
 </section><section id="ch07"><h1>第 7 章：实战案例库（上篇：第 0 级至第 2 级）—— 时间线、整卡波次与片上存储</h1>
 <ul class="map"><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li class="here">第 7 章：实战案例库（上）</li><li>第 8 章</li><li>第 9 章</li></ul>
 <p>承接第 6 章末尾的问题（第二部分：第 0 级至第 2 级实战）：第一部分拆开了从时间线到寄存器比特的六级硬件。在真实的 P1–P5 竞赛演进与开源内核（FlashAttention-3、FlashInfer、DeepGEMM、SGLang、CUTLASS）中，前三级（时间线、整张芯片、单个 SM）的硬件机制怎样组合起来消除瓶颈，又有哪些看似合理的改动在实测中反而变慢？</p>
 <hr />
 <h2>1. 第 0 级（时间线）：算子融合、PDL 预读与合写大核的边界</h2>
-<p>在 P5（预填充整层）基线中，profiler 时间线显示 <code>pooler</code> 投影与专家矩阵乘之间夹着一个独立的归一化小 kernel（见第 1 章第 1 节）。它不读大矩阵权重，却把全批中间激活写回 HBM 再重新读出。该向量只被 <code>pooler</code> 写出一次，又只被紧随其后的专家阶段读取一次。因此改造方案将均方根求逆融进 <code>pooler</code> 写出尾声，并把归一化权重乘法折入专家第一层矩阵乘的尾声缩放中。这消掉了整个独立 kernel 及其 HBM 往返，在 H200 上使 P5 整层实测提速 <strong>0.60%–1.35%</strong>。</p>
-<p>相邻两个阶段若因并行维度不同而无法合成一个 kernel（如 P1 注意力与后续投影），瓶颈就落在第 1 章第 2 节的节点切换空隙与收尾期。与开源 FlashInfer 和 CUTLASS 的流水线做法一致，P3 在同一条 <code>stream</code> 上开启 PDL。后继 kernel 把 <code>cudaGridDependencySynchronize()</code> 放在静态权重预读指令之后。后继 CTA 趁前序最后一个波次收尾的空档提前进场，先把不依赖前序结果的静态权重分块搬进片上。直到要读前序激活时它才停下等待，在 P3 上实测将交接段重叠掉 <strong>5–11 µs</strong>（整层提速 <code>0.80%</code>）。</p>
-<p>减少启动次数能省空隙，但把更多阶段合写进同一个协作启动（<code>cudaLaunchCooperativeKernel</code>，见第 1 章第 3 节）的大 kernel 并不总是更快。在 P2（小批量专家）中，把 <code>w13</code> 与 <code>w2</code> 拆成两个由 PDL 串联的 kernel，反而比带全网格栅栏的单一大 kernel 净快 <code>0.70–0.82 µs</code>。而在 P3 中尝试把多个不同形状的阶段塞进同一个全层协作大 kernel 时，端到端实测反而变慢 <strong>5–8 µs</strong>。全网格同步栅栏不仅本身耗时约 1.4 µs，还强迫整个大 kernel 按寄存器需求最高的那一个阶段统一分配寄存器（见第 3 章第 1 节）。这要求所有 CTA 同时驻留，锁死了各阶段独立调整波次与在途字节的空间。开源界对全层虚拟机的复盘同样证实，当跨阶段全卡同步开销占优时，按阶段拆开并用 PDL 预读权重反而快于单一大核。</p>
+<figure class="fig"><iframe src="figs/ch07-a.html" loading="lazy" title="图 7-1"></iframe></figure>
+<p>在 P5（预填充整层）基线中，<code>pooler</code> 投影与专家矩阵乘之间夹着一个独立的均方根归一化小 kernel（见第 1 章第 1 节）。它不读大矩阵权重，却把全批中间激活写回 HBM 再重新读出。均方根归一化包含两步：先按列乘归一化权重 <code>gain</code>，再按行乘该 token 的均方根倒数标量 <code>r_m</code>。因为紧随其后的专家第一层矩阵乘对每行输入满足线性关系，将整行输入乘标量 <code>r_m</code> 等价于将矩阵乘算出的整行累加器乘 <code>r_m</code>。因此改造方案在 <code>pooler</code> 写出尾声里顺带乘上 <code>gain</code> 并写出每行的部分平方和，再由专家第一层矩阵乘读入平方和算出 <code>r_m</code> 并在尾声完成缩放。这消掉了整个独立归一化 kernel（在 <code>T = 3,012</code> 算例下约 14 µs）及其 HBM 往返，单此一项在全算例几何平均上提速 <code>0.23%</code>。当它与第 8 章第 1 节的注意力循环指令瘦身同轮合并测试时，比上一步提速 <strong>0.60%</strong>（比模块化基线提速 <strong>1.35%</strong>）。</p>
+<p>相邻两个阶段若因并行维度不同而无法合成一个 kernel（如注意力与后续投影），瓶颈就落在第 1 章第 2 节的切换空隙与收尾期。与开源 FlashInfer 和 CUTLASS 的流水线做法一致，P2 与 P3 在同一条 <code>stream</code> 上开启 PDL（见第 1 章第 2 节）。后继 kernel 把等待点 <code>cudaGridDependencySynchronize()</code> 放在静态权重预读指令之后。后继 CTA 趁前序最后一个波次收尾的空档提前进场，先把不依赖前序结果的静态权重分块搬进片上，直到要读前序激活时才停下等待。在 P3 上，开启同流 PDL 实测省下 <code>1.9–3.2 µs</code>，在等待前预读静态权重又使 4 请求滑动窗口 verify 算例提速 <strong>0.80%</strong>（其余算例提速 <code>0.19%–0.61%</code>）。在 P2 的批量 16 与 32 解码算例上，后继下投影提前预载权重环，实测将交接段重叠掉 <strong>5–11 µs</strong>。</p>
+<p>减少启动次数能省空隙，但把更多阶段合写进同一个协作启动（<code>cudaLaunchCooperativeKernel</code>，见第 1 章第 3 节）的大 kernel 并不总是更快。在 P2（小批量专家）中，每个专家包含上投影（<code>w13</code>）和下投影（<code>w2</code>）两步矩阵乘。在批量 16 与 32 的解码算例上，方案将 <code>w13</code> 与 <code>w2</code> 拆成两个由 PDL 串联的 kernel。这比带全网格栅栏（栅栏本身约 1.4 µs）的单一大 kernel 实测净快 <strong>0.70–0.82 µs</strong>。而在 P3 与 P5 中尝试把多个阶段合写进全层协作大 kernel 时，端到端实测反而变慢 <strong>5–8 µs</strong> 并被否决。</p>
 <hr />
 <h2>2. 第 1 级（整张芯片）：132 个 SM 上的波次均衡、Split-KV 与 L2 归约</h2>
-<p>在 P1（分页注意力）和 P3 中，当并发请求数很少或各请求历史长度相差悬殊时，只按“请求 × 注意力头”派发 CTA 会导致严重失衡。要么总 CTA 数填不满 132 个 SM，要么长序列的 CTA 比短序列慢几倍，在时间线上拖出长尾波（见第 2 章第 1 节）。开源 FlashAttention-3 与 FlashInfer 采用 <strong>Split-KV</strong>（又叫 Flash-Decoding）。它把长历史序列沿键值维切成多段并行计算，再合并各段的局部加权和与对数分母。但若给每个请求分配相同数量的切分块，长请求分到的块依然很大，尾波仍在。P1 与 P3 改为按每个请求的实际历史 token 数比例分配切分块，使各 CTA 分到的键值页数均匀对齐。这把全卡收尾拉平为整齐的波次，在 P1 上实测缩短 <code>3.90 µs</code>，在 P3 全长注意力上缩短 <strong>9.5 µs</strong>。</p>
-<p>切开历史序列或求和维 <code>K</code>（如 K-halves 与开源 CUTLASS 的 <strong>Stream-K</strong>）后，多个 SM 的部分和必须汇总。为省掉第二个合并 kernel 的切换空隙，P1–P4 在中央 L2 上采用了三种免启动归约方案。</p>
+<figure class="fig"><iframe src="figs/ch07-b1.html" loading="lazy" title="图 7-2"></iframe></figure>
+<p>在 P1（分页注意力）和 P3 中，当并发请求数很少或各请求历史长度不一时，只按“请求 × 注意力头”派发 CTA 会导致波次失衡。要么总 CTA 数填不满 132 个 SM，要么在长短不一的测试中（最长约为最短的 1.16 倍），长序列 CTA 比短序列慢约 <strong>15%</strong>。这会在时间线上拖出尾波（见第 2 章第 1 节）。开源 FlashAttention-3 与 FlashInfer 采用 <strong>Split-KV</strong>（又叫 Flash-Decoding）。它把长历史序列沿键值维切成多段并行计算。每段算出一份局部加权和向量 <code>o_i</code> 以及对数分母 <code>lse_i = m_i + log2(l_i)</code>，最后再按 <code>2^(lse_i - lse_total)</code> 重缩放合并各段结果。但若给每个请求机械分配相同数量的切分块，长请求分到的块依然偏大，尾波仍在。P1 与 P3 改为按每个请求的实际历史 token 数比例分配切分块，使各 CTA 分到的键值页数均匀对齐。这把全卡收尾拉平为整齐的波次。在 32 请求全长 verify 算例上，P1 实测缩短 <code>3.90 µs</code>，P3 缩短 <strong>9.5 µs</strong>（8 请求算例缩短 <code>2.0 µs</code>）。</p>
+<p>切开历史序列或求和维 <code>K</code>（如 K-halves 或开源 CUTLASS 的 <strong>Stream-K</strong>）后，多个 SM 的部分和必须汇总。为省掉单独启动第二个合并 kernel 的切换空隙，P1、P3 与 P4 在中央 L2 上采用了三种免启动归约方案。</p>
 <ul>
-<li>方案一（L2 原子计数加最后到达者原地合并）。在 P1 与 P3 的 Split-KV 中，每个切分块 CTA 写出局部结果后，对 L2 计数器执行一次带 <code>acq_rel</code> 的原子加（见第 2 章第 4 节）。拿到最后序号的 CTA 直接从 L2 读出同组局部结果并完成重缩放合并，在 P1 上实测省下 <strong>1.73–2.98 µs</strong>（P3 提速 <code>1.35%</code>）。</li>
-<li>方案二（无返回值的向量化全局原子加）。当部分和可直接相加时，线程直接发出不要求返回旧值的向量原子加指令，由 L2 内部的硬件原子加法器一步完成（P1 实测比单独合并省 <code>1.82–3.61 µs</code>）。</li>
-<li>方案三（TMA 异步二维块原子加）。在 P4 批量 <code>T = 128 / 256</code> 的 <code>qkv_gate</code> 拆分矩阵乘中，每个 CTA 算完一块 SMEM 输出分块后，调用第 3 章的 TMA 引擎发起异步二维块原子加（<code>cp.reduce.async.bulk.tensor.2d...add</code>）。硬件把整个片上分块直接送往 L2 原子累加，实测比逐线程原子归约快 <strong>1.84–2.66 µs</strong>。</li>
+<li>方案一（L2 原子计数加最后到达者原地合并）。在 P3 的 Split-KV 注意力中，每个切分块 CTA 写出局部结果后，对 L2 计数器执行一次带 <code>acq_rel</code> 的原子加（见第 2 章第 4 节）。拿到最后序号的 CTA 直接从 L2 读出同组局部结果并完成重缩放合并。在单请求全长 verify 算例上，该方案实测提速 <strong>1.35%</strong>（其余 verify 算例提速 <code>0.51%–1.22%</code>）。</li>
+<li>方案二（无返回值的向量化全局原子加配合协作归一）。在 P1 的 Split-KV 注意力中，各切分块直接向 L2 的单精度工作区发出无返回值的向量原子加指令（<code>red.global.v4.f32</code>）。L2 硬件原子加法器直接完成累加，随后由各 CTA 按行协作完成最终除法归一。省掉独立合并 kernel 后，P1 在 8 请求与 32 请求全长 verify 算例上实测省下 <strong>1.73–2.98 µs</strong>（核跨度缩短 <code>1.82–3.61 µs</code>）。</li>
+<li>方案三（TMA 异步二维块原子加）。在 P4 批量 <code>T = 128 / 256</code> 的拆分矩阵乘中，每个 CTA 算完一块 SMEM 输出分块后，调用第 3 章的 TMA 引擎发起异步二维块原子加（<code>cp.reduce.async.bulk.tensor.2d...add</code>）。TMA 硬件把整个片上二维分块直接送往 L2 做原子累加。对比 <code>BF16x2</code> 向量原子加指令，在 <code>qkv_gate</code>（批量 128 与 256）上实测省下 <code>1.24–1.84 µs</code>，在 <code>pooler</code>（批量 128 与 256）上省下 <strong>0.72–2.66 µs</strong>。</li>
 </ul>
-<p>在 P2 与 P3 的多专家计算中，相邻 SM 经常需要交换数据。若它们同属一个物理 GPC（见第 2 章第 4 节），就可把 2 到 16 个 CTA 声明为一个 cluster。它们直接通过 GPC 内部的 DSMEM 互写片上存储，绕开中央 L2，在 P3 上实测省下 <strong>0.95–3.65 µs</strong>。同时，为消除持久 kernel 跨轮重放时清零全局同步数组的开销，P2 采用奇偶交替的双账本（每本 1,024 个字）。本轮调用使用偶账本同步时，后台单个 warp 顺带把奇账本清零供下一轮 CUDA Graph 重放使用，实现了零额外启动的跨轮复用。</p>
+<figure class="fig"><iframe src="figs/ch07-b2.html" loading="lazy" title="图 7-3"></iframe></figure>
+<p>在 P3 的解码注意力中，同一请求切出的多个分块 CTA 经常需要汇总中间结果。若它们同属一个物理 GPC（见第 2 章第 4 节），就可把 2 到 16 个 CTA（超过 8 个需开启非可移植集群属性）声明为一个 cluster。它们直接通过 GPC 内部的 DSMEM 互写片上存储，绕开中央 L2。在 P3 的 6 个解码注意力变体上，该方案实测省下 <strong>0.95–3.65 µs</strong>（其中 16-CTA 集群省 <code>2.14 µs</code>）。同时，常驻在 SM 上循环领任务的持久 kernel 在跨轮重放时，原本要额外启动清零 kernel 来重置分块完成计数数组（<code>doneA</code>）。P2 改为在全局内存中开辟奇偶交替的双账本（每本 1,024 个 4 字节整数，对应最多 1,024 个工作分块的完成计数）。本轮调用使用偶账本同步时，后台单个 warp 顺带把奇账本清零供下一轮 CUDA Graph 重放使用，实现了零额外启动的跨轮复用。</p>
 <hr />
 <h2>3. 第 2 级（单个 SM）：生产者-消费者分工、动态寄存器配额与环形缓冲</h2>
-<p>在 P2（大批量专家）和 P5 中，单个 CTA 同时包含发 TMA 的线程与跑 <code>wgmma</code> 的线程，65,536 寄存器池立刻成为瓶颈。跑矩阵乘的消费者线程需要上百个寄存器存放累加器，而发 TMA 的生产者线程只需二三十个寄存器。若按统一的每线程最大数分配，整个 CTA 就会超出上限并触发溢出。P2 与 P5 采用了 <strong>warp specialization</strong>（线程束分工）。这一设计与开源 FlashAttention-3、CUTLASS 和 DeepGEMM 同构。它们在同一 CTA 内把不同 warpgroup 按角色切开。生产者 warpgroup 在入口调用 <code>setmaxnreg.dec 40</code> 把每线程寄存器退还到 40 个。消费者 warpgroup 调用 <code>setmaxnreg.inc 232</code> 把寄存器扩充到每线程 <strong>232</strong> 个（合计 <code>64,512 ≤ 65,536</code> 个），在零溢出的前提下跑满 Tensor Core。</p>
+<figure class="fig"><iframe src="figs/ch07-c1.html" loading="lazy" title="图 7-4"></iframe></figure>
+<p>在 P2（大批量专家）和 P5 中，单个 CTA 同时包含发 TMA 的线程与跑 <code>wgmma</code> 的线程，第 3 章第 1 节的 65,536 寄存器池立刻成为瓶颈。跑矩阵乘的消费者线程需要上百个寄存器存放累加器，而只算坐标发 TMA 的生产者线程只需二三十个寄存器。若按统一的每线程最大数分配，整个 CTA 就会超出上限并触发溢出。P2 与 P5 采用了 <strong>warp specialization</strong>（线程束分工）。这一做法与开源 FlashAttention-3 和 CUTLASS 同构，在同一 CTA 内把不同 warpgroup 按角色切开。以 P5 的 3-warpgroup 内核为例，1 个生产者 warpgroup（128 线程）在入口调用 <code>setmaxnreg.dec 40</code> 退还寄存器（共占 <code>128 × 40 = 5,120</code> 个）。2 个消费者 warpgroup（256 线程）调用 <code>setmaxnreg.inc 232</code> 把寄存器扩充到每线程 <strong>232</strong> 个（共占 <code>59,392</code> 个，全 CTA 合计 <code>64,512 ≤ 65,536</code> 个）。这在零溢出的前提下跑满了 Tensor Core（P2 的 5-warpgroup 内核同样按 1 个生产者配 4 个消费者切分寄存器配额）。</p>
 <p>在片上环形缓冲（见第 3 章第 4 节）设计上，缓冲槽数 <code>N</code> 必须与单分块大小及在途字节目标精确匹配。</p>
 <ul>
-<li>在 P4 的 <code>pooler</code>（<code>T = 32</code>）中，每个权重分块仅 16 KiB，6 槽环只能保持 5 个槽（80 KiB）在途，在双向模式下仍未完全覆盖满载往返延迟。将其从 6 槽扩到 <strong>7</strong> 槽（SMEM 从 144 KiB 增至 168 KiB，仍低于 228 KiB 上限）后，H200 实测耗时立即下降。</li>
-<li>反之，在 P2 大批量专家 kernel 中，单个分块已达 36 KiB，3 槽环（保持 72 KiB 在途）已跨过 TMA 的 48 KiB 平台。若为追求两组消费者交替算尾声的乒乓调度而把双倍分块塞进 SMEM，环形缓冲就会退化为 2 槽。此时在途量只剩 36 KiB（跌破 48 KiB 平台），实测反而变慢 <strong>1.2–1.6 µs</strong>。因此 P2 采用 4 个消费者 warpgroup 协同共算同一分块、共享同一个 3 槽环的方案。</li>
+<li>在 P4 的 <code>pooler</code>（批量 <code>T = 32</code>）中，每个环形槽存放 16 KiB 权重块（<code>64 × 128 × 2 B</code>）与 8 KiB 激活块（<code>32 × 128 × 2 B</code>），合计每槽 24 KiB。6 槽环（共占 <code>144 KiB</code> SMEM）只能保持 5 个槽的权重（<code>5 × 16 = 80 KiB</code>）在途，尚未完全覆盖满载往返延迟。将其从 6 槽扩到 <strong>7</strong> 槽（SMEM 增至 <code>168 KiB</code>，在途权重增至 <code>96 KiB</code>）后，H200 实测耗时立即缩短 <strong>0.75–1.04 µs</strong>。</li>
+<li>反之，在 P2 大批量专家 kernel 中，单个分块已达 36 KiB。3 槽环（总容量 108 KiB，保持 2 个槽即 72 KiB 在途）已跨过 TMA 的 48 KiB 平台。若为追求两组消费者交替算尾声的乒乓调度而把双倍分块塞进 SMEM，环形缓冲就会退化为 2 槽（总容量 72 KiB）。此时在途量只剩 1 个槽即 36 KiB（跌破 48 KiB 平台），实测反而变慢 <strong>1.2–1.6 µs</strong>。因此 P2 采用 4 个消费者 warpgroup 协同共算同一分块、共享同一个 3 槽环的方案。</li>
 </ul>
-<p>在消除 SMEM 的 32 个 bank 冲突（见第 3 章第 5 节）上，所有 TMA 矩阵分块都打开了 128 字节 <code>XOR Swizzle</code>。开源 DeepGEMM 同样靠给输出分块补齐 Swizzle，将吞吐从 1,212 推到了 1,270 TFLOP/s。同时，手写小数组的冲突也会卡住关键路径。在 P3 的专家路由准备阶段，各线程要在 SMEM 中构建一个 32 列的本地专家计数表。原始 32 字行宽使不同行同一专家的计数全部撞在同一号 bank 上。把每行末尾填充 1 个空白字改为 33 字行宽后，在 P3 的四个 verify 形状上实测省下 <strong>0.95–7.49 µs</strong>（提速 <code>0.6%–2.1%</code>）。</p>
+<figure class="fig"><iframe src="figs/ch07-c2.html" loading="lazy" title="图 7-5"></iframe></figure>
+<p>在消除 SMEM 的 32 个 bank 冲突（见第 3 章第 5 节）上，P4 等矩阵乘分块打开了 128 字节 <code>XOR Swizzle</code>。开源 DeepGEMM 同样靠给输出分块补齐 Swizzle，将吞吐从 1,212 推到了 1,270 TFLOP/s。同时，手写小数组的冲突也会卡住关键路径。在 P3 的专家路由准备阶段，各线程要在 SMEM 中构建一个对应 32 个本地专家的计数表。原始按 2 的幂次对齐的行宽使不同行同一专家列的地址模 32 余数相同，全部撞在同一号 bank 上。把计数表行宽改为 <strong>33</strong> 字（使相邻行同一列错开 1 个 bank）并合并重复读取后，冲突随之消除。在 P3 的四个 verify 形状上，该改动实测省下 <strong>1.28–7.49 µs</strong>（提速 <code>0.6%–2.1%</code>）。</p>
 <hr />
 <h2>4. 第 1 级与第 2 级的两个实测反例：为什么“省带宽”的特性反而更慢？</h2>
+<figure class="fig"><iframe src="figs/ch07-d.html" loading="lazy" title="图 7-6"></iframe></figure>
 <p>硬件手册里的加速特性都有各自的物理前提。当工作负载不满足前提时，照搬特性反而会制造新的瓶颈，下面是第 1 级和第 2 级实测到的两个典型反例。</p>
 <ul>
-<li>反例一（在热 L2 下开启 TMA 集群多播，实测反而慢 <strong>2.1 倍</strong>）。Hopper 的 TMA 支持集群多播（<code>.multicast::cluster</code>）：同一 cluster 的多个 SM 需要同一块权重时，由 L2 读一次同时广播写进各 SM 的 SMEM。但在 <code>pooler</code>（批量 128）微基准实测中，开启 TMA 多播反而比各 SM 独立发单播 TMA 慢了 2.1 倍。原因是当该权重块已被读进中央 L2 时，热 L2 本身就能提供 8.8–10.1 TB/s 的读取带宽，远超单 SM 所需。此时开启多播省不下任何 HBM 流量。相反，它逼着同一 cluster 的所有 SM 在每轮释放槽位时都通过跨 SM 远端 mbarrier 互等，最慢的 SM 把全集群拖慢了一倍以上。</li>
-<li>反例二（过早发出页表 L2 预取，实测反而多读 <strong>4.3–8.5 MB</strong> 显存）。在 P1 分页注意力中，为掩盖读取离散页表项的延迟，曾尝试在循环前提前很多步发出全局 L2 预取指令（<code>prefetch.global.L2</code>）。然而 H200 实测不仅耗时变慢 <code>0.03–0.53 µs</code>，全卡 HBM 读取量还反常增加了 4.3–8.5 MB。由于注意力主循环每步都在流式搬运数兆字节的 KV cache，预取进 L2 的页表行在消费前就被庞大的 KV 数据流冲出了 L2。等到真正使用时又得从 HBM 重读第二次（同理，P2 尝试重排任务顺序复用 L2 激活也多产生 2–4 MB 显存流量且零收益）。因此，任何 L2 预取都必须先核算从预取到消费之间流过 L2 的字节数是否小于 60 MiB 容量。</li>
+<li>反例一（在热 L2 下开启 TMA 集群多播，实测反而慢 <strong>2.1 倍</strong>）。Hopper 的 TMA 支持集群多播（<code>.multicast::cluster</code>）：同一 cluster 的多个 SM 需要同一块权重时，由 L2 读一次同时广播写进各 SM 的 SMEM。但在 <code>pooler</code>（批量 128）微基准中，当权重块已驻留在 8.8–10.1 TB/s 的热 L2 时，情况截然相反。开启 TMA 多播耗时 <code>1.812 ms</code>，反而比单播 TMA（<code>0.849 ms</code>）慢了 2.1 倍。具体硬件停顿占比虽未在记录中单独拆出，但结果清楚表明：当热 L2 已能直接喂饱各 SM 时，开启多播不再带来 HBM 带宽收益，实测反而净亏。</li>
+<li>反例二（在 PDL 等待前发出页表 L2 预取，实测反而多读 <strong>4.3–8.5 MB</strong> 显存）。在 P1 分页注意力中，为掩盖读取离散页表项的延迟，曾尝试在 PDL 等待点之前由单线程提前发出全局 L2 预取指令（<code>prefetch.global.L2</code>）。然而在三个测试形状上，H200 实测不仅耗时变慢 <code>0.03–0.53 µs</code>，全卡 HBM 读取量还反常增加了 4.3–8.5 MB。根据实验记录分析，过早预取进 L2 的页表行在真正被消费前就被中间的 KV 数据流冲出了缓存，等到使用时又得从 HBM 重读第二次。在 P2 的另一项实验中，尝试把热门专家子任务相邻配对以追求 L2 复用，也实测多读 2–4 MB 显存且零提速（原因未在记录中定性）。</li>
 </ul>
 <hr />
-<p><strong>带走一句话：</strong> 在第 0 级至第 2 级上，按实际键数切分与 L2 原地归约消除了最高 9.5 µs 的尾波与合并开销，而脱离热 L2 握手代价与 60 MiB 容量边界的盲目多播或预取反而会使耗时倒退 2.1 倍。</p>
+<p><strong>带走一句话：</strong> 在第 0 级至第 2 级上，按实际键数切分与 L2 原地归约消除了最高 9.5 µs 的尾波与合并开销，而在热 L2 下盲目开启多播或过早发出 L2 预取反而会使耗时倒退 2.1 倍或多读 4.3–8.5 MB 显存。</p>
 <p><strong>下一章要回答的问题：</strong> 当数据已经排好波次并装进 SM，走进第 3 级至第 5 级（SMSP 调度器、算术与 Tensor Core 管线、SASS 指令与比特位）时，竞赛内核与开源社区又是怎样打破指针追踪延迟、解开 SFU 与 ALU 管线瓶颈并防住编译器退化的？→ 进入 第 8 章：实战案例库（下篇：第 3 级至第 5 级）</p>
 </section><section id="ch08"><h1>第 8 章：实战案例库（下篇：第 3 级至第 5 级）—— 调度器、执行管线与指令比特</h1>
 <ul class="map"><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7 章</li><li class="here">第 8 章：实战案例库（下）</li><li>第 9 章</li></ul>
 <p>承接第 7 章末尾的问题（第二部分：第 3 级至第 5 级实战）：第 7 章复盘了时间线、整卡波次与单个 SM 容量上的优化。当数据进入单个 SMSP 调度器（第 3 级）、物理执行管线与 Tensor Core（第 4 级）以及编译后的 SASS 指令字与寄存器比特（第 5 级）时，竞赛内核与开源社区又是怎样打破指针追踪延迟、解开管线瓶颈并防住编译器退化的？</p>
 <hr />
 <h2>1. 第 3 级（单个 SMSP）：打破指针追踪链、位图投票与统一寄存器降压</h2>
-<p>在 P1（分页注意力）中，主循环的键值分块搬运已经用上了 <code>cp.async</code> 环形缓冲。但 profiler 的 warp 状态统计显示，入口与换页处仍有四成以上的停顿卡在长记分牌（见第 4 章第 2 节）上。读取一个历史键值页要走三跳 <strong>pointer chasing</strong>（指针追踪）依赖链。第一跳从全局内存读序列长度 <code>seq_lens[b]</code>（约 600 ns），第二跳用算出的页号读离散页表 <code>page_table[b, page]</code>（约 640 ns）。到第三跳才能拿到物理页地址并发起 <code>cp.async</code> 搬运（约 1,150 ns）。后一步的地址依赖前一步返回的数据，每跳的独立指令数 <code>n = 1</code>，再多驻留 warp 也掩盖不了这 2.4 µs 的串行链。P1 与 P2 结合开源 vLLM 和 FlashInfer 的做法，用三项改造打破了这条链。</p>
+<figure class="fig"><iframe src="figs/ch08-a1.html" loading="lazy" title="图 8-1"></iframe></figure>
+<p>在 P1（分页注意力）中，主循环的键值分块搬运已经用上了 <code>cp.async</code> 环形缓冲。但 profiler 统计显示，在首次使用页表加载结果的指令（<code>IMAD.WIDE</code>）处，仍有 <strong>37%–42%</strong> 的停顿卡在长记分牌（见第 4 章第 2 节）上。读取一个历史键值页要走三跳 <strong>pointer chasing</strong>（指针追踪）依赖链。第一跳从全局内存读序列长度 <code>seq_lens[b]</code>（约 600 ns），第二跳用算出的页号读离散页表 <code>page_table[b, page]</code>（约 640 ns）。到第三跳才能拿到物理页地址并发起 <code>cp.async</code> 搬运（约 1,150 ns）。后一步的地址依赖前一步返回的数据，再多驻留 warp 也掩盖不了这 2.4 µs 的串行链（在单请求滑动窗口算例上实测为 2,400 ns）。P1（与开源 vLLM、FlashInfer 的分页预取思路一致）及 P2 用三项改造打破了这类长记分牌依赖。</p>
 <ul>
-<li>下一轮页表提前流水化。在第 <code>k</code> 轮进入片上屏障等待之前，先把第 <code>k + 1</code> 轮要用的页表项读取发出去，让 640 ns 的页表读取藏进当前轮的计算与等待里。</li>
-<li>单请求满长投机预取。在单请求全长层测试中，页表数组宽度固定等于 <code>seq + qlen</code>（80,008）。kernel 在入口不等 <code>seq_lens[0]</code> 返回，直接按满长猜测页号，并发发出 <code>seq_lens[0]</code> 与首批页表读取（返回后再校验猜测）。这把前两跳从串行压成并发，在 P1 上实测省下 <code>0.26 µs</code>（编译期静态重排将 4 代长记分牌依赖压成 1 代后，单算例再省 <code>0.11 µs</code>）。</li>
-<li>高频小表预载入片上 SMEM。在 P2 专家计算中，各线程原本通过全局读取查询路由元数据小表。将其在入口一次性搬进 SMEM 后，每次查询从数百周期的全局读取变成约 23 周期的片上读取，在 P2 上实测省下 <strong>0.47–0.55 µs</strong>。</li>
+<li>下一轮页表提前流水化与跨代合并。在 P1 第 <code>k</code> 轮进入片上屏障等待之前，先把第 <code>k + 1</code> 轮要用的页表项读取发出去，让 640 ns 的页表读取藏进当前轮的计算与等待里。在滑动窗口算例上，编译期静态重排把原本分 3 至 4 代串行等待的页表读取合并为 1 代并发发出。配合后续流水化，这在 8 请求滑动窗口算例上实测省下 <code>0.24 µs</code>。</li>
+<li>单请求满长投机预取。在 P1 的单请求全长层测试中，页表数组宽度固定等于最长历史 80,000 加当前 8 个查询 token（共 <code>80,008</code>）。kernel 在入口不等 <code>seq_lens[0]</code> 返回，直接按满长猜测页号，并发发出 <code>seq_lens[0]</code> 与首批页表读取（返回后再校验猜测）。这把前两跳从串行压成并发，在单请求滑动窗口算例上实测省下 <strong>0.26 µs</strong>。</li>
+<li>高频小表预载入片上 SMEM。在 P2 专家计算中，各线程原本通过全局读取查询每专家缩放系数小表（64 个浮点数）。将其在入口一次性搬进 SMEM 后，每次查询从数百周期的全局读取变成约 23 周期的片上读取。在批量 16 与 32 的 verify 算例上，该改动实测省下 <strong>0.47–0.55 µs</strong>。</li>
 </ul>
-<p>在 P2 与 P3 的专家路由匹配中，每个本地专家要从全批 token 的路由结果里筛出命中自己的 token。若让单个线程顺序遍历扫描，就会像第 0.5 章的 <code>if (tid == 0)</code> 那样让其余 31 个线程被掩码空等（见第 4 章第 3 节）。P2 与 P3 改为让 8 个 warp 并行读取命中标志。每个 warp 调用硬件投票指令 <strong><code>__ballot_sync</code></strong> 一步生成 32 位命中位图，再用位计数指令算出写入偏移，实测省下 <strong>0.62–2.46 µs</strong>。</p>
-<p>在 P5 全长注意力的消费者循环中，profiler 显示发射槽成了瓶颈（每处理一个分块要发 304 条指令）。检查反汇编发现，循环计数器、环形槽号、相位位与矩阵描述符被分配在了线程私有的向量寄存器里。每次更新这些全 warp 相同的变量，都要占用向量 ALU 指令。将这些全 warp 一致的变量移入每个 warp 共用的 <strong>uniform register</strong>（统一寄存器 <code>UR</code>），并把不变量提到循环外。单分块循环的指令数随即从 304 条压到 <strong>269</strong> 条（配合第 7 章的归一化融合在 P5 上提速 <code>0.60%–1.35%</code>）。</p>
+<figure class="fig"><iframe src="figs/ch08-a2.html" loading="lazy" title="图 8-2"></iframe></figure>
+<p>在 P2 与 P3 的专家路由准备阶段（Phase 0），每个本地专家要从路由结果里筛出命中自己的 token 并紧缩成连续索引。原本一段串行 256 步循环逐个扫描，造成大量分支空等（见第 4 章第 3 节）。改造方案改为让 8 个 warp 并行读取命中条件。每个 warp 调用硬件投票指令 <strong><code>__ballot_sync</code></strong> 一步生成 32 位命中位图，再调硬件位计数指令（<code>__popc</code>）算出每个命中线程的连续写入偏移。配合首轮 TMA 错峰预发，这一改动在单 token 与 8-token 算例上实测合计省下 <strong>0.62 µs 与 2.46 µs</strong>。</p>
+<p>在 P5 全长注意力的消费者循环中，profiler 显示发射槽成了瓶颈（每处理一个分块要发 304 条指令）。检查反汇编发现，循环计数器、环形槽号、相位位与矩阵描述符被分配在了线程私有的向量寄存器里。每次更新这些全 warp 相同的变量，都要占用向量 ALU 指令。改造方案将这些全 warp 一致的变量移入每个 warp 共用的 <strong>uniform register</strong>（统一寄存器 <code>UR</code>），并把不变量提到循环外。同时，每分块一次的 128 线程栅栏被改为按 warp 独立到达 mbarrier。实测编译出的单分块循环指令数从 304 条降到 <strong>284</strong> 条（分析预估目标约 269 条）。当它与第 7 章第 1 节的归一化融合同轮合并测试时，比上一步提速 <code>0.60%</code>（比模块化基线提速 <code>1.35%</code>）。</p>
 <hr />
 <h2>2. 第 4 级（执行管线与 Tensor Core）：SFU 减负、Tensor Core 行求和与跨管线重叠</h2>
-<p>每个 SMSP 的 SFU 只有 4 条通道，发射间隔（8 周期）是 FMA 管线（1 周期）的 8 倍（见第 5 章第 1 节）。在 P1 与 P3 的在线 Softmax 中，每读入一个键值分块都会算出局部最高分 <code>m_tile</code>。标准 FlashAttention 只要发现 <code>m_tile &gt; m_old</code>，就立刻调 <code>exp2f(m_old - m_new)</code> 把此前累加的输出向量重缩放一遍。在长上下文 verify 阶段，这使 4 通道的 SFU 持续满载。P1 引入了 <strong>lazy rescaling</strong>（惰性重缩放）：给指数留出 <code>2^T</code>（<code>T = 6..8</code>）的动态范围余量。只要新分块的最大值没有超出当前基准加阈值 <code>T</code>，就跳过本轮对历史累加器的 <code>exp2f</code> 与乘法修正，只在超出阈值或循环结束时才做一次重缩放。这一改动砍掉了绝大多数分块上的 SFU 重缩放指令，在 P1 全长 verify 上实测省掉 <strong>8.77 µs</strong>（微调阈值后再省 <code>1.42 µs</code>）。</p>
-<p>即便省掉了重缩放，在线 Softmax 每轮仍要把当前分块的权重矩阵 <code>P</code> 按行求和以更新分母 <code>l</code>。在 P3 的全长 verify 注意力中，反汇编显示每个键值分块循环共 288 条 SASS 指令，其中 Softmax 占了 58%。单是按行累加 <code>P</code> 就要在算术管线上执行 38 条 <code>FADD</code> 加 4 条洗牌指令，把发射槽塞满；而此时宽达 64 行的 Tensor Core 却在空闲等待。P3 顺着第 5 章“最慢管线决定总周期”的规律，在 SMEM 中放了一块全为 <code>1.0</code> 的常数矩阵。程序直接发出 4 条 <code>wgmma.m64n8k16</code> 计算 <code>P × 1</code>。这用空闲的 Tensor Core 算出 64 行的行和，替算术发射槽省下 42 条指令，在 P3 上实测缩短 <strong>3.9 µs</strong>。</p>
-<p>在注意力第二段矩阵乘 <code>P · V</code> 中，第 0 章的 KV cache 原本就以 1 字节的 FP8 存放。基线却先用 ALU 指令把 <code>V</code> 解包成 2 字节的 BF16，再调 BF16 的 <code>wgmma</code>。Hopper 的 Tensor Core 原生支持吞吐翻倍的 FP8 <code>wgmma</code>（在 SASS 中叫 <strong><code>QGMMA</code></strong>，每周期算力是 BF16 的两倍）。P1 直接把权重 <code>P</code> 转为 FP8，在 FP8 Tensor Core 上算 <code>P · V</code>，省掉解包并使矩阵乘周期数减半，实测省下 <code>0.74 µs</code>。但 FP8 的 <code>wgmma</code> 要求右矩阵 <code>V</code> 按行主序存放，而 KV cache 里的 <code>V</code> 按头宽维存放，必须在片上转置（1 条 <code>ldmatrix</code>、8 条 <code>PRMT</code>、8 条 <code>STS</code>）。如果等 <code>Q · K^T</code> 算完再转置 <code>V</code>，这 17 条指令就会暴露在关键路径上。P1 利用第 5 章的 <code>wait_group&lt;1&gt;</code> 异步重叠，在发出 <code>Q · K^T</code> 后趁 Tensor Core 在后台运行，同时用 ALU 与 LSU 把当前分块的 <code>V</code> 在片上转置好。这把转置完全藏进 <code>Q · K^T</code> 的后台运行期，在 P1 上实测再省 <strong>1.79 µs</strong>。</p>
-<p>同理，在 P5 预填充的专家激活函数（SwiGLU）尾声中，每个线程要把两个单精度浮点数转为打包的 <code>BF16x2</code>。若逐个调用单值转换，编译器会生成两条走 4 通道 SFU 管线（每条占 8 周期）的 <code>F2F</code> 指令。改成调用打包转换函数 <code>__float22bfloat162_rn</code> 后，编译器生成 1 条走 16 通道 ALU 管线（仅占 2 周期）的打包转换指令 <code>F2FP.BF16.F32.PACK_AB</code>，把转换管线负担降为原来的八分之一。</p>
+<figure class="fig"><iframe src="figs/ch08-b1.html" loading="lazy" title="图 8-3"></iframe></figure>
+<p>每个 SMSP 的 SFU 只有 4 条通道，发射间隔（8 周期）是 FMA 管线（1 周期）的 8 倍（见第 5 章第 1 节）。在 P1 与 P3 的在线 Softmax 中，每读入一个键值分块都会算出局部最高分 <code>m_tile</code>。标准 FlashAttention 只要发现 <code>m_tile &gt; m_old</code>，就立刻调 <code>exp2f(m_old - m_new)</code> 把此前累加的输出向量重缩放一遍。在长上下文 verify 阶段，这使 4 通道的 SFU 持续满载。P1 引入了 <strong>lazy rescaling</strong>（惰性重缩放），给指数留出 <code>2^T</code> 的动态范围余量（单精度指数上限达 <code>2^127</code>，留出几十倍余量不会溢出）。只要新分块的最大值没有超出当前基准加阈值 <code>T</code>，就跳过本轮对历史累加器的 <code>exp2f</code> 与乘法修正，只在超出阈值或循环结束时才做一次重缩放。在 P1 的 32 请求全长 verify 算例上，先引入阈值 <code>T = 4</code>（配合 FP8 权重缩放）一下省掉 <strong>8.77 µs</strong>。随后把双 warpgroup 内核的阈值调到 <code>T = 6</code>，在该算例上又再省 <strong>1.42 µs</strong>（单 warpgroup 内核取 <code>T = 8</code> 在 8 请求算例上省 <code>0.83 µs</code>）。</p>
+<p>即便省掉了重缩放，在线 Softmax 每轮仍要把当前 <code>64 × 64</code> 分块的权重矩阵 <code>P</code> 按行求和以更新分母 <code>l</code>。在 P3 的全长 verify 注意力中，反汇编显示每个 64-key 分块循环共 288 条 SASS 指令，其中 Softmax 占了 58%。单是按行累加 <code>P</code> 就要在算术管线上执行 38 条 <code>FADD</code> 加 4 条洗牌指令（共 42 条）。这把算术发射槽塞满，而此时宽达 64 行的 Tensor Core 却在空闲等待。P3 顺着第 5 章“最慢管线决定总周期”的规律，在 SMEM 中放了一块全为 <code>1.0</code> 的常数矩阵。程序直接发出 4 条 <code>wgmma.m64n8k16</code> 计算 <code>P × 1</code>（每条算 16 列，4 条覆盖 64 列）。这用空闲的 Tensor Core 算出 64 行的行和，净省下 <strong>38</strong> 条指令（42 减 4）。在 P3 的 8 请求与 32 请求全长 verify 算例上，该改动分别实测缩短 <strong>3.9 µs 与 3.4 µs</strong>。</p>
+<figure class="fig"><iframe src="figs/ch08-b2.html" loading="lazy" title="图 8-4"></iframe></figure>
+<p>在注意力第二段矩阵乘 <code>P · V</code> 中，第 0 章的 KV cache 原本就以 1 字节的 FP8 存放。基线却先用 ALU 指令把 <code>V</code> 解包成 2 字节的 BF16，再调 BF16 的 <code>wgmma</code>。Hopper 的 Tensor Core 原生支持吞吐翻倍的 FP8 <code>wgmma</code>（在 SASS 中叫 <strong><code>QGMMA</code></strong>，每周期算力是 BF16 的两倍）。P1 直接把权重 <code>P</code> 转为 FP8，在 FP8 Tensor Core 上算 <code>P · V</code>。这省掉了 <code>V</code> 的解包并使矩阵乘周期数减半，在 8 请求全长 verify 算例上实测省下 <strong>0.74–0.77 µs</strong>。但 FP8 的 <code>wgmma</code> 不支持硬件自动转置输入，要求右矩阵 <code>V</code> 按行主序连续存放。由于 KV cache 里的 <code>V</code> 按头宽维存放，必须在片上手动转置（1 条 <code>ldmatrix</code> 读入寄存器、8 条 <code>PRMT</code> 重排字节、8 条 <code>STS</code> 写回 SMEM）。如果等 <code>Q · K^T</code> 算完再转置 <code>V</code>，这 17 条指令就会暴露在关键路径上。P1 将这 17 条转置指令插在 <code>Q · K^T</code> 的提交点（<code>commit_group</code>）与等待点（<code>wait_group&lt;0&gt;</code>）之间，趁 Tensor Core 在后台运行 <code>Q · K^T</code> 时用 ALU 与 LSU 把 <code>V</code> 转置好。配合让 <code>P · V</code> 跨入下一轮循环（<code>wait_group&lt;1&gt;</code>），在 32 请求全长 verify 算例上实测再省 <strong>1.79 µs</strong>。</p>
+<p>同理，在 P5 预填充专家第一层矩阵乘（<code>gemm1</code>）的激活尾声中，每个线程要把算出的单精度门控与上投影值舍入为 <code>BF16</code>（紧挨着 128 条指数指令 <code>MUFU.EX2</code>）。基线逐个调用单值转换，编译出 224 条走 4 通道特殊函数与转换管线（XU 管线）的 <code>F2F</code> 指令，使该管线在尾声期间接近 100% 满载。改用成对打包舍入指令（<code>cvt.rn.bf16x2.f32</code>，编译为 <code>F2FP</code>，NCU 将其计入 16 通道 ALU 管线）后，<code>F2F</code> 指令从 224 条降到 <strong>96</strong> 条。NCU 实测该内核的 XU 管线占用从 <code>5.74%</code> 降到 <code>3.08%</code>，单改这一项使 P5 整层实测提速 <strong>0.33%</strong>。</p>
 <hr />
 <h2>3. 第 5 级（单条指令与比特）：编译器防下沉、防重物化与寄存器内位运算解码</h2>
-<p>在第 6 章第 1 节中看到，由于 GPU 不在运行时重排指令，<code>ptxas</code> 在编译期排定的 SASS 指令顺序直接决定硬件行为。除移除异步区间分支以消除 <code>C7515</code> 串行化（使 P4 的 <code>qkv_gate</code> 主循环从 <code>20.74 µs</code> 回到 <code>8.84 µs</code>）外，检查 P2 的 SASS 反汇编还抓到了两处典型的编译器退化。</p>
+<figure class="fig"><iframe src="figs/ch08-c.html" loading="lazy" title="图 8-5"></iframe></figure>
+<p>在第 6 章第 1 节中看到，由于 GPU 不在运行时重排指令，<code>ptxas</code> 在编译期排定的 SASS 指令顺序直接决定硬件行为。在 P4 的 <code>qkv_gate</code>（批量 128）试验中，曾尝试把拆分归约的释放标志写进 <code>wgmma</code> 循环内部。结果分支触发 <code>ptxas</code> 的 <code>C7515</code> 串行化告警，使主循环从 <code>8.84 µs</code> 暴涨到 <code>20.74 µs</code>；将释放操作移到生产者 warp 的最后一条 TMA 之后即消除了告警并恢复 <code>8.84 µs</code>。此外，检查 P2 的 SASS 反汇编还抓到了两处典型的编译器退化。</p>
 <ul>
-<li>第一处是预取指令被编译器下沉。在 P2 的后归一化 kernel 中，为了配合第 1 章第 2 节的 PDL 提前预读权重，代码特意把只读缓存加载（<code>ld.global.nc</code>）写在了 <code>cudaGridDependencySynchronize()</code>（SASS 为 <code>ACQBULK</code>）之前。然而检查生成的 SASS 发现，<code>ptxas</code> 认为只读加载没有副作用，自作主张把这批加载全部移到了 <code>ACQBULK</code> 之后，使 PDL 预读完全失效。将该预取改为带 <code>volatile</code> 的普通全局加载内联汇编后，6 条 16 字节预取被牢牢锁在等待指令之前，恢复了预读重叠。</li>
-<li>第二处是循环不变量被编译器重物化。在 P2 的主循环外，代码预先算好了归一化权重加 1 的浮点数组 <code>nw[i] = 1.0f + norm_w[i]</code>。但 <code>ptxas</code> 为节省几个寄存器，把这一加法拆掉并塞回内层循环的每一轮里重复执行。在循环外对该变量加上一行空内联汇编 <code>asm volatile(&quot;&quot; : &quot;+f&quot;(nw[i]));</code>（告诉编译器该寄存器不可重算，零运行时开销）。生成的 SASS 减少了 <strong>483</strong> 条冗余指令，在 H200 上实测省下 <strong>0.21–0.30 µs</strong>。</li>
+<li>第一处是预取指令被编译器下沉。在 P2 的后归一化 kernel 中，为了配合第 1 章第 2 节的 PDL 提前预读权重，代码特意把只读缓存加载（<code>ld.global.nc</code>）写在了 <code>cudaGridDependencySynchronize()</code>（SASS 为 <code>ACQBULK</code>）之前。然而检查生成的 SASS 发现，只读加载形式给了编译器重排自由度，<code>ptxas</code> 把这批加载全部移到了 <code>ACQBULK</code> 之后，使 PDL 预读完全失效。将该预取改为带 <code>volatile</code> 的普通全局加载内联汇编后，6 条 16 字节预取被牢牢锁在等待指令之前，恢复了预读重叠。</li>
+<li>第二处是循环不变量被编译器重物化。在 P2 后归一化主循环外，代码预先算好了归一化权重加 1 的浮点数组 <code>nw[i] = 1.0f + norm_w[i]</code>。但 <code>ptxas</code> 为节省几个寄存器，把这一加法拆掉并塞回展开后的内层循环里重复执行。在循环外对该变量加上一行空内联汇编 <code>asm volatile(&quot;&quot; : &quot;+f&quot;(nw[i]));</code>（告诉编译器该寄存器不可重算，零运行时开销）。整个内核的 SASS 指令数随即从 1,603 条降到 1,120 条（净省 <strong>483</strong> 条指令），在 H200 解码算例上实测省下 <strong>0.21–0.34 µs</strong>。</li>
 </ul>
-<p>在寄存器比特排布上，P2 与 P3 的 4 位权重与开源 <strong>Marlin</strong> 及 <strong>vLLM Machete</strong> 采用了同一套设计。它们不在运行期查表，而是在预处理阶段（<code>prepare()</code>）把每 8 个 4 位权重预先重排成 Tensor Core 所需的线程顺序，并做异或编码。运行期只需执行第 6 章第 3 节的 8 条整数指令（分摊到 ALU 与 FMA 重型子管线），即可拼出 4 个 <code>BF16x2</code> 寄存器（P3 启用后实测提速 <strong>1.01%</strong>）。更进一步，P2 利用门控激活函数 <code>SwiGLU(g, u) = 0.5 * g * u * (1 + tanh(0.5 * g))</code> 的代数齐次性，将反量化缩放因子预先折入外层系数中，省去了内层循环里的逐元素缩放乘法。</p>
+<p>在寄存器比特排布上，P2 与 P3 的 4 位专家权重（NVFP4）与开源 <strong>Marlin</strong> 及 <strong>vLLM Machete</strong> 一样，绝不在运行期逐元素查表。它们在不计时的预处理阶段（<code>prepare()</code>）把每 8 个 4 位权重预先重排成 Tensor Core 片段所需的线程顺序。在此基础上，竞赛内核进一步对重排后的权重做异或（XOR）编码。这使运行期在寄存器内只需执行第 6 章第 3 节的 8 条整数指令（分摊到 ALU 与 FMA 重型子管线），即可无分支拼出 4 个 <code>BF16x2</code> 寄存器。在 P3 全 12 个算例上，启用该异或解码几何平均提速 <code>0.58%</code>（8 请求 <code>T = 16</code> 算例最高提速 <strong>1.01%</strong>）。更进一步，因为门控激活函数 <code>SwiGLU(g, u) = 0.5 * g * u * (1 + tanh(0.5 * g))</code> 对上投影分支 <code>u</code> 是线性的，P2 将反量化缩放因子与常数预先折入外层系数中，把尾声每元素指令从 9 条减至 7 条。</p>
 <hr />
-<h2>4. 第 4 级与第 5 级的实测反例：为什么半精度打包指数指令不能减半 SFU 开销？</h2>
-<p>当第 2 节的在线 Softmax 卡在 4 通道的 SFU 管线上时，容易产生一个类比想法。既然把转换指令换成半精度二元打包能将指令数减半，那么把单精度指数 <code>ex2.approx.ftz.f32</code> 换成半精度打包指数 <code>ex2.approx.f16x2</code>，能不能让 SFU 耗时减半？</p>
-<p>在 H200 上实测并检查 <code>cuobjdump --dump-sass</code> 反汇编可见，耗时不仅没有减半，反而多出了额外指令。反汇编揭示了第 5 级的硬件真相：Hopper 的 4 通道 SFU 只支持标量输入，没有一次算两个半精度指数的打包硬件通道。编译器遇到一行 <code>ex2.approx.f16x2</code> 时，会在底层把它拆成 <strong>2 条独立的 <code>MUFU.EX2.F16</code> 指令</strong>，后面再跟 <strong>1 条走 ALU 的 <code>PRMT</code> 重排指令</strong>。同理，不带 <code>.ftz</code> 的 <code>ex2.approx.f32</code> 还会被额外包上比较与乘法修正指令，只有 <code>ex2.approx.ftz.f32</code> 才编译成裸的 1 条 <code>MUFU.EX2</code>。因此要卸下 SFU 的负担，不能靠表面上的半精度打包语法。程序必须像第 2 节那样用惰性重缩放减少调用次数，或改写为走 ALU 与 FMA 管线的多项式逼近。</p>
+<h2>4. 第 4 级与第 5 级的编译真相反例：为什么半精度打包指数指令不能减半 SFU 开销？</h2>
+<figure class="fig"><iframe src="figs/ch08-d.html" loading="lazy" title="图 8-6"></iframe></figure>
+<p>当第 2 节的在线 Softmax 卡在 4 通道的 SFU 管线上时，容易产生一个类比想法。既然把转换指令换成半精度二元打包能将指令数减半，那么把单精度指数 <code>ex2.approx.ftz.f32</code> 换成半精度打包指数 <code>ex2.approx.f16x2</code>，能不能让 SFU 指令与周期减半？</p>
+<p>直接用 <code>cuobjdump --dump-sass</code> 检查 <code>sm_90a</code> 编译生成的机器指令，就能看到第 5 级的硬件真相。Hopper 的 4 通道 SFU 只支持标量输入，没有一次算两个半精度指数的打包硬件通道。编译器遇到一行 <code>ex2.approx.f16x2</code> 时，会在底层把它拆成 <strong>2 条独立的 <code>MUFU.EX2.F16</code> 指令</strong>，后面再跟 <strong>1 条走 ALU 的 <code>PRMT</code> 重排指令</strong>。同理，不带 <code>.ftz</code> 的 <code>ex2.approx.f32</code> 还会被额外包上比较与乘法修正指令，只有 <code>ex2.approx.ftz.f32</code> 才编译成裸的 1 条 <code>MUFU.EX2</code>。因此要卸下 SFU 的负担，不能靠表面上的半精度打包语法。程序可以像第 2 节那样用惰性重缩放减少调用次数。也可以像 P5 那样利用指数编码近似直接在 ALU 与 FMA 管线上算出 FP8 权重字节（使单分块的 <code>MUFU.EX2</code> 从 66 条降到 <strong>2</strong> 条，整层实测提速 <strong>2.33%</strong>）。</p>
 <hr />
-<p><strong>带走一句话：</strong> 在第 3 级至第 5 级上，投机并发与片上预载打破了 2.4 µs 的指针追踪链，惰性重缩放与空闲 Tensor Core 行求和卸下了 SFU 与算术发射槽高达 8.77 µs 的负担，而唯有检查 SASS 反汇编才能识破编译器下沉、重物化与伪打包指令的陷阱。</p>
+<p><strong>带走一句话：</strong> 在第 3 级至第 5 级上，投机并发与片上预载打破了 2.4 µs 的指针追踪链，惰性重缩放、空闲 Tensor Core 行求和与 ALU 指数编码卸下了 SFU 与算术发射槽的负担，而唯有检查 SASS 反汇编才能识破编译器下沉、重物化与伪打包指令的陷阱。</p>
 <p><strong>下一章要回答的问题：</strong> 看懂了竞赛与开源社区在第 0 级到第 5 级上的全部实战案例与反例之后，如果明天交给你一个全新的慢算子，你该如何不靠猜、按第 0 级到第 5 级的顺序一步步用剖析器与微扰实验自己找出它的真瓶颈？→ 进入 第 9 章（第三部分 性能诊断法）：如何按六级放大顺序用剖析器定位真瓶颈？</p>
 </section><section id="ch09"><h1>第 9 章：性能诊断法：给你一个慢 kernel，怎样按第 0 级到第 5 级找出真瓶颈？</h1>
 <ul class="map"><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7–8 章</li><li class="here">第 9 章：性能诊断法</li></ul>
 <p>承接第 8 章末尾的问题（第三部分：性能诊断闭环）：前八章拆解了第 0 级到第 5 级的硬件机制与实战案例。拿到一个全新的慢 kernel 时，怎样不靠猜测、顺着这六级放大顺序用剖析器定位它的真实瓶颈？</p>
 <hr />
 <h2>1. 诊断前的测量纪律：为什么不能直接拿剖析器耗时做对比？</h2>
-<p>动手改代码之前，必须先建立不受缓存、频率与剖析器干扰的计时基准。<strong>Nsight Compute</strong>（简称 NCU，内核级性能剖析器）报告的 <code>gpu__time_duration.sum</code> 不能当成真实端到端耗时，因为 NCU 默认把 SM 频率锁在 1.25–1.53 GHz 的基准频率（低于约 1.8 GHz 的满载持续频率，见第 4 章）并把同一个 kernel 重放多遍以收集不同硬件计数器。在 <code>gemv</code> 演化的 v7 中，事件计时的冷缓存中位数是 15.68 µs，而 NCU 报告的内核耗时是 12.54 µs（不含约 3.68 µs 的启动与事件计时开销）。所以正确分工是：用 CUDA Graph 配事件计时测量真实微秒数，用 NCU 读取利用率百分比、停顿原因占比与指令条数。</p>
+<p>动手改代码之前，必须先建立不受缓存、频率与剖析器干扰的计时基准。<strong>Nsight Compute</strong>（简称 NCU，内核级性能剖析器）报告的 <code>gpu__time_duration.sum</code> 不能当成真实端到端耗时。NCU 默认把 SM 频率锁在 1.25–1.53 GHz 的基准频率，低于约 1.8 GHz 的满载持续频率（见第 4 章）。同时它会把同一个 kernel 重放多遍，用来收集不同的硬件计数器。在 <code>gemv</code> 演化的 v7 中，事件计时的冷缓存中位数是 15.68 µs，而 NCU 报告的内核耗时是 12.54 µs（两者相差约 3.14 µs 的启动与事件计时开销；单次空 kernel 的事件计时本身约为 3.68 µs）。所以正确分工是：用 CUDA Graph 配事件计时测量真实微秒数，用 NCU 读取利用率百分比、停顿原因占比与指令条数。</p>
 <p>真实计时必须守住下面三条基线规则，否则测出的加速比会被系统噪声淹没。</p>
 <ul>
-<li>每次迭代前清空 60 MiB 的 L2（见第 2 章第 5 节）。单层 <code>qkv_gate</code> 权重为 37.7 MB，若紧挨着重复调用同一个 kernel，权重会留在 60 MiB 的 L2 里。在 v3 中，不清空 L2 的热缓存耗时仅 29.02 µs，而在每次调用前写入 512 MiB 缓冲区冲空 L2 后，真实冷缓存耗时是 48.26 µs。</li>
-<li>使用非零随机权重保持功耗一致。H200 的功耗上限为 700 W，如果用全零张量测试，乘法器比特翻转减少会使芯片功耗骤降、频率虚高，在真实非零权重下就会回落。</li>
-<li>用 <strong>ABBA</strong>（交替配对评测，即在同一进程对同一批输入按 A、B、B、A 顺序交替运行候选版与基线版）抵消温度漂移。同时要把两份完全相同的基线代码当作 A1 与 A2 跑一次对照，测出系统自身的本底噪声带（在 P4 的 14 轮 ABBA 中本底偏差上限约为 <strong>0.13 µs</strong>）。只有当候选版相对基线版的节省跨过这道噪声门槛（如超过 0.15 µs）时，改动才算真正生效。</li>
+<li>每次迭代前清空 60 MiB 的 L2（见第 2 章第 5 节）。单层 <code>qkv_gate</code> 权重为 37.7 MB，若紧挨着重复调用同一个 kernel，权重会留在 60 MiB 的 L2 里。在 v3 中，不清空 L2 的热缓存耗时仅 29.02 µs。每次调用前写入 512 MiB 缓冲区冲空 L2 后，真实冷缓存耗时是 48.26 µs。</li>
+<li>使用非零随机权重保持功耗一致。H200 的热设计功耗上限最高可配置至 700 W。测试矩阵乘时应使用真实分布的非零随机张量，避免全零输入带来的测量偏差（公开基准显示全零与非零随机输入下的实测吞吐相差约 3.4%）。</li>
+<li>用 <strong>ABBA</strong>（交替配对评测）抵消温度漂移。ABBA 在同一进程对同一批输入按 A、B、B、A 顺序交替运行候选版与基线版。同时要把两份完全相同的基线代码当作 A1 与 A2 跑一次对照，测出系统自身的本底噪声带。在 P4 的 14 轮 ABBA 中，本底偏差上限约为 <strong>0.13 µs</strong>。只有当候选版相对基线版的节省跨过这道噪声门槛（如超过 0.15 µs）时，改动才算真正生效。</li>
 </ul>
 <hr />
 <h2>2. 外三层诊断（第 0 级 → 第 2 级）：时间线空隙、全卡下界与单 SM 驻留</h2>
+<figure class="fig"><iframe src="figs/ch09-a.html" loading="lazy" title="图 9-1"></iframe></figure>
 <p>拿到一个慢 kernel 后，按图 9-1 从外向内逐级排查，不在外层没看清时盲目改内层指令。外三层回答“芯片有没有在干活、全卡带宽有没有跑满、单个 SM 的资源够不够”。</p>
 <ul>
-<li>第 0 级（时间线上的 kernel，见第 1 章）。打开 <strong>Nsight Systems</strong>（系统级时间线剖析器）观察相邻 kernel 之间的时间空隙。若 GPU 时间线上出现微秒级空白（如第 1 章三步链由 CPU 逐步下发耗时 73.02 µs，录进单张 CUDA Graph 重放后降至 36.19 µs），说明主机下发跟不上 GPU，应先录进 CUDA Graph 并把层间小操作融进相邻矩阵乘。若图节点切换处仍有约 1 µs 空隙，就启用 PDL 让后继在前序收尾期提前进场预读静态权重。</li>
-<li>第 1 级（整张 H200 芯片，见第 2 章）。先按第 0 章算式算出理论下界 <code>floor</code>，再读 NCU <strong>Speed Of Light</strong>（简称 SOL，光速上限面板）的 <code>gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed</code>（显存带宽占峰值百分比）与 <code>dram__bytes_read.sum</code>（HBM 实读字节数）。若实读字节远超算法必读字节，说明读取未合并或缓存被冲刷；若实读字节已贴近下界且显存带宽占比超过 80%（如 P2 专家在批量 32 下实测达 <strong>83.6%</strong>），说明已触及 HBM 物理上限，只能靠压窄权重位宽（见第 6 章）或用 <code>evict_last</code> 留存共享输入。若显存与算力利用率双低，就在 kernel 起止处读取特殊寄存器 <code>%globaltimer</code> 与 <code>%smid</code> 打点：一旦发现最后一批 CTA 拖出长 tail（或持久 kernel 的 131 号 CTA 晚启动 2–3 µs），就用 K-halves 切半尾波或按编号削减队尾分块。</li>
-<li>第 2 级（单个 SM，见第 3 章）。结合编译输出 <code>ptxas -v</code> 与 NCU 的 <strong>Launch Statistics</strong>（启动统计面板）、<strong>Occupancy</strong>（占用率面板：<code>sm__warps_active.avg.pct_of_peak_sustained_active</code>）和 <strong>Memory Workload Analysis</strong>（内存工作负载面板）。第一步查 <code>ptxas -v</code> 的寄存器溢出（<code>spill stores / loads</code>）是否为 0。第二步算单 SM 在途字节：在 <code>gemv</code> 从 v5 到 v6 的演进中，活跃占用率从 79.3% 跌至 25.8%，连带显存吞吐从 49.5% 跌至 38.6%，因为每 SM 在途量（8.7 KiB）掉到了第 2 章图 2-2 的 64 KiB 拐点以下。第三步查每个读取请求搬回的扇区数与 SMEM 的 bank conflict，用 16 字节 <code>uint4</code> 合并加载与 XOR Swizzle 消除无效字节和存储体冲突。</li>
+<li>第 0 级（时间线上的 kernel，见第 1 章）。打开 <strong>Nsight Systems</strong>（系统级时间线剖析器）观察相邻 kernel 之间的时间空隙。第 1 章的三步链由 CPU 逐步下发时耗时 73.02 µs，录进单张 CUDA Graph 重放后降至 36.19 µs。若 GPU 时间线上出现这类微秒级空白，说明主机下发跟不上 GPU，应先录进 CUDA Graph 并把层间小操作融进相邻矩阵乘。若相邻图节点切换处仍有微秒级空隙（例如 v2 三节点链录进图后仍比纯核耗时多约 2.1 µs ），就启用 PDL 让后继在前序收尾期提前进场预读静态权重。</li>
+<li>第 1 级（整张 H200 芯片，见第 2 章）。先按第 0 章算式算出理论下界 <code>floor</code>。再读 NCU <strong>Speed Of Light</strong>（简称 SOL，光速上限面板）的 <code>gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed</code>（显存带宽占峰值百分比）与 <code>dram__bytes_read.sum</code>（HBM 实读字节数）。若实读字节远超算法必读字节，说明读取未合并或缓存被冲刷。若实读字节已贴近下界且显存带宽占比超过 80%（如 P2 专家在批量 32 下实测达 <strong>83.6%</strong>），说明已触及 HBM 物理上限。此时只能靠压窄权重位宽（见第 6 章）或用 <code>evict_last</code> 留存共享输入。若显存与算力利用率双低，就在 kernel 起止处读取特殊寄存器 <code>%globaltimer</code> 与 <code>%smid</code> 打点。一旦发现最后一批 CTA 拖出长 tail（或 P2 拆分内核第二阶段的 131 号 CTA 比首波晚启动 2.0–3.2 µs），就用 K-halves 切半尾波或按编号削减队尾分块。</li>
+<li>第 2 级（单个 SM，见第 3 章）。结合编译输出 <code>ptxas -v</code> 与 NCU 的 <strong>Launch Statistics</strong>（启动统计面板）、<strong>Occupancy</strong>（占用率面板：<code>sm__warps_active.avg.pct_of_peak_sustained_active</code> ）和 <strong>Memory Workload Analysis</strong>（内存工作负载面板）。第一步查 <code>ptxas -v</code> 的寄存器溢出（<code>spill stores / loads</code>）是否为 0。第二步算单 SM 在途字节。在 <code>gemv</code> 从 v5 到 v6 的演进中，因单 CTA 缩为 1 个 warp 撞上每 SM 16 个 CTA 的硬件上限，活跃占用率从 79.3% 跌至 25.8%，单 SM 在途量从 32.0 KiB 骤降近四倍至 8.7 KiB（滑入第 2 章图 2-2 带宽曲线的左侧陡坡区），连带显存吞吐从 49.5% 跌至 38.6%。第三步查每个读取请求搬回的扇区数与 SMEM 的 bank conflict，用 16 字节 <code>uint4</code> 合并加载与 XOR Swizzle 消除无效字节和存储体冲突。</li>
 </ul>
 <hr />
 <h2>3. 内三层诊断（第 3 级 → 第 5 级）：调度停顿、执行管线与 SASS 指令</h2>
 <p>当外三层确认全卡负载均衡、单 SM 驻留与扇区合并都正常，但耗时仍远高于理论下界时，继续沿图 9-1 点开 SMSP 调度器、物理执行管线与底层 SASS 指令。</p>
 <ul>
-<li>第 3 级（单个 SMSP 调度器，见第 4 章）。读取 NCU <strong>Scheduler Statistics</strong>（调度器统计面板）的 <code>smsp__issue_active.avg.pct_of_peak_sustained_active</code>（发射槽活跃周期占比）、<code>smsp__issue_inst0</code>（即 no eligible 无就绪周期占比），以及加 <code>-lineinfo</code> 编译后在 <strong>Source Counters</strong>（源码计数器页面）看到的停顿采样 <code>smsp__pcsamp_warps_issue_stalled_*</code>。若 <code>issue_active</code> 高且首要状态是 not selected（如 P2 在 decode 批量 16 下 <code>issue_active</code> 达 75.8%、<code>not_selected</code> 占 33.6%），说明每周期都有就绪 warp 可发，应直接进入第 4 级。反之若 no eligible 高且显存未饱和，就在 Source 页面查看消费者 warp 的首要停顿：卡在 <strong>long_scoreboard</strong>（长记分牌停顿，等待全局内存 <code>LDG</code> 返回，如 <code>gemv</code> 从 v1 的 44.7% 降到 v7 的 8.1%）说明 HBM 预取深度不够或存在串行地址链；卡在 <strong>short_scoreboard</strong> 或 <strong>mio_throttle</strong>（短记分牌或 MIO 队列节流停顿，等待 SMEM 读取或 SFU 返回，如 P5 注意力基线占 22.7%）说明片上读取与使用贴得太近或 SFU 队列排满；卡在 <strong>barrier</strong> 或 <strong>wait</strong>（屏障或等待停顿，如 P5 注意力长序列基线占 46.7%，重排流水后降至 13.7%）说明生产者供数慢于消费者，或 <code>wait_group&lt;0&gt;</code> 把异步矩阵乘卡成了串行等待。</li>
-<li>第 4 级（执行管线与 Tensor Core，见第 5 章）。读取 NCU <strong>Compute Workload Analysis</strong>（计算工作负载面板）的各管线利用率（<code>sm__inst_executed_pipe_tensor_op_hmma / gmma</code>、<code>alu</code>、<code>fma</code>、<code>xu</code>、<code>lsu</code>）与总指令数 <code>inst_executed</code>。若单条管线独高，就把指令分流到空闲管线：例如 P5 专家尾声原本把标量转换 <code>F2F</code> 与超越函数 <code>MUFU</code> 都塞给 4 通道的 SFU 管线，改用走 ALU 管线的双值打包转换 <code>F2FP</code> 后，<code>sm__inst_executed_pipe_xu</code> 从 <strong>5.74%</strong> 降到 <strong>3.08%</strong>；又如第 6 章用 FMA 重型子管线的 <code>IMAD.SHL</code> 分担 ALU 移位，并用 <code>wait_group&lt;1&gt;</code> 让算术管线与 Tensor Core 重叠。若所有管线都不满但发射槽已忙（如 P2 专家尾声 4 个 warp 需 932 个发射周期，大于 SFU 的 768 个周期），说明卡在每周期 1 条的发射槽上限，必须靠代数合并常数与双元素打包指令直接削减总指令数。</li>
-<li>第 5 级（单条指令与比特，见第 6 章）。运行 <code>cuobjdump --dump-sass</code> 检查 128 位 SASS 反汇编。第一查 <code>ptxas</code> 是否因分支或跨函数边界报出 <code>C7510 / C7515 / C7520</code> 告警并在每条 <code>HGMMA</code> 后强插 <code>WARPGROUP.DEPBAR.LE 0</code>（在 P4 批量 <code>T = 128</code> 的 <code>qkv_gate</code> 中使主循环从 8.84 µs 涨到 <strong>20.74 µs</strong>）。第二查 <code>ptxas</code> 是否把本该在 <code>griddepcontrol.wait</code>（<code>ACQBULK</code>）之前发出的只读预取 <code>ld.global.nc</code> 下沉到了等待之后（P2 用 <code>asm volatile</code> 锁住顺序省下 0.45–0.67 µs），或在内层循环里重复解包计算循环不变量（P2 用空内联汇编锁住寄存器减少 483 条指令，省 0.21–0.30 µs）。第三查消费者向 <code>empty[s]</code> 报到前是否还有未落定的 <code>LDS</code>，防止片上 WAR 覆写（见第 3 章第 4 节）。</li>
+<li>第 3 级（单个 SMSP 调度器，见第 4 章）。读取 NCU <strong>Scheduler Statistics</strong>（调度器统计面板）的 <code>smsp__issue_active.avg.pct_of_peak_sustained_active</code>（发射槽活跃周期占比）与 <code>smsp__issue_inst0</code> （即 no eligible 无就绪周期占比）。同时加 <code>-lineinfo</code> 编译，在 <strong>Source Counters</strong>（源码计数器页面）查看停顿采样 <code>smsp__pcsamp_warps_issue_stalled_*</code>。若 <code>issue_active</code> 高且首要状态是 not selected（如 P2 在 decode 批量 16 下 <code>issue_active</code> 达 75.8%、<code>not_selected</code> 占 33.6%），说明每周期都有就绪 warp 可发，应直接进入第 4 级。反之若 no eligible 高且显存未饱和，就在 Source 页面定位消费者 warp 的首要停顿。卡在 <strong>long_scoreboard</strong>（长记分牌停顿，等待全局内存 <code>LDG</code> 返回，如 <code>gemv</code> 的首要停顿比值从 v1 的 44.7 降到 v7 的 8.1），说明 HBM 预取深度不够或存在串行地址链。卡在 <strong>short_scoreboard</strong> 或 <strong>mio_throttle</strong>（短记分牌或 MIO 队列节流停顿，等待 SMEM 读取或 SFU 返回，如 P5 注意力基线占 22.7%），说明片上读取与使用贴得太近或 SFU 队列排满。卡在 <strong>barrier</strong> 或 <strong>wait</strong>（屏障或等待停顿，如 P5 注意力长序列基线占 46.7%，重排流水后降至 13.7%），说明生产者供数慢于消费者，或 <code>wait_group&lt;0&gt;</code> 把异步矩阵乘卡成了串行等待。</li>
+<li>第 4 级（执行管线与 Tensor Core，见第 5 章）。读取 NCU <strong>Compute Workload Analysis</strong>（计算工作负载面板）的各管线利用率（<code>sm__inst_executed_pipe_tensor_op_hmma / gmma</code> 、<code>alu</code>、<code>fma</code>、<code>xu</code>、<code>lsu</code>）与总指令数 <code>inst_executed</code>。若单条管线独高，就把指令分流到空闲管线。例如 P5 专家尾声原本把标量转换 <code>F2F</code> 与超越函数 <code>MUFU</code> 都塞给 4 通道的 SFU 管线。改用走 ALU 管线的双值打包转换 <code>F2FP</code> 后，<code>sm__inst_executed_pipe_xu</code> 从 <strong>5.74%</strong> 降到 <strong>3.08%</strong>。第 6 章用 FMA 重型子管线的 <code>IMAD.SHL</code> 分担 ALU 移位、并用 <code>wait_group&lt;1&gt;</code> 让算术管线与 Tensor Core 重叠也是同一原理。若所有管线都不满但发射槽已忙（如 P2 专家尾声 4 个 warp 需 932 个发射周期，大于 SFU 的 768 个周期），说明卡在每周期 1 条的发射槽上限。此时必须靠代数合并常数与双元素打包指令直接削减总指令数。</li>
+<li>第 5 级（单条指令与比特，见第 6 章）。运行 <code>cuobjdump --dump-sass</code> 检查 128 位 SASS 反汇编。第一查 <code>ptxas</code> 是否因分支或跨函数边界报出 <code>C7510 / C7515 / C7520</code> 告警并在每条 <code>HGMMA</code> 后强插 <code>WARPGROUP.DEPBAR.LE 0</code>。在 P4 批量 <code>T = 128</code> 的 <code>qkv_gate</code> 中，这会使主循环从 8.84 µs 涨到 <strong>20.74 µs</strong>。第二查 <code>ptxas</code> 是否把本该在 <code>griddepcontrol.wait</code>（<code>ACQBULK</code>）之前发出的只读预取 <code>ld.global.nc</code> 下沉到了等待之后（P2 用 <code>asm volatile</code> 锁住顺序省下 0.45–0.67 µs）。同时查内层循环是否重复解包计算循环不变量（P2 用空内联汇编锁住寄存器减少 483 条指令，省 0.21–0.30 µs）。第三查消费者向 <code>empty[s]</code> 报到前是否还有未落定的 <code>LDS</code>，防止片上 WAR 覆写（见第 3 章第 4 节）。</li>
 </ul>
 <hr />
 <h2>4. 微扰删除实验：怎样区分真瓶颈与被异步掩盖的假忙碌？</h2>
-<p>在异步执行的 GPU 上，NCU 里计数高或停顿多的代码行不一定是真瓶颈。TMA 搬运、异步 <code>wgmma</code> 与多 warp 轮流发射会让多条硬件轨道同时推进，只要较短的算术支路完全藏在更慢的 HBM 或 Tensor Core 主轨道阴影里，把支路优化到零周期也不会缩短总耗时。为了在投入精力重写代码前验证真伪，最高效的判据是做图 9-2 所示的 <strong>perturbation test</strong>（微扰删除实验）：保持非零随机输入，用 1 行条件或空操作临时旁路待测代码段（保留对上游读取结果的最小引用，防止 <code>ptxas</code> 把上游加载一并作为死代码删掉），直接测量配对 ABBA 的耗时差。</p>
+<figure class="fig"><iframe src="figs/ch09-b.html" loading="lazy" title="图 9-2"></iframe></figure>
+<p>在异步执行的 GPU 上，NCU 里计数高或停顿多的代码行不一定是真瓶颈。TMA 搬运、异步 <code>wgmma</code> 与多 warp 轮流发射会让多条硬件轨道同时推进。只要较短的算术支路完全藏在更慢的 HBM 或 Tensor Core 主轨道阴影里，把支路优化到零周期也不会缩短总耗时。在投入精力重写代码前，最高效的判据是做图 9-2 所示的 <strong>perturbation test</strong>（微扰删除实验）。实验保持非零随机输入，用 1 行条件或空操作临时旁路待测代码段，直接测量配对 ABBA 的耗时差。旁路时需保留对上游读取结果的最小引用，防止 <code>ptxas</code> 把上游加载一并作为死代码删掉。</p>
 <ul>
-<li>删掉后耗时不变（假瓶颈，已被主轨道掩盖）。在 P2 专家计算的激活尾声中，临时删掉 <code>MUFU.TANH</code> 指令后实测耗时变化为 <strong>0.0%</strong>，证明 SFU 管线已被主循环掩盖（若改用多项式展开近似，反而因多占发射槽慢了 0.4%）。同理，在第 4、5 章的 <code>gemv</code> 演进中，v8 用洗牌归约替掉 SMEM 屏障（<code>15.68 → 15.62 µs</code>），v9 用 ALU 拆包把总指令数削减 24%（<code>2.67 M → 2.02 M</code>，耗时 <code>15.62 → 15.58 µs</code>），端到端耗时都几乎不变，因为单 token decode 的主轨道一直在等 HBM 返回权重。</li>
-<li>删掉后耗时下降（真关键路径，下降量即收益上界）。在 P4 批量 <code>T = 256</code> 的 <code>pooler</code> 矩阵乘中，临时删掉末尾的跨块归约尾步（让各分片直接写出局部和退出），内核耗时从 28.99 µs 降到 24.10 µs。这证明归约尾步在关键路径上暴露了 <strong>4.9 µs</strong> 的最大可省空间；随后改用 L2 硬件执行的 TMA 原子归约（<code>UTMAREDG.2D.ADD</code>），将尾步压到 2.06 µs，端到端实测净省 2.66 µs。在 P5 注意力预填充中，微扰删除实验测出 FP8 字节打包链暴露了整个注意力 kernel 耗时的 <strong>24.5%</strong>，随后利用非规格化数舍入省掉多余打包指令，单核实测直接省下 78 µs。</li>
+<li>删掉后耗时不变（假瓶颈，已被主轨道掩盖）。在 P2 专家计算的激活尾声中，临时删掉 <code>MUFU.TANH</code> 指令后实测耗时变化为 <strong>0.0%</strong>。这证明 SFU 管线已被主循环掩盖，改用多项式展开近似反而因多占发射槽慢了 0.4%。同理，在第 4、5 章的 <code>gemv</code> 演进中，v8 用洗牌归约替掉 SMEM 屏障（<code>15.68 → 15.62 µs</code>），v9 用 ALU 拆包把总指令数削减 24%（<code>2.67 M → 2.02 M</code>，耗时 <code>15.62 → 15.58 µs</code>）。两步的端到端耗时都几乎不变，因为单 token decode 的主轨道一直在等 HBM 返回权重。</li>
+<li>删掉后耗时下降（真关键路径，下降量即收益上界）。在 P4 批量 <code>T = 256</code> 的 <code>pooler</code> 矩阵乘中，临时删掉末尾的跨块归约尾步（让各分片直接写出局部和退出），内核耗时从 28.99 µs 降到 24.10 µs。这证明归约尾步在关键路径上暴露了 <strong>4.9 µs</strong> 的最大可省空间。随后改用 L2 硬件执行的 TMA 原子归约（<code>UTMAREDG.2D.ADD</code>），将尾步压到 2.06 µs，端到端实测净省 2.66 µs。在 P5 注意力预填充中，微扰删除实验测出 FP8 字节打包链暴露了整个注意力 kernel 耗时的 <strong>24.5%</strong>，利用非规格化数舍入省掉多余打包指令后，单核实测直接省下 78 µs。</li>
 </ul>
 <hr />
 <h2>5. gemv 演化诊断复盘（v0 → v10）：六级计数器如何一步步指向 15.49 µs？</h2>
 <p>把贯穿全书的 <code>qkv_gate</code>（<code>v0 → v10</code>）放回图 9-1 的六级诊断树，每一次耗时跳变都对应唯一一级的计数器信号。</p>
 <ul>
-<li>从 v0（675.71 µs）到 v1（58.88 µs）再到 v4（43.94 µs）：第 0 级与第 1 级诊断。v0 的 NCU 活跃占用率仅 6.2%、显存带宽占比仅 0.9%，因为 18 个 CTA 只用上了 132 个 SM 中的 18 个，且跨行读取每扇区只有 6% 字节有用。v1 派出 2,304 个 CTA 并让相邻线程读相邻元素后，占用率升至 73.3%、显存带宽占比升至 14.2%，耗时降到 58.88 µs。随后在第 0 级用 v2 的 CUDA Graph 消除主机下发空隙（三步链热缓存从 73.02 µs 压到 36.19 µs，冷缓存省 2.1 µs），在第 1 级用 v3 的 K-halves 切半 192 个尾波 CTA（48.26 µs）并加上 v4 的 L2 留存提示（43.94 µs）。</li>
-<li>从 v4（43.94 µs）到 v5（17.76 µs）再到 v6（21.86 µs）：第 2 级与第 3 级诊断。v4 的首要停顿是 <code>long_scoreboard</code>（比值 28.1），因为每线程每次只发 2 字节读取，单 SM 在途仅 4.0 KiB。v5 改用第 2 级的 16 字节 <code>uint4</code> 合并加载后，总指令数从 11.12 M 降到 4.49 M，在途升至 32.0 KiB/SM，显存带宽占比跃升至 49.5%，耗时压到 17.76 µs。而 v6 改为每 CTA 32 线程消除尾波后，第 2 级活跃占用率从 79.3% 跌到 25.8%，单 SM 在途跌回 8.7 KiB，显存带宽占比掉到 38.6%，耗时退化到 21.86 µs。</li>
-<li>从 v6（21.86 µs）到 v7（15.68 µs）再到 v10（15.49 µs）：第 3 级到第 5 级收官。v7 在第 3 级让每线程连发 8 条 <code>uint4</code> 读取，把单 SM 在途推到 69.8 KiB（跨过 64 KiB 拐点），<code>long_scoreboard</code> 比值从 12.9 降到 8.1，显存带宽占比升至 63.2%，耗时压到 15.68 µs（反超 cuBLAS <code>torch.mv</code> 的 21.12 µs）。此后第 3 级的 v8 洗牌归约（15.62 µs）与第 4 级的 v9 ALU 拆包（指令数再减 24% 至 2.02 M，显存带宽占比达 65.0%，耗时 15.58 µs）都印证了第 4 节的规律：当读取深度已喂饱 HBM 时，片上归约与算术指令已被显存等待掩盖。最后第 5 级的 v10 改从源头削减必读字节，用 12 位 C12 无损打包把权重从 37.7 MB 压到 28.4 MB（理论下界从 7.9 µs 移至 5.9 µs），将实测耗时推到 <strong>15.49 µs</strong>（相对 v0 提速 <strong>44 倍</strong>）。</li>
+<li>从 v0（675.71 µs）到 v1（58.88 µs）再到 v4（43.94 µs）：第 0 级与第 1 级诊断。v0 的 NCU 活跃占用率仅 6.2%、显存带宽占比仅 0.9%，因为 18 个 CTA 只用上了 132 个 SM 中的 18 个，且跨行读取每扇区只有 6% 字节有用。v1 派出 2,304 个 CTA 并让相邻线程读相邻元素后，占用率升至 73.3%、显存带宽占比升至 14.2%，耗时降到 58.88 µs。随后在第 0 级用 v2 的 CUDA Graph 消除主机下发空隙，三步链热缓存从 73.02 µs 压到 36.19 µs（冷缓存省 2.1 µs）。接着在第 1 级用 v3 的 K-halves 切半 192 个尾波 CTA（48.26 µs），并加上 v4 的 L2 留存提示（43.94 µs）。</li>
+<li>从 v4（43.94 µs）到 v5（17.76 µs）再到 v6（21.86 µs）：第 2 级与第 3 级诊断。v4 的首要停顿是 <code>long_scoreboard</code>（比值 28.1），因为每线程每次只发 2 字节读取，单 SM 在途仅 4.0 KiB。v5 改用第 2 级的 16 字节 <code>uint4</code> 合并加载后，总指令数从 11.12 M 降到 4.49 M。单 SM 在途升至 32.0 KiB，显存带宽占比跃升至 49.5%，耗时压到 17.76 µs。而 v6 改为每 CTA 32 线程消除尾波后，受每 SM 最多驻留 16 个 CTA（即 16 个 warp）限制，第 2 级活跃占用率从 79.3% 跌到 25.8%。单 SM 在途量从 32.0 KiB 骤降近四倍至 8.7 KiB，显存带宽占比掉到 38.6%，耗时退化到 21.86 µs。</li>
+<li>从 v6（21.86 µs）到 v7（15.68 µs）再到 v10（15.49 µs）：第 3 级到第 5 级收官。v7 在第 3 级让每线程连发 8 条 <code>uint4</code> 读取，把单 SM 在途推到 69.8 KiB（首次跨过图 2-2 的 64 KiB 饱和拐点）。<code>long_scoreboard</code> 比值从 12.9 降到 8.1，显存带宽占比升至 63.2%，耗时压到 15.68 µs（反超 cuBLAS <code>torch.mv</code> 的 21.12 µs）。此后第 3 级的 v8 洗牌归约（在途 61.1 KiB 紧贴拐点，耗时 15.62 µs）与第 4 级的 v9 ALU 拆包（在途 61.1 KiB，指令数再减 24% 至 2.02 M，显存带宽占比达 65.0%，耗时 15.58 µs）都印证了第 4 节的规律。当读取深度已喂饱 HBM 时，片上归约与算术指令已被显存等待掩盖。最后第 5 级的 v10 改从源头削减必读字节，用 12 位 C12 无损打包把权重从 37.7 MB 压到 28.4 MB（理论下界从 7.9 µs 移至 5.9 µs），将实测耗时推到 <strong>15.49 µs</strong>（相对 v0 提速 <strong>44 倍</strong>）。</li>
 </ul>
 <hr />
-<p><strong>带走一句话：</strong> 按第 0 级到第 5 级依次对照冷 L2 下界、单 SM 在途量、记分牌停顿、管线利用率与 SASS 反汇编，并用微扰删除实验过滤被异步掩盖的假忙碌，就能把 <code>qkv_gate</code> 从 675.71 µs 一路推进到 15.49 µs。</p>
-<p><strong>下一章要回答的问题：</strong> 第 3 章到第 6 章在 H200（<code>sm_90a</code>）上遇到的四大硬件限制——累加器挤占向量寄存器、4 个 warp 必须齐步发射 <code>wgmma</code>、缺少硬件 4 位浮点转换以及 TMA 无法按索引收集离散行——在下一代 Blackwell（<code>B200 sm_100a</code>）芯片上发生了怎样的硬件演进？→ 进入 附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>B200 sm_100a</code>）变了什么？</p>
-</section><section id="appA"><h1>附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>B200 sm_100a</code>）变了什么？</h1>
+<p><strong>带走一句话：</strong> 按第 0 级到第 5 级依次核对冷 L2 带宽占比与微扰删除实验，就能过滤掉被显存等待掩盖的假忙碌，把 <code>qkv_gate</code> 从 675.71 µs 推进到 15.49 µs。</p>
+<p><strong>下一章要回答的问题：</strong> 第 3 章到第 6 章在 H200（<code>sm_90a</code>）上遇到的四大硬件限制——累加器挤占向量寄存器、4 个 warp 必须齐步发射 <code>wgmma</code>、缺少硬件 4 位浮点转换以及 TMA 无法按索引收集离散行——在下一代 Blackwell（<code>sm_100a</code>，如 B200 ）架构上发生了怎样的硬件演进？→ 进入 附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>sm_100a</code>）变了什么？</p>
+</section><section id="appA"><h1>附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>sm_100a</code>）变了什么？</h1>
 <ul class="map"><li>第 0 章</li><li>第 0.5 章</li><li>第 1–6 章 [第 0 级</li><li>第 5 级]</li><li>第 7–8 章</li><li>第 9 章</li><li class="here">附录 A：Hopper 到 Blackwell 跨代演进</li><li>附录 B</li></ul>
-<p>承接第 9 章末尾的问题（跨代演进）：第 3 章到第 6 章在 H200（<code>sm_90a</code>）上遇到的四大硬件限制——累加器挤占向量寄存器、4 个 warp 必须齐步发射 <code>wgmma</code>、缺少硬件 4 位浮点转换以及 TMA 无法按索引收集离散行——在下一代 <strong>Blackwell</strong>（B200 所属的 GPU 架构，编译目标代号 <code>sm_100a</code>）芯片上发生了怎样的硬件演进？</p>
+<p>承接第 9 章末尾的问题（跨代演进）：第 3 章到第 6 章在 H200（<code>sm_90a</code>）上遇到的四大硬件限制——累加器挤占向量寄存器、4 个 warp 必须齐步发射 <code>wgmma</code>、缺少硬件 4 位浮点转换以及 TMA 无法按索引收集离散行——在下一代 <strong>Blackwell</strong>（编译目标代号 <code>sm_100a</code>，如 B200 ）架构上发生了怎样的硬件演进？（注：本书实测均在 H200 上完成；本附录中 Blackwell <code>sm_100a</code> 的指令与硬件特性均依据 PTX 指令集规范与 Nsight Compute 文档整理，未在实机上计时。）</p>
 <hr />
-<h2>1. 第 2 级与第 4 级演进：256 KiB 独立张量内存（TMEM）解放向量寄存器池</h2>
-<p>在 Hopper（<code>sm_90a</code>）上，第 5 章的异步矩阵乘 <code>wgmma</code> 把累加器 <code>D</code> 直接存放在发射该指令的 4 个 warp（128 个线程）的私有向量寄存器里（图 A-1 左）。当矩阵乘分块扩大到 <code>64 × 256</code>（FP32 累加，<code>m64n256k16</code>）时，仅累加器 <code>D</code> 一项就要占掉每个线程 <code>64 × 256 ÷ 128 =</code> <strong>128</strong> 个 32 位寄存器。由于单个 SM 的向量寄存器池上限固定为 65,536 个（见第 3 章第 1 节），这迫使生产者-消费者内核必须调用 <code>setmaxnreg</code> 指令跨 warpgroup 动态匀出寄存器：例如让 1 个生产者 warpgroup 把每线程配额缩减到 40 个，才能给 2 个消费者 warpgroup 凑出每线程 232 个寄存器（<code>2 × 128 × 232 + 128 × 40 = 64,512 ≤ 65,536</code>）。</p>
-<p>在 Blackwell（<code>sm_100a</code>）上，硬件在每个 SM 内部新增了一块独立于 65,536 向量寄存器池的 <strong>TMEM</strong>（Tensor Memory，张量内存，图 A-1 右）。每个 CTA 可使用的 TMEM 容量为 <strong>128 行 × 512 列</strong>个 32 位单元，合计 <code>128 × 512 × 4 字节 =</code> <strong>256 KiB</strong>。Blackwell 的第五代 Tensor Core 指令直接把累加器 <code>D</code> 存放在 TMEM 中（左矩阵 <code>A</code> 可来自 SMEM 或 TMEM，右矩阵 <code>B</code> 来自 SMEM）。程序通过 <code>tcgen05.alloc</code> 与 <code>tcgen05.dealloc</code> 显式申请和释放 TMEM，仅在尾声需要读写累加结果时才用 <code>tcgen05.ld</code> 与 <code>tcgen05.st</code> 在寄存器与 TMEM 之间搬运（warpgroup 中的每个 warp 负责访问对应自己的 32 行通道）。由于累加器 <code>D</code> 彻底搬出了通用向量寄存器池，原本被累加器占住的上百个寄存器得以释放给在线 Softmax 与尾声计算。</p>
+<h2>1. 第 2 级与第 4 级演进：256 KiB 的 TMEM（张量内存）解放向量寄存器池</h2>
+<figure class="fig"><iframe src="figs/appA-a.html" loading="lazy" title="图 A-1"></iframe></figure>
+<p>在 Hopper（<code>sm_90a</code>）上，第 5 章的异步矩阵乘 <code>wgmma</code> 把累加器 <code>D</code> 存放在 4 个 warp（128 个线程）的私有向量寄存器里（图 A-1 左）。当矩阵乘分块扩大到 <code>64 × 256</code>（FP32 累加，<code>m64n256k16</code>）时，仅累加器 <code>D</code> 一项就要占掉每个线程 <code>64 × 256 ÷ 128 =</code> <strong>128</strong> 个 32 位寄存器。单个 SM 的向量寄存器池上限固定为 65,536 个（见第 3 章第 1 节）。这迫使生产者-消费者内核必须调用 <code>setmaxnreg</code> 指令跨 warpgroup 动态匀出寄存器。例如让 1 个生产者 warpgroup 把每线程配额缩减到 40 个，才能给 2 个消费者 warpgroup 凑出每线程 232 个寄存器（<code>2 × 128 × 232 + 128 × 40 = 64,512 ≤ 65,536</code>）。</p>
+<p>在 Blackwell（<code>sm_100a</code>）上，每个 SM 内部新增了一块独立于向量寄存器池的 <strong>TMEM</strong>（Tensor Memory，张量内存，图 A-1 右）。每个 CTA 可使用的 TMEM 容量为 <strong>128 行 × 512 列</strong>个 32 位单元，合计 <code>128 × 512 × 4 字节 =</code> <strong>256 KiB</strong>。Blackwell 的第五代 Tensor Core 指令直接把累加器 <code>D</code> 存放在 TMEM 中，左矩阵 <code>A</code> 可来自 SMEM 或 TMEM，右矩阵 <code>B</code> 来自 SMEM。程序通过 <code>tcgen05.alloc</code> 与 <code>tcgen05.dealloc</code> 显式申请和释放 TMEM。仅在尾声需要读写累加结果时，程序才用 <code>tcgen05.ld</code> 与 <code>tcgen05.st</code> 在寄存器与 TMEM 之间搬运（warpgroup 中的每个 warp 访问对应自己的 32 行通道）。由于累加器 <code>D</code> 搬出了通用向量寄存器池，原本被累加器占住的上百个向量寄存器得以空出（由此推算，调用方可将这部分寄存器空间转用于在线 Softmax 或尾声计算）。</p>
 <hr />
 <h2>2. 第 3 级与第 4 级演进：单线程发射 <code>tcgen05.mma</code> 与双 CTA 联合矩阵乘</h2>
-<p>在 Hopper（<code>sm_90a</code>）上，每一条 <code>wgmma.mma_async.sync.aligned</code> 都必须由同一个 warpgroup 的全部 4 个 warp（128 个线程）共同发射（见第 5 章第 2 节）。每次矩阵乘需要 4 个 warp 各发 1 条指令，随后通过 <code>wgmma.wait_group</code> 等待完成。在 P2 专家内核的 NCU 源码采样中，每条 <code>HGMMA</code> 指令处有 <strong>83%–92%</strong> 的停顿采样落在等待整个线程束组到齐的 <code>warpgroup_arrive</code> 状态上。</p>
-<p>在 Blackwell（<code>sm_100a</code>）上，第五代 Tensor Core 指令族 <strong><code>tcgen05.mma</code></strong>（第五代张量核心矩阵乘指令）改成了与第 3 章 TMA 相同的单线程发射模型（图 A-1 右）。发起一次矩阵乘只需 <strong>1 个 warp 中的 1 个线程</strong>发出 1 条指令（剖析器计数器显示每次发射仅计 1 条单活跃线程的 warp 指令），再由片上共享的硬件控制器统一驱动本 SM 的全部 4 个 SMSP 完成矩阵乘加。因为不再要求 4 个 warp 齐步走到同一条指令，其余 warp 可以在同一时间独立执行地址计算、激活函数或片上搬运。</p>
-<p>此外，<code>tcgen05.mma</code> 与 Blackwell 的 TMA 指令新增了 <strong><code>.cta_group::2</code></strong>（双 CTA 协同组）修饰符。同一 cluster 内的两个相邻 CTA（跨两个 SM）可以组成一对协同组，联合发起一次横跨两个 SM 的矩阵乘，从而在硬件层面分担右矩阵 <code>B</code> 的片上存储与带宽开销。</p>
+<p>在 Hopper（<code>sm_90a</code>）上，每一条 <code>wgmma.mma_async.sync.aligned</code> 都必须由同一个 warpgroup 的全部 4 个 warp（128 个线程）共同发射（见第 5 章第 2 节）。每次矩阵乘需要 4 个 warp 各发 1 条指令，随后通过 <code>wgmma.wait_group</code> 等待完成。在本书 Hopper 异步矩阵乘内核的 NCU 源码采样中，每条 <code>HGMMA</code> 指令处有 <strong>83%–92%</strong> 的停顿采样落在等待整个线程束组到齐的 <code>warpgroup_arrive</code> 状态上。</p>
+<p>在 Blackwell（<code>sm_100a</code>）上，第五代 Tensor Core 指令族 <strong><code>tcgen05.mma</code></strong>（第五代张量核心矩阵乘指令）改成了与第 3 章 TMA 相同的单线程发射模型（图 A-1 右）。发起一次矩阵乘只需 <strong>1 个 warp 中的 1 个线程</strong>发出 1 条指令。剖析器计数器显示每次发射仅计 1 条单活跃线程的 warp 指令，再由片上共享的硬件控制器统一驱动本 SM 的全部 4 个 SMSP 完成矩阵乘加。因为不再要求 4 个 warp 齐步走到同一条指令，其余 warp 可以在同一时间独立执行地址计算、激活函数或片上搬运。</p>
+<p>此外，<code>tcgen05.mma</code> 与 Blackwell 的 TMA 指令新增了 <strong><code>.cta_group::2</code></strong>（双 CTA 协同组）修饰符。同一 cluster 内的两个 CTA（跨两个 SM）可以组成一对协同组，联合发起一次横跨两个 SM 的矩阵乘（两个 CTA 在硬件层面分担操作数分块的片上存储与带宽开销 ）。</p>
+<hr />
+<h2>3. 第 4 级与第 5 级演进：原生 4 位浮点转换与硬件块缩放矩阵乘</h2>
+<p>在 Hopper（<code>sm_90a</code>）上，硬件没有 4 位或 6 位浮点的类型转换指令，Tensor Core 内部也不能直接乘上每 16 个元素的块缩放因子（见第 6 章第 2、3 节）。要在 H200 上计算 4 位 NVFP4（<code>E2M1</code>）权重，程序必须先用 <strong>8</strong> 条整数位运算指令（2 条 <code>SHF</code>、2 条 <code>IMAD.SHL</code> 与 4 条带掩码 <code>0x81C081C0</code> 的 <code>LOP3</code>）把 8 个 4 位权重拆成 4 个 <code>BF16x2</code> 寄存器。随后程序还要用指数偏置常量 <code>0x5C005C00</code> 与 <code>HMUL2</code> 乘上块缩放因子，才能送入 <code>wgmma</code>。在大批量算力受限区间，这段寄存器解码直接消耗 ALU 与 FMA 管线的发射周期。</p>
+<p>在 Blackwell（<code>sm_100a</code>）上，PTX 指令集从 <code>sm_100a</code> 起原生支持 <code>.e2m1x2</code>（4 位浮点对）、<code>.e2m3x2</code>、<code>.e3m2x2</code>（6 位浮点对）与 <code>.ue8m0x2</code>（块缩放指数对）的硬件 <code>cvt</code> 转换指令。同时，第五代 Tensor Core 原生提供带硬件块缩放的矩阵乘指令 <strong><code>tcgen05.mma.kind::mxf4nvf4.block_scale</code></strong>。按 PTX 指令集规范，它直接接收 4 位权重与块缩放因子并在 Tensor Core 硬件内部完成缩放乘加（由此推算，无需再在寄存器内执行第 6 章的 8 条整数拼位指令与软件缩放乘法）。此外，<code>sm_100</code> 起还在算术与归约管线上补齐了两项 Hopper 缺失的指令。第一项是双单精度打包算术指令（如 <code>add.f32x2</code>）。第二项是单指令浮点极值线程束归约（<code>redux.sync.min.f32</code> 与 <code>redux.sync.max.f32</code>，Hopper 的 <code>redux.sync</code> 仅支持 32 位整数，见第 4 章）。</p>
+<hr />
+<h2>4. 第 2 级全局搬运演进：TMA 按索引收集（<code>gather4</code>）与 256 位向量加载</h2>
+<p>在 Hopper（<code>sm_90a</code>）上，专用搬运硬件 TMA（<code>cp.async.bulk.tensor</code>）仅支持按连续多维矩形框（<code>.tile</code>）和三维至五维卷积滑窗展开（<code>.im2col</code>）两种模式搬运，不支持传入离散行索引列表（<code>.tile::gather4</code> 与 <code>.tile::scatter4</code> 需 <code>sm_100+</code>，见第 3 章第 3 节）。因此在 P1 注意力按页表收集离散的 KV cache 行时，H200 无法使用 TMA，只能退回每个线程各自算地址并发指令的 <code>cp.async</code>（SASS 为 <code>LDGSTS</code>）。同时，Hopper 普通全局加载单线程最宽为 128 位（16 字节 <code>uint4</code>，即 <code>.v4.b32</code>）。并且指定 L2 留存提示时，必须先用 <code>createpolicy</code> 生成 64 位策略寄存器（见第 2 章第 5 节）。</p>
+<p>在 Blackwell（<code>sm_100a</code>）上，TMA 新增了 <strong><code>.tile::gather4</code></strong>（按 4 个行索引硬件收集）与 <strong><code>.tile::scatter4</code></strong>（按 4 个行索引硬件分散写出）模式。程序只需在单条 TMA 命令里给出二维张量的 4 个离散行号，TMA 硬件就能一次把这 4 行收集拼入同一个 SMEM 分块，省去了逐线程地址计算与 <code>LDGSTS</code> 指令。此外，<code>sm_100</code> 起把单线程全局向量加载宽度翻倍至 <strong>256 位</strong>（32 字节，即 <code>ld.global.v8.b32</code> 与 <code>.v4.b64</code>）。它还允许直接在 <code>ld</code> 指令上书写 <code>.L2::evict_first</code> 修饰符，无需 <code>createpolicy</code> 描述符寄存器。同时片上矩阵读写指令 <code>ldmatrix</code> 与 <code>stmatrix</code> 也扩展到了 <code>.m16n16</code>、<code>.m8n16</code>、<code>.m16n8</code> 以及 8 位元素（<code>.b8</code>）形态。</p>
+<hr />
+<p><strong>带走一句话：</strong> 按 PTX 指令集规范与剖析器文档，Blackwell（<code>sm_100a</code>）通过每 CTA 256 KiB 的独立 TMEM、单线程发射的 <code>tcgen05.mma</code>、原生 4 位块缩放与 TMA <code>gather4</code>，在指令集架构上针对性解开了 Hopper 的四项硬件限制。</p>
+<p><strong>下一章要回答的问题：</strong> 当在 Nsight Compute 的 Source 页面或 <code>cuobjdump --dump-sass</code> 反汇编里看到陌生的 SASS 助记符时，怎样快速查出它对应的 CUDA C++ 写法、PTX 指令与所在的硬件单元？→ 进入 附录 B：Hopper（<code>sm_90a</code>）<code>CUDA C++ → PTX → SASS</code> 速查表</p>
+</section><section id="appB"><h1>附录 B：Hopper（<code>sm_90a</code>）<code>CUDA C++ → PTX → SASS</code> 速查表</h1>
+<ul class="map"><li>第 0 章</li><li>第 0.5 章</li><li>第 1–6 章 [第 0 级</li><li>第 5 级]</li><li>第 7–8 章</li><li>第 9 章</li><li>附录 A</li><li><strong>【附录 B：<code>CUDA C++</li><li>PTX</li><li>SASS</code> 速查表】</strong></li></ul>
+<p>承接附录 A 末尾的问题（指令速查）：当在 Nsight Compute 的 Source 页面或 <code>cuobjdump --dump-sass</code> 反汇编里看到陌生的 SASS 助记符时，怎样快速查出它对应的 CUDA C++ 写法、PTX 指令与所在的硬件单元？</p>
+<hr />
+<h2>1. 怎样拆读一条 SASS 指令与十个反直觉编译真相</h2>
+<p>如图 B-1 所示，程序经历三层表示。第一层是程序员编写的 CUDA C++，第二层是前端编译器生成的虚拟汇编 PTX，第三层是 <code>ptxas</code> 针对 Hopper（<code>sm_90a</code>）生成的 128 位 SASS 机器指令（见第 6 章第 1 节）。以第 3 章的 16 字节流式全局读取指令 <code>LDG.E.EF.128 R8, desc[UR12][R8.64]</code> 为例，助记符与操作数按固定位置携带 PTX 的修饰符。<code>LDG</code> 是全局内存读取操作码，<code>.E</code> 表示使用 64 位扩展地址，<code>.EF</code> 表示本 SM 的 L1 优先淘汰提示（<code>evict_first</code>）。<code>.128</code> 表示每线程读取 128 位（16 字节，装入 <code>R8..R11</code> 四个连续寄存器）。操作数中的 <code>desc[UR12]</code> 存放在 <strong>uniform register</strong>（统一寄存器，整束 32 个线程共享同一数值的标量寄存器，写作 <code>UR</code>）里，保存 64 位内存策略描述符。末尾的 <code>[R8.64]</code> 则是由 <code>R8:R9</code> 寄存器对拼成的 64 位字节地址。</p>
+<p>一条 CUDA 函数或 PTX 指令并不总是 1 对 1 变成一条同名 SASS 指令。排查第 5 级反汇编时，需重点留意下面十个反直觉编译结果。</p>
+<ul>
+<li><code>wgmma.commit_group</code> 没有独立的 SASS 指令。它被编码成该批次最后一条 <code>HGMMA</code> 或 <code>QGMMA</code> 指令末尾的 <code>gsb0</code> 组标志位（第 64 项）。</li>
+<li>单 warp 的 FP8 矩阵乘（<code>mma.sync ... e4m3</code>）在 <code>sm_90a</code> 上由软件解包模拟。Hopper 的单 warp <code>HMMA</code> 没有原生 FP8 硬件指令。<code>ptxas</code> 会先生成 <code>F2FP.F16.E4M3.UNPACK_B</code> 把 FP8 解包成 FP16，再连发 <strong>2</strong> 条 <code>HMMA.16816.F32</code>。只有 4 个 warp 协同的 <code>wgmma</code> 才有原生 FP8 指令 <code>QGMMA</code>（第 60、62 项）。</li>
+<li>双元素半精度快速指数 <code>ex2.approx.f16x2</code> 与 <code>ex2.approx.ftz.bf16x2</code> 不会合并成 1 条 SFU 指令。<code>ptxas</code> 把它拆成 <strong>2</strong> 条标量 <code>MUFU.EX2</code> 加 1 条字节重排 <code>PRMT</code>，无法减半 SFU 管线周期。同时不带 <code>.ftz</code> 的 <code>ex2.approx.f32</code> 会额外包上 <code>FSETP</code> 与 <code>FMUL</code> 修正非规格化数，只有 <code>ex2.approx.ftz.f32</code> 才编译成裸的 1 条 <code>MUFU.EX2</code>（第 6、89 项）。</li>
+<li>默认单精度除法 <code>a / b</code>（<code>div.rn.f32</code>）与快速除法 <code>__fdividef(a, b)</code>（<code>div.full.f32</code>）开销悬殊。默认 IEEE 除法展开为 <code>MUFU.RCP</code>、牛顿迭代 <code>FFMA</code>、范围检查 <code>FCHK</code> 与慢速路径分支 <code>BRA</code>，而 <code>rcp.approx.ftz.f32</code> 只需 1 条 <code>MUFU.RCP</code>（第 4、5、7 项）。</li>
+<li>忽略返回值的 <code>atomicAdd</code> 自动优化为无返回归约。不读返回值时，全局 <code>atomicAdd</code> 编译成只发不等的 <code>REDG</code>（而非等返回值的 <code>ATOMG</code>）。片上共享内存 <code>atomicAdd(&amp;smem, 1)</code> 则编译成单条硬件投票递增指令 <code>ATOMS.POPC.INC.32</code>（第 80–82 项）。</li>
+<li>全局读取缓存修饰符在 SASS 里改名。绕过 L1 的 <code>__ldcg</code>（<code>ld.global.cg</code>）编译为 <code>LDG.E.STRONG.GPU</code>，流式读取 <code>__ldcs</code>（<code>ld.global.cs</code>）编译为 <code>LDG.E.EF</code>。只读缓存 <code>__ldg</code>（<code>ld.global.nc</code>）编译为 <code>LDG.E.CONSTANT</code>，而 <code>createpolicy</code> 生成的 L2 策略装在 <code>desc[URn]</code> 操作数里传给硬件（第 30–33 项）。</li>
+<li>1 条全卡内存栅栏 <code>__threadfence()</code> 在 SASS 里展开成 <strong>5</strong> 条指令。它依次生成 <code>MEMBAR.ALL.CTA + MEMBAR.SC.GPU + ERRBAR + CGAERRBAR + CCTL.IVALL</code>。同理，<code>ld.acquire.gpu</code> 展开为 <code>LDG.E.STRONG.GPU + CCTL.IVALL</code>，<code>red.release.gpu</code> 展开为 <code>MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + REDG</code>。默认 <code>cluster.sync()</code> 也带有同样的 <code>MEMBAR.ALL.GPU</code> 栅栏开销（第 58、79、83 项）。</li>
+<li>BF16 升 FP32（<code>cvt.f32.bf16</code>）不走类型转换指令。由于 BF16 正好是 FP32 的高 16 位，<code>ptxas</code> 直接生成 1 条字节重排 <code>PRMT</code>（或移位指令），走 16 通道的 ALU 管线而非 4 通道的 SFU 管线（第 21 项）。</li>
+<li>跨 CTA 映射地址的 <code>mapa</code> 没有独立操作码。读取集群内块编号 <code>%cluster_ctarank</code> 编译为特殊寄存器读取 <code>S2R R, SR_CgaCtaId</code>，远端 <code>ld.shared::cluster</code> 编译为通用地址读取 <code>LD.E</code>（第 55、56 项）。</li>
+<li>官方公开的 204 条 Hopper SASS 操作码表漏掉了两条高频真实操作码。<code>sm_90a</code> 实测反汇编中广泛出现的双值打包转换 <strong><code>F2FP</code></strong>（如 <code>F2FP.BF16.F32.PACK_AB</code>，走 ALU 管线）与异步拷贝屏障报到 <strong><code>ARRIVES</code></strong>（<code>ARRIVES.LDGSTSBAR.64.ARVCNT</code>），均不在官方 204 条操作码简表内（第 20、23、24、41 项）。</li>
+</ul>
+<hr />
+<h2>2. 算术、超越函数与类型转换速查表（第 1–28 项）</h2>
+<p>下表列出第 1 至第 28 项算术、超越函数与类型转换操作的对照关系。由于单条指令本身的编码都在第 5 级（见第 6 章），表中“代价层级”一栏标出的是该指令在硬件上产生吞吐或延迟瓶颈的层级（第 0 级至第 4 级）。凡属本地仅保留 SASS 反汇编（未保留 <code>.ptx</code> 中间文件）或按同族规则推断（<code>INFERRED</code>）的条目，均在“编译说明”栏明确注明；表中“CUTLASS 中的对应写法”仅列出封装该条 PTX 指令的常见模板名，不对外部库内部实现作额外断言。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">序号</th>
+<th style="text-align:left">操作类别</th>
+<th style="text-align:left">CUDA C++ 写法</th>
+<th style="text-align:left">PTX 指令</th>
+<th style="text-align:left">SASS 助记符（<code>sm_90a</code>）</th>
+<th style="text-align:left">硬件单元与代价层级</th>
+<th style="text-align:left">编译说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">1</td>
+<td style="text-align:left">FP32 融合乘加</td>
+<td style="text-align:left"><code>fmaf(a,b,c)</code>；<code>__fmaf_rn</code>；<code>a*b+c</code>（默认收缩）</td>
+<td style="text-align:left"><code>fma.rn.f32</code>（<code>mad.f32</code> 同）</td>
+<td style="text-align:left"><code>FFMA</code></td>
+<td style="text-align:left">FMA 管线（32 通道，发射间隔 1 周期）· 第 4 级</td>
+<td style="text-align:left">1 对 1；<code>sm_90a</code> 无双单精度打包 <code>f32x2</code>（需 <code>sm_100</code>）</td>
+</tr>
+<tr>
+<td style="text-align:left">2</td>
+<td style="text-align:left">FP32 加法与乘法</td>
+<td style="text-align:left"><code>a+b</code>；<code>a*b</code>；<code>__fadd_rn</code>；<code>__fmul_rn</code></td>
+<td style="text-align:left"><code>add.f32</code>；<code>mul.f32</code></td>
+<td style="text-align:left"><code>FADD</code>、<code>FMUL</code></td>
+<td style="text-align:left">FMA 管线 · 第 4 级</td>
+<td style="text-align:left"><code>__fadd_rn</code> / <code>__fmul_rn</code> 可阻止编译器将 <code>a*b+c</code> 收缩为 <code>FFMA</code></td>
+</tr>
+<tr>
+<td style="text-align:left">3</td>
+<td style="text-align:left">FP32 极值、选择与比较</td>
+<td style="text-align:left"><code>fminf</code>；<code>fmaxf</code>；<code>cond?a:b</code>；<code>a&lt;b</code></td>
+<td style="text-align:left"><code>min.f32</code>；<code>max.f32</code>；<code>selp.f32</code>；<code>setp.lt.f32</code></td>
+<td style="text-align:left"><code>FMNMX</code>、<code>FSEL</code>、<code>FSETP</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left"><code>FMNMX</code> 靠谓词选择取最小值或最大值；<code>setp</code> 写入谓词寄存器 <code>P0..P6</code></td>
+</tr>
+<tr>
+<td style="text-align:left">4</td>
+<td style="text-align:left">FP32 快速除法</td>
+<td style="text-align:left"><code>__fdividef(a,b)</code>；开启 <code>-use_fast_math</code> 时的 <code>a/b</code></td>
+<td style="text-align:left"><code>div.full.f32</code>；<code>div.approx.f32</code></td>
+<td style="text-align:left"><code>MUFU.RCP</code>、<code>FMUL</code></td>
+<td style="text-align:left">SFU 管线 + FMA 管线 · 第 4 级</td>
+<td style="text-align:left">1 条 PTX 展开为倒数近似 <code>MUFU.RCP</code> 加乘法 <code>FMUL</code>，误差约 2 ulp</td>
+</tr>
+<tr>
+<td style="text-align:left">5</td>
+<td style="text-align:left">FP32 标准 IEEE 除法与开方</td>
+<td style="text-align:left">默认 <code>a/b</code>；<code>sqrtf(x)</code></td>
+<td style="text-align:left"><code>div.rn.f32</code>；<code>sqrt.rn.f32</code></td>
+<td style="text-align:left"><code>MUFU.RCP</code>、<code>FCHK</code>、<code>FFMA</code>、<code>BRA</code></td>
+<td style="text-align:left">SFU + FMA + 分支单元 · 第 4 级</td>
+<td style="text-align:left">含牛顿迭代 <code>FFMA</code> 与范围检查 <code>FCHK</code>，越界时跳转慢速子程序</td>
+</tr>
+<tr>
+<td style="text-align:left">6</td>
+<td style="text-align:left">FP32 指数运算</td>
+<td style="text-align:left"><code>exp2f(x)</code>；<code>__expf(x)</code>；内联 <code>ex2.approx.ftz.f32</code></td>
+<td style="text-align:left"><code>ex2.approx.f32</code>；<code>ex2.approx.ftz.f32</code></td>
+<td style="text-align:left"><code>MUFU.EX2</code>、<code>FMUL</code>、<code>FSETP</code></td>
+<td style="text-align:left">SFU 管线（4 通道，发射间隔 8 周期）· 第 4 级</td>
+<td style="text-align:left">带 <code>.ftz</code> 编译为裸的 1 条 <code>MUFU.EX2</code>；不带 <code>.ftz</code> 会外包 <code>FSETP + FMUL</code> 修正</td>
+</tr>
+<tr>
+<td style="text-align:left">7</td>
+<td style="text-align:left">FP32 倒数、平方根倒数、对数与三角函数</td>
+<td style="text-align:left"><code>rcp.approx</code>；<code>rsqrtf(x)</code>；<code>__log2f(x)</code>；<code>__sinf</code>；<code>__cosf</code></td>
+<td style="text-align:left"><code>rcp/rsqrt/lg2/sin/cos.approx.ftz.f32</code></td>
+<td style="text-align:left"><code>MUFU.RCP</code>、<code>MUFU.RSQ</code>、<code>MUFU.LG2</code>、<code>MUFU.SIN</code>、<code>MUFU.COS</code></td>
+<td style="text-align:left">SFU 管线 · 第 4 级</td>
+<td style="text-align:left"><code>SIN/COS</code> 前置 1 条范围归约 <code>FMUL</code>；仅 <code>.approx</code> 形态为单条 <code>MUFU</code></td>
+</tr>
+<tr>
+<td style="text-align:left">8</td>
+<td style="text-align:left">FP32 硬件双曲正切</td>
+<td style="text-align:left">内联 <code>tanh.approx.f32</code>（标准库 <code>tanhf</code> 为软件展开）</td>
+<td style="text-align:left"><code>tanh.approx.f32</code></td>
+<td style="text-align:left"><code>MUFU.TANH</code></td>
+<td style="text-align:left">SFU 管线 · 第 4 级</td>
+<td style="text-align:left">1 对 1，最大相对误差 <code>2^-11</code>（仅在本地 SASS 反汇编中观测到，未保留对应 <code>.ptx</code> 文件）</td>
+</tr>
+<tr>
+<td style="text-align:left">9</td>
+<td style="text-align:left">双半精度打包算术（FP16x2 / BF16x2）</td>
+<td style="text-align:left"><code>__hadd2</code>；<code>__hmul2</code>；<code>__hfma2</code>（<code>__half2</code> 或 <code>__nv_bfloat162</code>）</td>
+<td style="text-align:left"><code>add/mul/fma.rn.f16x2</code>；<code>add/mul/fma.rn.bf16x2</code></td>
+<td style="text-align:left"><code>HADD2</code>、<code>HMUL2</code>、<code>HFMA2</code></td>
+<td style="text-align:left">FMA 管线 · 第 4 级</td>
+<td style="text-align:left">BF16 打包指令带 <code>.BF16_V2</code> 后缀，<code>HMUL2.BF16_V2</code> 发射间隔约 2 周期（<code>fma.rn.bf16x2</code> 对应 <code>HFMA2.BF16_V2</code> 为推断，该 SASS 名已在反汇编中观测到）</td>
+</tr>
+<tr>
+<td style="text-align:left">10</td>
+<td style="text-align:left">双半精度打包极值</td>
+<td style="text-align:left"><code>__hmax2</code>；<code>__hmin2</code></td>
+<td style="text-align:left"><code>max/min.f16x2</code>；<code>max/min.bf16x2</code></td>
+<td style="text-align:left"><code>HMNMX2</code></td>
+<td style="text-align:left">ALU / FMA 管线（推断）· 第 4 级</td>
+<td style="text-align:left">单条指令同时求一对半精度数的极值（仅在本地 SASS 反汇编中观测到 <code>HMNMX2</code>，未保留对应 PTX 对；管线归属为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">11</td>
+<td style="text-align:left">整数乘加与地址计算</td>
+<td style="text-align:left"><code>a*b+c</code>（整数）；<code>__mul24</code>；指针偏移 <code>ptr + i*size</code></td>
+<td style="text-align:left"><code>mad.lo.s32/u32</code>；<code>mad.wide.u32</code>；<code>mul.hi.u32</code></td>
+<td style="text-align:left"><code>IMAD</code>、<code>IADD3</code>、<code>LEA</code></td>
+<td style="text-align:left"><code>IMAD</code> 走 FMA 重型子管线；<code>IADD3/LEA</code> 走 ALU 管线 · 第 4 级</td>
+<td style="text-align:left"><code>IMAD</code> 兼具寄存器搬运（<code>IMAD.MOV</code>）、左移（<code>IMAD.SHL</code>）与 64 位宽乘加（<code>IMAD.WIDE</code>）</td>
+</tr>
+<tr>
+<td style="text-align:left">12</td>
+<td style="text-align:left">整数加减与三输入加法</td>
+<td style="text-align:left"><code>a+b+c</code>；<code>a+b</code>（整数）</td>
+<td style="text-align:left"><code>add.s32/u32</code>；<code>sub.s32</code>；<code>add.s64</code></td>
+<td style="text-align:left"><code>IADD3</code>、<code>VIADD</code></td>
+<td style="text-align:left">ALU 管线（16 通道，发射间隔 2 周期）· 第 4 级</td>
+<td style="text-align:left"><code>sm_90a</code> 用三输入 <code>IADD3</code> 与双输入 <code>VIADD</code>；64 位加法拆为 <code>IADD3 + IADD3.X</code></td>
+</tr>
+<tr>
+<td style="text-align:left">13</td>
+<td style="text-align:left">三输入按位逻辑</td>
+<td style="text-align:left"><code>a&amp;b</code>；<code>a|b</code>；<code>a^b</code>；<code>~a</code>；内联 <code>lop3.b32</code></td>
+<td style="text-align:left"><code>and/or/xor/not.b32</code>；<code>lop3.b32 d,a,b,c,immLut</code></td>
+<td style="text-align:left"><code>LOP3</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left"><code>ptxas</code> 将任意 1–3 输入按位逻辑表达式折叠为 1 条 <code>LOP3.LUT</code>（真值表编码在 8 位立即数中）</td>
+</tr>
+<tr>
+<td style="text-align:left">14</td>
+<td style="text-align:left">移位、漏斗移位与循环移位</td>
+<td style="text-align:left"><code>a&lt;&lt;n</code>；<code>a&gt;&gt;n</code>；<code>__funnelshift_l/r</code></td>
+<td style="text-align:left"><code>shl/shr.b32</code>；<code>shf.l.wrap.b32</code>；<code>shf.r.clamp.b32</code></td>
+<td style="text-align:left"><code>SHF</code>、<code>IMAD.SHL.U32</code>、<code>USHF</code></td>
+<td style="text-align:left">ALU 管线（或 FMA 重型子管线）· 第 4 级</td>
+<td style="text-align:left">常数左移可由编译器分配为 <code>SHF</code>（走 ALU）或 <code>IMAD.SHL.U32</code>（走 FMA 重型子管线）</td>
+</tr>
+<tr>
+<td style="text-align:left">15</td>
+<td style="text-align:left">字节重排</td>
+<td style="text-align:left"><code>__byte_perm(x,y,sel)</code></td>
+<td style="text-align:left"><code>prmt.b32 d,a,b,sel</code></td>
+<td style="text-align:left"><code>PRMT</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left">从两个源寄存器的 8 个字节中按 4 位选择器挑出 4 个字节拼入目标寄存器</td>
+</tr>
+<tr>
+<td style="text-align:left">16</td>
+<td style="text-align:left">位计数、位反转、前导一与位域提取</td>
+<td style="text-align:left"><code>__popc</code>；<code>__brev</code>；<code>__clz</code>；<code>__ffs</code>；内联 <code>bfe/bfi</code></td>
+<td style="text-align:left"><code>popc.b32</code>；<code>brev.b32</code>；<code>bfind</code>；<code>bfe.u32</code>；<code>bfi.b32</code></td>
+<td style="text-align:left"><code>POPC</code>、<code>BREV</code>、<code>FLO</code>、<code>SGXT</code>、<code>LOP3</code></td>
+<td style="text-align:left">ALU / SFU 管线（推断）· 第 4 级</td>
+<td style="text-align:left"><code>bfe.u32</code> 可编译为 <code>SGXT.U32</code> 或 <code>SHF + LOP3</code>；<code>clz/bfind</code> 对应 <code>FLO</code> 及硬件管线归属为推断</td>
+</tr>
+<tr>
+<td style="text-align:left">17</td>
+<td style="text-align:left">整数极值、绝对值、比较与选择</td>
+<td style="text-align:left"><code>min/max</code>；<code>abs</code>；<code>a&lt;b</code>；<code>?:</code></td>
+<td style="text-align:left"><code>min/max.s32</code>；<code>abs.s32</code>；<code>setp.lt.s32</code>；<code>selp.b32</code></td>
+<td style="text-align:left"><code>VIMNMX</code>、<code>IABS</code>、<code>ISETP</code>、<code>SEL</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left">1 对 1 走整数 ALU 管线</td>
+</tr>
+<tr>
+<td style="text-align:left">18</td>
+<td style="text-align:left">4 路 8 位整数点积</td>
+<td style="text-align:left"><code>__dp4a(a,b,c)</code>；<code>__dp2a_lo</code></td>
+<td style="text-align:left"><code>dp4a.s32.s32</code>；<code>dp2a</code></td>
+<td style="text-align:left"><code>IDP</code></td>
+<td style="text-align:left">FMA 重型子管线（推断）· 第 4 级</td>
+<td style="text-align:left">本地反汇编无此样本，按 Hopper 操作码表推断对应 <code>IDP</code>（管线归属亦为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">19</td>
+<td style="text-align:left">单值 FP32 转 BF16</td>
+<td style="text-align:left"><code>__float2bfloat16(x)</code>；<code>static_cast&lt;__nv_bfloat16&gt;(f)</code></td>
+<td style="text-align:left"><code>cvt.rn.bf16.f32</code></td>
+<td style="text-align:left"><code>F2F.BF16.F32</code></td>
+<td style="text-align:left">SFU 管线（标量转换）· 第 4 级</td>
+<td style="text-align:left">单值转换走 4 通道 SFU 管线；尽量改用下一项的双值打包转换</td>
+</tr>
+<tr>
+<td style="text-align:left">20</td>
+<td style="text-align:left">双值 FP32 打包转 BF16x2 / FP16x2</td>
+<td style="text-align:left"><code>__floats2bfloat162_rn(a,b)</code>；<code>__floats2half2_rn(a,b)</code></td>
+<td style="text-align:left"><code>cvt.rn.bf16x2.f32 d,a,b</code>；<code>cvt.rn.f16x2.f32 d,a,b</code></td>
+<td style="text-align:left"><code>F2FP.BF16.F32.PACK_AB</code>、<code>F2FP.F16.F32.PACK_AB</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left">1 条指令把两个 FP32 舍入打包进 1 个 32 位寄存器，走 16 通道 ALU 管线（不在官方 204 条简表内）</td>
+</tr>
+<tr>
+<td style="text-align:left">21</td>
+<td style="text-align:left">BF16 升宽为 FP32</td>
+<td style="text-align:left"><code>__bfloat162float(h)</code>；<code>__bfloat1622float2</code></td>
+<td style="text-align:left"><code>cvt.f32.bf16</code></td>
+<td style="text-align:left"><code>PRMT</code>、<code>IMAD.U32</code>、<code>SHF.L.U32</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left">BF16 即 FP32 的高 16 位，编译为字节重排 <code>PRMT R0,RZ,0x7610,R0</code> 或移位</td>
+</tr>
+<tr>
+<td style="text-align:left">22</td>
+<td style="text-align:left">FP16 与 FP32 / BF16 互转</td>
+<td style="text-align:left"><code>__half2float(h)</code>；<code>__float2half(f)</code></td>
+<td style="text-align:left"><code>cvt.f32.f16</code>；<code>cvt.rn.f16.f32</code>；<code>cvt.bf16.f16</code></td>
+<td style="text-align:left"><code>HADD2.F32</code>、<code>F2FP.F16.F32.PACK_AB</code>、<code>F2F.BF16.F16</code></td>
+<td style="text-align:left">FMA / ALU / SFU 管线 · 第 4 级</td>
+<td style="text-align:left"><code>f16 -&gt; f32</code> 编译为与 0 相加的 <code>HADD2.F32</code>（走 FMA 管线）</td>
+</tr>
+<tr>
+<td style="text-align:left">23</td>
+<td style="text-align:left">双值 FP32 饱和打包转 FP8（E4M3 / E5M2）</td>
+<td style="text-align:left"><code>__nv_cvt_float2_to_fp8x2(f2, __NV_SATFINITE, __NV_E4M3)</code></td>
+<td style="text-align:left"><code>cvt.rn.satfinite.e4m3x2.f32 d16,a,b</code></td>
+<td style="text-align:left"><code>F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C</code></td>
+<td style="text-align:left">ALU 管线（推断）· 第 4 级</td>
+<td style="text-align:left">两个 FP32 打包为 16 位 FP8 对并保留目标寄存器另一半（<code>MERGE_C</code>；<code>E5M2</code> 形态与 ALU 管线归属为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">24</td>
+<td style="text-align:left">双值 FP8（E4M3）解包转 FP16x2</td>
+<td style="text-align:left"><code>__nv_cvt_fp8x2_to_halfraw2(x, __NV_E4M3)</code>；内联 <code>cvt.rn.f16x2.e4m3x2</code></td>
+<td style="text-align:left"><code>cvt.rn.f16x2.e4m3x2 d32,a16</code></td>
+<td style="text-align:left"><code>F2FP.F16.E4M3.UNPACK_B</code></td>
+<td style="text-align:left">ALU 管线（推断）· 第 4 级</td>
+<td style="text-align:left">把 2 个 FP8 字节解包成 <code>FP16x2</code>（单 warp FP8 <code>mma.sync</code> 前置解包亦用此指令；ALU 管线归属为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">25</td>
+<td style="text-align:left">FP16x2 饱和打包转 FP8</td>
+<td style="text-align:left">内联 <code>cvt.rn.satfinite.e4m3x2.f16x2</code></td>
+<td style="text-align:left"><code>cvt.rn.satfinite.e4m3x2.f16x2</code></td>
+<td style="text-align:left"><code>F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C</code>、<code>F2F</code></td>
+<td style="text-align:left">ALU / SFU 管线（推断）· 第 4 级</td>
+<td style="text-align:left">本地未单独分离出 <code>f16x2</code> 源形态的 SASS 样本，按同族规则推断为 <code>F2FP</code> / <code>F2F</code>（整行为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">26</td>
+<td style="text-align:left">32 位整数与 FP32 互转及取整</td>
+<td style="text-align:left"><code>(float)i</code>；<code>(int)f</code>；<code>floorf</code>；<code>truncf</code>；<code>rintf</code></td>
+<td style="text-align:left"><code>cvt.rn.f32.s32</code>；<code>cvt.rzi.s32.f32</code>；<code>cvt.rmi/rzi/rni.f32.f32</code></td>
+<td style="text-align:left"><code>I2FP.F32.S32</code>、<code>I2FP.F32.U32</code>、<code>F2I.TRUNC.NTZ</code>、<code>FRND.FLOOR</code>、<code>FRND.TRUNC</code></td>
+<td style="text-align:left"><code>I2FP</code> 走 ALU（推断）；<code>F2I/FRND</code> 走 SFU · 第 4 级</td>
+<td style="text-align:left">32 位整数转 FP32 用 <code>I2FP</code>（其走 ALU 管线为推断）；浮点取整用 <code>FRND</code></td>
+</tr>
+<tr>
+<td style="text-align:left">27</td>
+<td style="text-align:left">FP64 与 FP32 互转、64 位整数转浮点</td>
+<td style="text-align:left"><code>(double)f</code>；<code>(float)d</code>；<code>(float)ll</code></td>
+<td style="text-align:left"><code>cvt.f64.f32</code>；<code>cvt.rn.f32.f64</code>；<code>cvt.rn.f32.s64</code></td>
+<td style="text-align:left"><code>F2F.F64.F32</code>、<code>F2F.F32.F64</code>、<code>I2F.S64</code></td>
+<td style="text-align:left">SFU 管线（推断）· 第 4 级</td>
+<td style="text-align:left">1 对 1（归属 SFU 慢速转换通道为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">28</td>
+<td style="text-align:left">整数位宽扩展与截断</td>
+<td style="text-align:left"><code>(long)i</code>；<code>(unsigned)u64</code>；<code>(short)i</code></td>
+<td style="text-align:left"><code>cvt.u64.u32</code>；<code>cvt.s64.s32</code>；<code>cvt.u32.u16</code>；<code>cvt.s16.s8</code></td>
+<td style="text-align:left"><code>MOV</code>、<code>SGXT</code>、<code>LOP3</code>、<code>PRMT</code>、<code>IMAD.MOV.U32</code></td>
+<td style="text-align:left">ALU 管线 · 第 4 级</td>
+<td style="text-align:left">无符号升 64 位常直接将高 32 位记为 <code>RZ</code>（零指令）；有符号扩展用 <code>SGXT</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. 全局、片上访存与异步拷贝速查表（第 29–49 项）</h2>
+<p>下表列出第 29 至第 49 项全局内存、共享内存、常量内存读写以及 <code>cp.async</code> 与 TMA 异步拷贝操作的对照关系。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">序号</th>
+<th style="text-align:left">操作类别</th>
+<th style="text-align:left">CUDA C++ 写法</th>
+<th style="text-align:left">PTX 指令</th>
+<th style="text-align:left">SASS 助记符（<code>sm_90a</code>）</th>
+<th style="text-align:left">硬件单元与代价层级</th>
+<th style="text-align:left">编译说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">29</td>
+<td style="text-align:left">普通全局内存读写（标量与向量）</td>
+<td style="text-align:left"><code>*p</code>；<code>p[i]</code>；<code>reinterpret_cast&lt;uint4*&gt;(p)[i]</code>（16 字节）</td>
+<td style="text-align:left"><code>ld.global.b32/v4.b32/b64</code>；<code>st.global.v4.b32/b8/b16</code></td>
+<td style="text-align:left"><code>LDG.E</code>、<code>LDG.E.64</code>、<code>LDG.E.128</code>、<code>LDG.E.U16</code>、<code>STG.E</code>、<code>STG.E.64</code>、<code>STG.E.128</code></td>
+<td style="text-align:left">LSU → L1 → L2 · 第 2 级</td>
+<td style="text-align:left">位宽直接体现为后缀（<code>.64/.128/.U16</code>）；若 16 字节向量只用其中几个分量，<code>ptxas</code> 会拆成标量 <code>LDG.E</code></td>
+</tr>
+<tr>
+<td style="text-align:left">30</td>
+<td style="text-align:left">只读非一致全局读取（<code>__ldg</code>）</td>
+<td style="text-align:left"><code>__ldg(p)</code>；<code>const __restrict__ T* p</code>；内联 <code>ld.global.nc</code></td>
+<td style="text-align:left"><code>ld.global.nc.u32</code>；<code>ld.global.nc.v4.f32</code></td>
+<td style="text-align:left"><code>LDG.E.CONSTANT</code>、<code>LDG.E.128.CONSTANT</code>、<code>LDG.E.64.CONSTANT</code></td>
+<td style="text-align:left">LSU → L1 只读路径 → L2 · 第 2 级</td>
+<td style="text-align:left"><code>.nc</code> 编译为 <code>.CONSTANT</code> 修饰符；对本 kernel 运行期间会被其他 CTA 改写的地址使用属未定义行为</td>
+</tr>
+<tr>
+<td style="text-align:left">31</td>
+<td style="text-align:left">绕过 L1 的全局读写（<code>__ldcg / __stcg</code>）</td>
+<td style="text-align:left"><code>__ldcg(p)</code>；<code>__stcg(p,v)</code>；内联 <code>ld/st.global.cg</code></td>
+<td style="text-align:left"><code>ld.global.cg.v4.b32</code>；<code>st.global.cg.f32</code></td>
+<td style="text-align:left"><code>LDG.E.STRONG.GPU</code>、<code>STG.E.STRONG.GPU</code></td>
+<td style="text-align:left">LSU → L2（绕过 L1）· 第 2 级</td>
+<td style="text-align:left"><code>.cg</code> 编译为 <code>.STRONG.GPU</code>（与全卡作用域的宽松原子读写同指令），适合跨 SM 读取标志位</td>
+</tr>
+<tr>
+<td style="text-align:left">32</td>
+<td style="text-align:left">流式优先淘汰全局读取（<code>__ldcs</code>）</td>
+<td style="text-align:left"><code>__ldcs(p)</code>；内联 <code>ld.global.cs</code></td>
+<td style="text-align:left"><code>ld.global.cs.v4.b32</code></td>
+<td style="text-align:left"><code>LDG.E.EF</code>、<code>LDG.E.EF.128</code>、<code>LDG.E.EF.64</code></td>
+<td style="text-align:left">LSU → L1/L2（优先淘汰）· 第 2 级</td>
+<td style="text-align:left"><code>.cs</code> 编译为 <code>.EF</code>（<code>evict_first</code>）修饰符（写出形式 <code>STG.E.EF / STG.E.EL</code> 与 PTX 的配对为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">33</td>
+<td style="text-align:left">带 <code>createpolicy</code> 的 L1/L2 留存提示加载</td>
+<td style="text-align:left">内联 <code>createpolicy.fractional.L2::evict_first.b64</code> 加 <code>ld.global.L1::evict_first.L2::cache_hint</code></td>
+<td style="text-align:left"><code>createpolicy.fractional.L2::evict_first|evict_last.b64 pol,1.0</code>；<code>ld.global...L2::cache_hint</code></td>
+<td style="text-align:left"><code>UMOV</code>、<code>LDG.E.EF</code>、<code>STG.E.EL</code>、<code>LDG.E</code></td>
+<td style="text-align:left">LSU（策略存于统一寄存器）· 第 2 级</td>
+<td style="text-align:left">L1 提示变成 <code>.EF/.EL</code> 后缀（<code>st.global.L1::evict_last</code> 对应 <code>STG.E.EL</code> 为推断）；L2 策略通过 <code>desc[URn]</code> 传给硬件</td>
+</tr>
+<tr>
+<td style="text-align:left">34</td>
+<td style="text-align:left">预取到 L2 缓存</td>
+<td style="text-align:left"><code>__builtin_prefetch</code>；内联 <code>prefetch.global.L2</code></td>
+<td style="text-align:left"><code>prefetch.global.L2 [a]</code>；<code>prefetch.global.L1</code></td>
+<td style="text-align:left"><code>CCTL.E.PF2</code></td>
+<td style="text-align:left">L2 缓存控制 · 第 2 级</td>
+<td style="text-align:left">1 对 1 生成缓存控制预取指令 <code>CCTL.E.PF2</code></td>
+</tr>
+<tr>
+<td style="text-align:left">35</td>
+<td style="text-align:left">局部内存读写（寄存器溢出或动态下标数组）</td>
+<td style="text-align:left">动态下标局部数组；寄存器溢出（<code>ptxas -v</code> 报告 <code>spill stores/loads</code>）</td>
+<td style="text-align:left"><code>ld.local</code>；<code>st.local</code></td>
+<td style="text-align:left"><code>LDL</code>、<code>LDL.LU</code>、<code>STL</code></td>
+<td style="text-align:left">LSU → L1 → L2（位于全局显存）· 第 2 级</td>
+<td style="text-align:left"><code>.LU</code>（最后一次使用）在读出后释放缓存行；热循环中出现 <code>LDL/STL</code> 代表寄存器溢出</td>
+</tr>
+<tr>
+<td style="text-align:left">36</td>
+<td style="text-align:left">内核参数与常量内存读取</td>
+<td style="text-align:left">kernel 形参；<code>__constant__</code> 变量</td>
+<td style="text-align:left"><code>ld.param.*</code>；<code>ld.const</code></td>
+<td style="text-align:left"><code>LDC</code>、<code>ULDC</code></td>
+<td style="text-align:left">SM 常量缓存 · 第 2 级</td>
+<td style="text-align:left">形参存于常量体 <code>c[0x0][0x210..]</code>；<code>ULDC</code> 直接把整束相同的常量读入统一寄存器 <code>UR</code></td>
+</tr>
+<tr>
+<td style="text-align:left">37</td>
+<td style="text-align:left">通用地址空间读写（<code>cvta</code>）</td>
+<td style="text-align:left">编译器无法静态区分全局或共享空间的指针；<code>cluster.map_shared_rank</code> 返回的远端指针</td>
+<td style="text-align:left"><code>ld.b32</code>；<code>st.b32</code>；<code>cvta.shared.u64</code>；<code>ld.shared::cluster</code></td>
+<td style="text-align:left"><code>LD</code>、<code>ST</code></td>
+<td style="text-align:left">LSU（运行时硬件解码地址窗口）· 第 2 级</td>
+<td style="text-align:left">通用 <code>LD.E / ST.E</code> 需在运行时判断地址空间；跨 CTA 读取远端共享内存也编译为 <code>LD.E</code></td>
+</tr>
+<tr>
+<td style="text-align:left">38</td>
+<td style="text-align:left">SMEM 普通读写</td>
+<td style="text-align:left"><code>extern __shared__ T s[]</code>；<code>s[i]</code>；<code>float4</code> 向量访问</td>
+<td style="text-align:left"><code>ld.shared.b32/v4.b32</code>；<code>st.shared::cta.v4.b32</code></td>
+<td style="text-align:left"><code>LDS</code>、<code>LDS.64</code>、<code>LDS.128</code>、<code>LDS.U8</code>、<code>LDS.U16</code>、<code>STS</code>、<code>STS.64</code>、<code>STS.128</code></td>
+<td style="text-align:left">LSU → SMEM（32 个 4 字节 bank）· 第 2 级</td>
+<td style="text-align:left">1 对 1 带位宽后缀；整束 <code>LDS.128</code> 共读 512 字节（分 4 个波面请求 32 个 bank）</td>
+</tr>
+<tr>
+<td style="text-align:left">39</td>
+<td style="text-align:left">逐线程异步全局到共享拷贝（<code>cp.async</code>）</td>
+<td style="text-align:left"><code>__pipeline_memcpy_async(dst,src,16)</code>；<code>cuda::memcpy_async</code>；内联 <code>cp.async.cg/ca</code></td>
+<td style="text-align:left"><code>cp.async.cg.shared.global [dst],[src],16{,src-size}</code>；<code>cp.async.ca...4|8|16</code></td>
+<td style="text-align:left"><code>LDGSTS.E.BYPASS.128</code>、<code>LDGSTS.E.BYPASS.128.ZFILL</code>、<code>LDGSTS.E</code>、<code>LDGSTS.E.64</code></td>
+<td style="text-align:left">LSU（L2 直写 SMEM，不经私有寄存器）· 第 2 级</td>
+<td style="text-align:left"><code>.cg</code>（仅 16 字节）编译为绕过 L1 的 <code>.BYPASS.128</code>；带 <code>src-size</code> 越界填零时生成 <code>.ZFILL</code></td>
+</tr>
+<tr>
+<td style="text-align:left">40</td>
+<td style="text-align:left"><code>cp.async</code> 提交与按组等待</td>
+<td style="text-align:left"><code>__pipeline_commit()</code>；<code>__pipeline_wait_prior(N)</code>；<code>cp_async_wait&lt;N&gt;()</code></td>
+<td style="text-align:left"><code>cp.async.commit_group</code>；<code>cp.async.wait_group N</code>；<code>cp.async.wait_all</code></td>
+<td style="text-align:left"><code>LDGDEPBAR</code>、<code>DEPBAR.LE</code></td>
+<td style="text-align:left">LSU 记分牌（<code>SB0</code>）· 第 3 级</td>
+<td style="text-align:left"><code>commit_group</code> 编译为 <code>LDGDEPBAR</code>；<code>wait_group N</code> 编译为 <code>DEPBAR.LE SB0, N</code>（跨线程读取前仍需块内屏障）</td>
+</tr>
+<tr>
+<td style="text-align:left">41</td>
+<td style="text-align:left"><code>cp.async</code> 向 <code>mbarrier</code> 报到</td>
+<td style="text-align:left"><code>cuda::memcpy_async(..., bar)</code>；<code>cuda::ptx::cp_async_mbarrier_arrive_noinc</code></td>
+<td style="text-align:left"><code>cp.async.mbarrier.arrive.noinc.shared.b64 [bar]</code></td>
+<td style="text-align:left"><code>ARRIVES.LDGSTSBAR.64.ARVCNT</code></td>
+<td style="text-align:left">LSU + <code>mbarrier</code> 单元 · 第 3 级</td>
+<td style="text-align:left">本线程此前发出的 <code>cp.async</code> 全部落定后自动触发屏障报到（<code>ARRIVES</code> 不在官方 204 条简表内）</td>
+</tr>
+<tr>
+<td style="text-align:left">42</td>
+<td style="text-align:left">TMA 多维张量分块加载（全局到共享）</td>
+<td style="text-align:left"><code>cp_async_bulk_tensor_2d_global_to_shared</code>（CUTLASS 中的对应写法：<code>SM90_TMA_LOAD</code>）</td>
+<td style="text-align:left"><code>cp.async.bulk.tensor.{1..5}d.shared::cluster.global.mbarrier::complete_tx::bytes [dst],[tmap,{c0..}],[mbar]</code></td>
+<td style="text-align:left"><code>UTMALDG.2D</code>、<code>UTMALDG.3D</code>、<code>UTMALDG.5D</code></td>
+<td style="text-align:left">SM 内专用 TMA 单元 · 第 2 级</td>
+<td style="text-align:left">1 对 1，通常由 <code>ELECT</code> 选出的 1 个线程发出，占 0 个数据寄存器</td>
+</tr>
+<tr>
+<td style="text-align:left">43</td>
+<td style="text-align:left">TMA 集群多播分块加载</td>
+<td style="text-align:left"><code>cuda::ptx::cp_async_bulk_tensor(..., ctaMask)</code>（CUTLASS 中的对应写法：<code>SM90_TMA_LOAD_MULTICAST</code>）</td>
+<td style="text-align:left"><code>cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster ... ctaMask</code></td>
+<td style="text-align:left"><code>UTMALDG.2D.MULTICAST</code></td>
+<td style="text-align:left">TMA 单元 + 集群互连网络 · 第 1 级</td>
+<td style="text-align:left">读 1 次 L2，同时写入 <code>ctaMask</code> 掩码内各目标 CTA 的相同 SMEM 偏移并各自触发 <code>complete_tx</code></td>
+</tr>
+<tr>
+<td style="text-align:left">44</td>
+<td style="text-align:left">TMA 多维张量分块写回（共享到全局）</td>
+<td style="text-align:left"><code>tma_store_arrive</code>；<code>tma_store_wait</code>（CUTLASS 中的对应写法：<code>SM90_TMA_STORE</code>）</td>
+<td style="text-align:left"><code>cp.async.bulk.tensor.2d.global.shared::cta.bulk_group</code>；<code>cp.async.bulk.commit_group / wait_group</code></td>
+<td style="text-align:left"><code>UTMASTG.2D</code>、<code>UTMASTG.3D</code>、<code>UTMACMDFLUSH</code>、<code>DEPBAR.LE</code></td>
+<td style="text-align:left">TMA 单元 · 第 2 级</td>
+<td style="text-align:left">发起写回前需先执行 <code>fence.proxy.async.shared::cta</code>（第 54 项）；<code>commit_group</code> 编译为 <code>UTMACMDFLUSH</code></td>
+</tr>
+<tr>
+<td style="text-align:left">45</td>
+<td style="text-align:left">TMA 多维张量分块原子累加写回</td>
+<td style="text-align:left"><code>cuda::ptx::cp_reduce_async_bulk_tensor</code>（CUTLASS 中的对应写法：<code>SM90_TMA_REDUCE_ADD</code>）</td>
+<td style="text-align:left"><code>cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group [tmap,{..}],[src]</code></td>
+<td style="text-align:left"><code>UTMAREDG.2D.ADD</code>、<code>UTMAREDG.3D.ADD</code></td>
+<td style="text-align:left">TMA 单元 + L2 原子归约单元 · 第 1 级</td>
+<td style="text-align:left">把 SMEM 分块直接发往 L2 做硬件原子加法，无需在 SM 内读回旧值</td>
+</tr>
+<tr>
+<td style="text-align:left">46</td>
+<td style="text-align:left">TMA 一维连续字节流拷贝与归约</td>
+<td style="text-align:left"><code>cuda::ptx::cp_async_bulk</code>；<code>cp_reduce_async_bulk</code>（CUTLASS 中的对应写法：<code>SM90_BULK_COPY_G2S</code>）</td>
+<td style="text-align:left"><code>cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [dst],[src],size,[mbar]</code></td>
+<td style="text-align:left"><code>UBLKCP.S.G</code>、<code>UBLKCP.S.S</code>、<code>UBLKRED.G.S.ADD.BF16.RN</code></td>
+<td style="text-align:left">TMA 单元（免描述符路径）· 第 2 级</td>
+<td style="text-align:left">要求地址与字节数按 16 字节对齐；<code>S.G</code> 表示全局到共享，<code>S.S</code> 表示跨 CTA 共享拷贝（写出变体 <code>UBLKCP.G.S</code> 为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">47</td>
+<td style="text-align:left">TMA 一维与张量分块预取至 L2</td>
+<td style="text-align:left"><code>cuda::ptx::cp_async_bulk_prefetch</code>；<code>cp.async.bulk.prefetch.tensor</code></td>
+<td style="text-align:left"><code>cp.async.bulk.prefetch.L2.global [a],size</code>；<code>cp.async.bulk.prefetch.tensor.2d.L2.global</code></td>
+<td style="text-align:left"><code>UBLKPF.L2</code>、<code>UTMAPF.L2.2D</code></td>
+<td style="text-align:left">TMA 单元 → L2 · 第 1 级</td>
+<td style="text-align:left">后台把分块拉入 L2 而不写 SMEM（二维张量形式 <code>UTMAPF.L2.2D</code> 仅在本地 SASS 反汇编中观测到，无对应 PTX 对）</td>
+</tr>
+<tr>
+<td style="text-align:left">48</td>
+<td style="text-align:left">TMA 张量描述符动态更新与栅栏</td>
+<td style="text-align:left"><code>cuda::ptx::tensormap_replace</code>；<code>tensormap_cp_fenceproxy</code></td>
+<td style="text-align:left"><code>tensormap.cp_fenceproxy.global.shared::cta.tensormap::generic.release.gpu.sync.aligned</code></td>
+<td style="text-align:left"><code>UTMACCTL.PF</code>、<code>UTMACCTL.IV</code></td>
+<td style="text-align:left">TMA 控制单元 · 第 2 级</td>
+<td style="text-align:left"><code>UTMACCTL.IV</code> 使 TMA 缓存的旧描述符失效，<code>.PF</code> 预取新描述符</td>
+</tr>
+<tr>
+<td style="text-align:left">49</td>
+<td style="text-align:left">从线程束选出 1 个代表线程</td>
+<td style="text-align:left"><code>cuda::ptx::elect_sync</code>（CUTLASS 中的对应写法：<code>cute::elect_one_sync()</code>）</td>
+<td style="text-align:left"><code>elect.sync d|p, membermask</code></td>
+<td style="text-align:left"><code>ELECT</code></td>
+<td style="text-align:left">SMSP 统一数据通路 · 第 3 级</td>
+<td style="text-align:left">从活跃线程掩码中由硬件选出 1 个代表线程去发射 TMA 或 <code>mbarrier</code> 指令</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>4. 片上屏障、集群共享内存与 Tensor Core 速查表（第 50–70 项）</h2>
+<p>下表列出第 50 至第 70 项 <code>mbarrier</code> 硬件计数屏障与 <strong>DSMEM</strong>（Distributed Shared Memory，分布式共享内存，即同一 cluster 内各 CTA 互访的 SMEM）操作。同时涵盖 Tensor Core 矩阵乘、寄存器动态配额与 PDL 的对照关系。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">序号</th>
+<th style="text-align:left">操作类别</th>
+<th style="text-align:left">CUDA C++ 写法</th>
+<th style="text-align:left">PTX 指令</th>
+<th style="text-align:left">SASS 助记符（<code>sm_90a</code>）</th>
+<th style="text-align:left">硬件单元与代价层级</th>
+<th style="text-align:left">编译说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">50</td>
+<td style="text-align:left"><code>mbarrier</code> 初始化与失效</td>
+<td style="text-align:left"><code>cuda::barrier&lt;thread_scope_block&gt;</code>；<code>init(&amp;bar, count)</code>；<code>cuda::ptx::mbarrier_init</code></td>
+<td style="text-align:left"><code>mbarrier.init.shared::cta.b64 [addr], count</code>；<code>mbarrier.inval.shared::cta.b64 [addr]</code></td>
+<td style="text-align:left"><code>SYNCS.EXCH.64</code>、<code>SYNCS.CCTL.IV</code></td>
+<td style="text-align:left">SM 同步单元（<code>SYNCS</code>）· 第 2 级</td>
+<td style="text-align:left"><code>init</code> 编译为 <code>SYNCS.EXCH.64</code>（写入 64 位屏障字）；<code>inval</code> 编译为 <code>SYNCS.CCTL.IV</code></td>
+</tr>
+<tr>
+<td style="text-align:left">51</td>
+<td style="text-align:left"><code>mbarrier</code> 报到与登记期望字节数</td>
+<td style="text-align:left"><code>bar.arrive()</code>；<code>cuda::ptx::mbarrier_arrive</code>；<code>mbarrier_arrive_expect_tx</code></td>
+<td style="text-align:left"><code>mbarrier.arrive.shared::cta.b64</code>；<code>mbarrier.arrive.expect_tx.shared::cta.b64 state,[addr],txcount</code></td>
+<td style="text-align:left"><code>SYNCS.ARRIVE.TRANS64</code>、<code>SYNCS.ARRIVE.TRANS64.A1T0</code></td>
+<td style="text-align:left"><code>SYNCS</code> 单元 · 第 2 级</td>
+<td style="text-align:left">普通报到带 <code>.A1T0</code>（报到计数加 1，期望字节 0），登记 TMA 字节数用带寄存器操作数的 <code>.TRANS64</code>（两者修饰符分工由反汇编指令计数推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">52</td>
+<td style="text-align:left"><code>mbarrier</code> 相位等待与轮询</td>
+<td style="text-align:left"><code>bar.wait(...)</code>；<code>cuda::ptx::mbarrier_try_wait_parity</code></td>
+<td style="text-align:left"><code>mbarrier.try_wait.parity.shared::cta.b64 p,[addr],phase</code>；<code>mbarrier.test_wait</code></td>
+<td style="text-align:left"><code>SYNCS.PHASECHK.TRANS64.TRYWAIT</code>、<code>SYNCS.PHASECHK.TRANS64</code></td>
+<td style="text-align:left"><code>SYNCS</code> 单元 · 第 3 级</td>
+<td style="text-align:left"><code>try_wait</code> 编译为 <code>.TRYWAIT</code>，在硬件中休眠等待直到相位位翻转或超时，未翻转时由 <code>@!P BRA</code> 重试</td>
+</tr>
+<tr>
+<td style="text-align:left">53</td>
+<td style="text-align:left">向同集群远端 CTA 的 <code>mbarrier</code> 报到</td>
+<td style="text-align:left"><code>cuda::ptx::mbarrier_arrive(sem_release, scope_cluster, ...)</code>（CUTLASS 中的对应写法：<code>ClusterBarrier::arrive</code>）</td>
+<td style="text-align:left"><code>mapa.shared::cluster.u32 ra,addr,cta</code>；<code>mbarrier.arrive.release.cluster.shared::cluster.b64 _,[ra]</code></td>
+<td style="text-align:left"><code>SYNCS.ARRIVE.TRANS64.RED.A1T0</code>、<code>R2UR</code></td>
+<td style="text-align:left"><code>SYNCS</code> 单元 + 集群互连网络 · 第 1 级</td>
+<td style="text-align:left"><code>.RED</code> 后缀代表无返回值的远端跨块报到</td>
+</tr>
+<tr>
+<td style="text-align:left">54</td>
+<td style="text-align:left"><code>mbarrier</code> 初始化与异步代理可见性栅栏</td>
+<td style="text-align:left"><code>cuda::ptx::fence_mbarrier_init</code>；<code>fence_proxy_async</code>（CUTLASS 中的对应写法：<code>fence_view_async_shared</code>）</td>
+<td style="text-align:left"><code>fence.mbarrier_init.release.cluster</code>；<code>fence.proxy.async.shared::cta</code>（或 <code>.global</code>）</td>
+<td style="text-align:left"><code>FENCE</code>、<code>FENCE.VIEW.ASYNC.S</code>、<code>FENCE.VIEW.ASYNC.G</code>、<code>MEMBAR.ALL.CTA</code></td>
+<td style="text-align:left">LSU / 内存管线 · 第 3 级</td>
+<td style="text-align:left">普通线程写完 SMEM 后，必须执行 <code>FENCE.VIEW.ASYNC.S</code> 才能让 TMA 或 <code>wgmma</code> 看到新数据</td>
+</tr>
+<tr>
+<td style="text-align:left">55</td>
+<td style="text-align:left">DSMEM 远端地址映射</td>
+<td style="text-align:left"><code>cluster.map_shared_rank(ptr, rank)</code>；<code>cuda::ptx::mapa</code>；<code>cluster.block_rank()</code></td>
+<td style="text-align:left"><code>mapa.shared::cluster.u32 d,a,cta</code>；<code>getctarank</code>；<code>mov.u32 %cluster_ctarank</code></td>
+<td style="text-align:left"><code>R2UR</code>、<code>S2R</code>、<code>S2UR</code>、<code>LEA</code></td>
+<td style="text-align:left">ALU / 统一数据通路 · 第 1 级</td>
+<td style="text-align:left"><code>mapa</code> 在 <code>sm_90a</code> 上无独立操作码：由普通算术指令把目标块号拼进地址高位，再用 <code>R2UR</code> 装入统一寄存器（由反汇编序列推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">56</td>
+<td style="text-align:left">DSMEM 跨 CTA 读写与原子操作</td>
+<td style="text-align:left"><code>*cluster.map_shared_rank(p, r)</code>；内联 <code>ld/st/atom.shared::cluster</code></td>
+<td style="text-align:left"><code>ld.shared::cluster.v4.b32 [a]</code>；<code>st.shared::cluster</code>；<code>atom.shared::cluster.add</code></td>
+<td style="text-align:left"><code>LD.E.128</code>、<code>ST.E</code>、<code>ATOM</code></td>
+<td style="text-align:left">LSU 通用地址路径 → 集群互连网络 · 第 1 级</td>
+<td style="text-align:left">远端读取编译为通用 <code>LD.E</code>（而非本块 <code>LDS</code>）；读取前须用集群屏障保证远端 SMEM 已就绪</td>
+</tr>
+<tr>
+<td style="text-align:left">57</td>
+<td style="text-align:left">DSMEM 跨 CTA 异步写并扣减远端屏障（<code>st.async</code>）</td>
+<td style="text-align:left"><code>cuda::ptx::st_async</code>；<code>cluster.map_shared_rank + st.async</code></td>
+<td style="text-align:left"><code>st.async.shared::cluster.mbarrier::complete_tx::bytes.v4.f32 [ra],{..},[mbar]</code></td>
+<td style="text-align:left"><code>STAS</code>、<code>STAS.128</code>、<code>STAS.64</code></td>
+<td style="text-align:left">集群互连网络 + 远端 <code>mbarrier</code> · 第 1 级</td>
+<td style="text-align:left">1 对 1，数据写入远端 CTA 的 SMEM 后自动扣减远端 <code>mbarrier</code> 的期望字节数</td>
+</tr>
+<tr>
+<td style="text-align:left">58</td>
+<td style="text-align:left">集群同步屏障（<code>cluster.sync</code>）</td>
+<td style="text-align:left"><code>cooperative_groups::this_cluster().sync()</code>（CUTLASS 中的对应写法：<code>cute::cluster_sync()</code>）</td>
+<td style="text-align:left"><code>barrier.cluster.arrive{.relaxed|.release}.aligned</code>；<code>barrier.cluster.wait{.acquire}.aligned</code></td>
+<td style="text-align:left"><code>UCGABAR_ARV</code>、<code>UCGABAR_WAIT</code>、<code>MEMBAR.ALL.GPU</code>、<code>ERRBAR</code>、<code>CGAERRBAR</code>、<code>CCTL.IVALL</code></td>
+<td style="text-align:left">集群屏障单元 · 第 1 级</td>
+<td style="text-align:left">默认 <code>cluster.sync()</code> 附带 <code>MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + CCTL.IVALL</code>；使用 <code>.relaxed</code> 可省掉全卡栅栏（<code>.relaxed</code> 省栅栏由反汇编样本推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">59</td>
+<td style="text-align:left">单 warp 同步 Tensor Core 矩阵乘（FP16 / BF16）</td>
+<td style="text-align:left"><code>nvcuda::wmma::mma_sync</code>；内联 <code>mma.sync.aligned.m16n8k16</code>（CUTLASS 中的对应写法：<code>SM80_16x8x16_F32BF16BF16F32_TN</code>）</td>
+<td style="text-align:left"><code>mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32</code>（或 <code>.f16</code>）</td>
+<td style="text-align:left"><code>HMMA.16816.F32.BF16</code>、<code>HMMA.16816.F32</code></td>
+<td style="text-align:left">本 SMSP 的 Tensor Core（单 warp 驱动）· 第 4 级</td>
+<td style="text-align:left">1 对 1，每条指令占 Tensor Core 管线 6.0 个周期，操作数 <code>A</code>、<code>B</code> 与累加器 <code>D</code> 均在向量寄存器中（<code>wmma</code> 降低为同一 <code>HMMA</code> 据文档推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">60</td>
+<td style="text-align:left">单 warp FP8 矩阵乘（<code>sm_90a</code> 软件模拟）</td>
+<td style="text-align:left">内联 <code>mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32</code></td>
+<td style="text-align:left"><code>mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32</code></td>
+<td style="text-align:left"><code>F2FP.F16.E4M3.UNPACK_B</code>、<code>HMMA.16816.F32</code></td>
+<td style="text-align:left">ALU（解包）+ Tensor Core（<code>HMMA</code>）· 第 4 级</td>
+<td style="text-align:left"><code>sm_90a</code> 无单 warp 原生 FP8 <code>QMMA</code>：1 条 PTX 被 <code>ptxas</code> 拆为 <code>F2FP</code> 解包加 <strong>2</strong> 条 <code>HMMA.16816.F32</code></td>
+</tr>
+<tr>
+<td style="text-align:left">61</td>
+<td style="text-align:left">warpgroup 异步矩阵乘（SS 模式，操作数在 SMEM）</td>
+<td style="text-align:left">内联 <code>wgmma.mma_async</code>（CUTLASS 中的对应写法：<code>SM90_64x64x16_F32BF16BF16_SS</code>）</td>
+<td style="text-align:left"><code>wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 {d..},descA,descB,...</code></td>
+<td style="text-align:left"><code>HGMMA.64x64x16.F32.BF16</code></td>
+<td style="text-align:left">全 SM 4 个 Tensor Core（128 线程协同）· 第 4 级</td>
+<td style="text-align:left">1 对 1，<code>M = 64</code> 固定，<code>N</code> 取 <code>8..256</code>（步长 8），<code>A</code> 与 <code>B</code> 通过统一寄存器描述符 <code>gdesc[URn]</code> 从 SMEM 读取</td>
+</tr>
+<tr>
+<td style="text-align:left">62</td>
+<td style="text-align:left">warpgroup 异步矩阵乘（RS 模式与 FP8 <code>QGMMA</code>）</td>
+<td style="text-align:left">左矩阵 <code>A</code> 在寄存器的内联 <code>wgmma</code>（CUTLASS 中的对应写法：<code>SM90_64x32x32_F32E4M3E4M3_RS</code>）</td>
+<td style="text-align:left"><code>wgmma.mma_async.sync.aligned.m64n32k32.f32.e4m3.e4m3 {d..},{a0..a3},descB,...</code></td>
+<td style="text-align:left"><code>QGMMA.64x32x32.F32.E4M3.E4M3</code></td>
+<td style="text-align:left">全 SM 4 个 Tensor Core · 第 4 级</td>
+<td style="text-align:left">FP8 <code>wgmma</code> 编译为原生 <code>QGMMA</code>（<code>K = 32</code>）；RS 模式左矩阵 <code>A</code> 直接从各 warp 的向量寄存器传入</td>
+</tr>
+<tr>
+<td style="text-align:left">63</td>
+<td style="text-align:left"><code>wgmma</code> 寄存器汇合栅栏</td>
+<td style="text-align:left">内联 <code>wgmma.fence.sync.aligned</code>（CUTLASS 中的对应写法：<code>cute::warpgroup_arrive()</code>）</td>
+<td style="text-align:left"><code>wgmma.fence.sync.aligned</code></td>
+<td style="text-align:left"><code>WARPGROUP.ARRIVE</code></td>
+<td style="text-align:left">SM 线程束组汇合单元 · 第 3 级</td>
+<td style="text-align:left">1 对 1，在首次 <code>wgmma</code> 前或普通指令改写累加器寄存器后执行</td>
+</tr>
+<tr>
+<td style="text-align:left">64</td>
+<td style="text-align:left"><code>wgmma</code> 打包提交批次</td>
+<td style="text-align:left">内联 <code>wgmma.commit_group.sync.aligned</code>（CUTLASS 中的对应写法：<code>cute::warpgroup_commit_batch()</code>）</td>
+<td style="text-align:left"><code>wgmma.commit_group.sync.aligned</code></td>
+<td style="text-align:left"><code>HGMMA</code>、<code>QGMMA</code>（末尾带 <code>gsb0</code> 标志）</td>
+<td style="text-align:left">最后一条 <code>HGMMA/QGMMA</code> 上的控制位 · 第 3 级</td>
+<td style="text-align:left"><strong>无独立 SASS 指令</strong>：被编码为该组最后一条 <code>HGMMA/QGMMA</code> 指令末尾的 <code>gsb0</code> 标志操作数</td>
+</tr>
+<tr>
+<td style="text-align:left">65</td>
+<td style="text-align:left"><code>wgmma</code> 按在途组数等待</td>
+<td style="text-align:left">内联 <code>wgmma.wait_group.sync.aligned N</code>（CUTLASS 中的对应写法：<code>cute::warpgroup_wait&lt;N&gt;()</code>）</td>
+<td style="text-align:left"><code>wgmma.wait_group.sync.aligned N</code></td>
+<td style="text-align:left"><code>WARPGROUP.DEPBAR.LE</code></td>
+<td style="text-align:left">线程束组记分牌 · 第 3 级</td>
+<td style="text-align:left">编译为 <code>WARPGROUP.DEPBAR.LE gsb0, N</code>，阻塞直到在途未完成的 <code>wgmma</code> 组数不超过 <code>N</code></td>
+</tr>
+<tr>
+<td style="text-align:left">66</td>
+<td style="text-align:left">从 SMEM 加载矩阵分片到寄存器（<code>ldmatrix</code>）</td>
+<td style="text-align:left">内联 <code>ldmatrix</code>（CUTLASS 中的对应写法：<code>SM75_U32x4_LDSM_N</code>、<code>SM75_U16x8_LDSM_T</code>）</td>
+<td style="text-align:left"><code>ldmatrix.sync.aligned.m8n8.x1|x2|x4{.trans}.shared.b16</code></td>
+<td style="text-align:left"><code>LDSM.16.M88.4</code>、<code>LDSM.16.M88</code>、<code>LDSM.16.M88.2</code>、<code>LDSM.16.MT88.4</code></td>
+<td style="text-align:left">LSU → SMEM · 第 2 级</td>
+<td style="text-align:left">1 对 1，<code>.trans</code> 编译为带转置的 <code>.MT88</code>，为 <code>mma.sync</code> 或 <code>wgmma</code> RS 模式装填寄存器分片</td>
+</tr>
+<tr>
+<td style="text-align:left">67</td>
+<td style="text-align:left">从寄存器将矩阵分片存入 SMEM（<code>stmatrix</code>）</td>
+<td style="text-align:left">内联 <code>stmatrix</code>（CUTLASS 中的对应写法：<code>SM90_U32x4_STSM_N</code>、<code>SM90_U16x8_STSM_T</code>）</td>
+<td style="text-align:left"><code>stmatrix.sync.aligned.m8n8.x1|x2|x4{.trans}.shared.b16</code></td>
+<td style="text-align:left"><code>STSM.16.M88.4</code>、<code>STSM.16.MT88.4</code>、<code>STSM.16.M88</code>、<code>STSM.16.MT88.2</code></td>
+<td style="text-align:left">LSU → SMEM · 第 2 级</td>
+<td style="text-align:left"><code>ldmatrix</code> 的逆操作，常用于把累加器结果按 TMA 写回所需的交错布局直接写入 SMEM</td>
+</tr>
+<tr>
+<td style="text-align:left">68</td>
+<td style="text-align:left">寄存器内 8×8 矩阵转置（<code>movmatrix</code>）</td>
+<td style="text-align:left">内联 <code>movmatrix.sync.aligned.m8n8.trans.b16</code></td>
+<td style="text-align:left"><code>movmatrix.sync.aligned.m8n8.trans.b16</code></td>
+<td style="text-align:left"><code>MOVM.16.MT88</code></td>
+<td style="text-align:left">线程束寄存器交叉开关 · 第 4 级</td>
+<td style="text-align:left">1 对 1 在寄存器内转置 8×8 的 16 位矩阵分片</td>
+</tr>
+<tr>
+<td style="text-align:left">69</td>
+<td style="text-align:left">跨 warpgroup 动态重分配寄存器配额（<code>setmaxnreg</code>）</td>
+<td style="text-align:left">内联 <code>setmaxnreg</code>（CUTLASS 中的对应写法：<code>cutlass::arch::warpgroup_reg_alloc&lt;N&gt; / dealloc&lt;N&gt;</code>）</td>
+<td style="text-align:left"><code>setmaxnreg.inc.sync.aligned.u32 N</code>；<code>setmaxnreg.dec.sync.aligned.u32 N</code></td>
+<td style="text-align:left"><code>USETMAXREG.TRY_ALLOC.CTAPOOL</code>、<code>USETMAXREG.DEALLOC.CTAPOOL</code></td>
+<td style="text-align:left">SM 块内寄存器池分配器 · 第 2 级</td>
+<td style="text-align:left"><code>N</code> 取 <code>24..256</code>（8 的倍数）；<code>dec</code> 将多余寄存器退回本 CTA 池，<code>inc</code> 从池中申领寄存器</td>
+</tr>
+<tr>
+<td style="text-align:left">70</td>
+<td style="text-align:left">PDL 触发与等待</td>
+<td style="text-align:left"><code>cudaGridDependencySynchronize()</code>；<code>cudaTriggerProgrammaticLaunchCompletion()</code>；内联 <code>griddepcontrol</code></td>
+<td style="text-align:left"><code>griddepcontrol.wait</code>；<code>griddepcontrol.launch_dependents</code></td>
+<td style="text-align:left"><code>ACQBULK</code>、<code>PREEXIT</code></td>
+<td style="text-align:left">网格硬件派发器与 SM · 第 0 级</td>
+<td style="text-align:left"><code>wait</code> 编译为 <code>ACQBULK</code>（阻塞直到前序网格显存写入落定）；<code>launch_dependents</code> 编译为 <code>PREEXIT</code>（提示派发器放行后继）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>5. 线程束操作、内存栅栏、原子操作与控制流速查表（第 71–91 项）</h2>
+<p>下表列出第 71 至第 91 项线程束内洗牌、归约、投票、同步屏障、内存栅栏、全局与共享原子操作、跨 SM 释放/获取交接、硬件计时器、控制流以及补充编译规则的对照关系。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">序号</th>
+<th style="text-align:left">操作类别</th>
+<th style="text-align:left">CUDA C++ 写法</th>
+<th style="text-align:left">PTX 指令</th>
+<th style="text-align:left">SASS 助记符（<code>sm_90a</code>）</th>
+<th style="text-align:left">硬件单元与代价层级</th>
+<th style="text-align:left">编译说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">71</td>
+<td style="text-align:left">线程束内寄存器洗牌（<code>warp shuffle</code>）</td>
+<td style="text-align:left"><code>__shfl_sync(m,v,lane)</code>；<code>__shfl_xor_sync</code>；<code>__shfl_up_sync</code>；<code>__shfl_down_sync</code></td>
+<td style="text-align:left"><code>shfl.sync.idx/bfly/up/down.b32</code></td>
+<td style="text-align:left"><code>SHFL.IDX</code>、<code>SHFL.BFLY</code>、<code>SHFL.UP</code>、<code>SHFL.DOWN</code></td>
+<td style="text-align:left">LSU/MIO 洗牌交叉开关 · 第 4 级</td>
+<td style="text-align:left"><code>__shfl_xor_sync</code> 编译为 <code>.BFLY</code>（蝶形洗牌，实测发射间隔约 6.0 周期，延迟 24.0 周期）；<code>SHFL.DOWN</code> 在本地反汇编中无样本，按 PTX <code>.down</code> 模式推断</td>
+</tr>
+<tr>
+<td style="text-align:left">72</td>
+<td style="text-align:left">线程束单指令整数归约（<code>redux.sync</code>）</td>
+<td style="text-align:left"><code>__reduce_add_sync(m,x)</code>；<code>__reduce_min/max/and/or/xor_sync</code></td>
+<td style="text-align:left"><code>redux.sync.add/max/min.s32</code>；<code>redux.sync.and/or/xor.b32</code></td>
+<td style="text-align:left"><code>REDUX.SUM.S32</code>、<code>REDUX.MAX.S32</code>、<code>REDUX.MIN</code>、<code>REDUX.XOR</code></td>
+<td style="text-align:left">线程束归约单元 · 第 4 级</td>
+<td style="text-align:left">1 条指令完成整束 32 个 32 位整数的归约（实测约 11.7 周期）；<code>sm_90a</code> 不支持 FP32 <code>REDUX</code></td>
+</tr>
+<tr>
+<td style="text-align:left">73</td>
+<td style="text-align:left">线程束投票与掩码汇总</td>
+<td style="text-align:left"><code>__ballot_sync(m,p)</code>；<code>__any_sync</code>；<code>__all_sync</code>；<code>__uni_sync</code></td>
+<td style="text-align:left"><code>vote.sync.ballot.b32</code>；<code>vote.sync.any/all/uni.pred</code></td>
+<td style="text-align:left"><code>VOTE.ANY</code>、<code>VOTEU.ANY</code>、<code>VOTEU.ALL</code></td>
+<td style="text-align:left">线程束投票单元 · 第 3 级</td>
+<td style="text-align:left"><code>ballot</code> 编译为 <code>VOTE.ANY Rd, PT, Ps</code>（返回 32 位掩码）；谓词形式对应 <code>VOTE / VOTEU</code> 为推断</td>
+</tr>
+<tr>
+<td style="text-align:left">74</td>
+<td style="text-align:left">线程束等值匹配</td>
+<td style="text-align:left"><code>__match_any_sync(m,v)</code>；<code>__match_all_sync</code></td>
+<td style="text-align:left"><code>match.any.sync.b32</code>；<code>match.all.sync.b32</code></td>
+<td style="text-align:left"><code>MATCH.ANY</code></td>
+<td style="text-align:left">线程束匹配单元 · 第 4 级</td>
+<td style="text-align:left">找出同一 warp 内持有相同寄存器值的线程掩码（<code>match.all</code> 对应 <code>MATCH.ALL</code> 为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">75</td>
+<td style="text-align:left">活跃掩码与特殊编号读取</td>
+<td style="text-align:left"><code>__activemask()</code>；<code>__lanemask_lt()</code>；<code>threadIdx.x &amp; 31</code></td>
+<td style="text-align:left"><code>activemask.b32</code>；<code>mov.u32 %laneid / %lanemask_lt / %warpid</code></td>
+<td style="text-align:left"><code>VOTE</code>、<code>S2R</code>、<code>S2UR</code>、<code>CS2R</code></td>
+<td style="text-align:left">特殊寄存器读取或投票单元 · 第 3 级</td>
+<td style="text-align:left"><code>S2R / S2UR</code> 读取 <code>SR_LANEID</code> 等仅在本地 SASS 反汇编中直接观测；<code>activemask</code> 编译为 <code>VOTE.ANY</code> 为推断</td>
+</tr>
+<tr>
+<td style="text-align:left">76</td>
+<td style="text-align:left">线程束内同步屏障</td>
+<td style="text-align:left"><code>__syncwarp(mask)</code>；内联 <code>bar.warp.sync</code></td>
+<td style="text-align:left"><code>bar.warp.sync mask</code></td>
+<td style="text-align:left"><code>WARPSYNC.ALL</code>、<code>WARPSYNC</code>、<code>WARPSYNC.COLLECTIVE</code>、<code>BSSY</code>、<code>BSYNC</code></td>
+<td style="text-align:left">线程束调度器重汇合单元 · 第 3 级</td>
+<td style="text-align:left">全掩码编译为 <code>WARPSYNC.ALL</code>；<code>BSSY / BSYNC</code> 是编译器在分化分支前后自动插入的重汇合对</td>
+</tr>
+<tr>
+<td style="text-align:left">77</td>
+<td style="text-align:left">块内全员同步屏障（<code>__syncthreads</code>）</td>
+<td style="text-align:left"><code>__syncthreads()</code>；<code>__syncthreads_count/and/or</code></td>
+<td style="text-align:left"><code>bar.sync 0</code>（即 <code>barrier.sync.aligned 0</code>）；<code>barrier.red.popc/and/or</code></td>
+<td style="text-align:left"><code>BAR.SYNC.DEFER_BLOCKING</code>、<code>BAR.RED.OR.DEFER_BLOCKING</code></td>
+<td style="text-align:left">SM 块内屏障单元（每 CTA 16 个命名屏障）· 第 3 级</td>
+<td style="text-align:left">1 对 1，实测块内同步约 173.4 个周期</td>
+</tr>
+<tr>
+<td style="text-align:left">78</td>
+<td style="text-align:left">命名部分屏障（生产者-消费者分组同步）</td>
+<td style="text-align:left">内联 <code>bar.sync id, nthreads</code>；<code>bar.arrive id, nthreads</code>（CUTLASS 中的对应写法：<code>NamedBarrier::sync</code>）</td>
+<td style="text-align:left"><code>bar.sync id, n</code>；<code>bar.arrive id, n</code></td>
+<td style="text-align:left"><code>BAR.SYNC.DEFER_BLOCKING</code>、<code>BAR.ARV</code></td>
+<td style="text-align:left">SM 块内屏障单元 · 第 3 级</td>
+<td style="text-align:left"><code>id</code>（<code>0..15</code>）与参与线程数 <code>n</code> 编码为立即数（如 <code>BAR.SYNC.DEFER_BLOCKING 0x2, 0x80</code>）；<code>BAR.ARV</code> 只报到不等待</td>
+</tr>
+<tr>
+<td style="text-align:left">79</td>
+<td style="text-align:left">块级、全卡级与系统级内存栅栏</td>
+<td style="text-align:left"><code>__threadfence_block()</code>；<code>__threadfence()</code>；<code>__threadfence_system()</code>；内联 <code>fence.acq_rel.cta/gpu</code></td>
+<td style="text-align:left"><code>fence.acq_rel.cta</code>；<code>fence.acq_rel.gpu</code>；<code>fence.sc.gpu</code></td>
+<td style="text-align:left"><code>MEMBAR.ALL.CTA</code>、<code>MEMBAR.ALL.GPU</code>、<code>MEMBAR.SC.GPU</code>、<code>ERRBAR</code>、<code>CGAERRBAR</code>、<code>CCTL.IVALL</code></td>
+<td style="text-align:left">LSU / 内存系统确认 · 第 3 级</td>
+<td style="text-align:left"><code>__threadfence_block()</code> 编译为 1 条 <code>MEMBAR.ALL.CTA</code>；<code>__threadfence()</code> 展开为 5 条指令（<code>__threadfence_system</code> 对应 <code>MEMBAR.ALL.SYS</code> 为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">80</td>
+<td style="text-align:left">全局内存带返回值原子操作</td>
+<td style="text-align:left">使用返回值的 <code>atomicAdd</code>、<code>atomicExch</code>、<code>atomicCAS</code>、<code>atomicInc</code>、<code>fetch_add</code></td>
+<td style="text-align:left"><code>atom.global.add.u32/f32</code>；<code>atom.global.exch/cas/inc</code></td>
+<td style="text-align:left"><code>ATOMG.E.ADD.STRONG.GPU</code>、<code>ATOMG.E.ADD.S32.STRONG.GPU</code>、<code>ATOMG.E.EXCH.STRONG.GPU</code>、<code>ATOMG.E.INC.STRONG.GPU</code></td>
+<td style="text-align:left">LSU → L2 原子单元 · 第 1 级</td>
+<td style="text-align:left">在 L2 执行读改写并等旧值返回（宽松 <code>atom.add.u32</code> 约 497.2 周期，带返回值 <code>atom.add.release.gpu</code> 约 885.9 周期；<code>atomicCAS</code> 对应 <code>ATOMG.E.CAS</code> 为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">81</td>
+<td style="text-align:left">全局内存无返回值原子归约</td>
+<td style="text-align:left">忽略返回值的 <code>atomicAdd(p,v)</code>、<code>atomicMax</code>、<code>atomicMin</code>、向量 <code>atomicAdd(float2*/float4*)</code></td>
+<td style="text-align:left"><code>red.global.add.f32/v4.f32/s32</code>；<code>red.global.min.u64</code></td>
+<td style="text-align:left"><code>REDG.E.ADD.S32.STRONG.GPU</code>、<code>REDG.E.ADD.F32.FTZ.RN.STRONG.GPU</code>、<code>REDG.E.ADD.F32x4.FTZ.RN.STRONG.GPU</code></td>
+<td style="text-align:left">LSU → L2 归约单元 · 第 1 级</td>
+<td style="text-align:left">不读返回值时编译器自动把 <code>atomicAdd</code> 转为只发不等的 <code>REDG</code>；<code>F32x2 / F32x4</code> 向量原子归约为 <code>sm_90</code> 新增</td>
+</tr>
+<tr>
+<td style="text-align:left">82</td>
+<td style="text-align:left">SMEM 原子操作</td>
+<td style="text-align:left"><code>atomicAdd(&amp;smem[i],v)</code>；<code>atomicAdd_block</code>；<code>atomicXor</code></td>
+<td style="text-align:left"><code>atom.shared.add.u32</code>；<code>red.shared</code></td>
+<td style="text-align:left"><code>ATOMS.POPC.INC.32</code>、<code>ATOMS.XOR</code>、<code>ATOMS.CAST.SPIN</code></td>
+<td style="text-align:left">LSU → SMEM 原子单元 · 第 2 级</td>
+<td style="text-align:left">忽略返回值的 <code>atomicAdd(&amp;s, 1)</code> 编译为单条 <code>ATOMS.POPC.INC.32</code>；无原生支持的共享内存原子操作生成 <code>ATOMS.CAST.SPIN</code> 比较交换循环</td>
+</tr>
+<tr>
+<td style="text-align:left">83</td>
+<td style="text-align:left">跨 SM 释放与获取（<code>release / acquire</code>）交接</td>
+<td style="text-align:left"><code>cuda::atomic_ref&lt;int, thread_scope_device&gt;::store/load</code>；内联 <code>ld.acquire.gpu</code>、<code>red.release.gpu</code></td>
+<td style="text-align:left"><code>ld.acquire.gpu.global.u32 [a]</code>；<code>red.release.gpu.global.add.s32 [a],v</code>；<code>atom.acq_rel.gpu</code></td>
+<td style="text-align:left"><code>LDG.E.STRONG.GPU</code>、<code>CCTL.IVALL</code>、<code>MEMBAR.ALL.GPU</code>、<code>ERRBAR</code>、<code>CGAERRBAR</code>、<code>REDG</code>、<code>ATOMG</code></td>
+<td style="text-align:left">LSU + L2 · 第 1 级</td>
+<td style="text-align:left"><code>ld.acquire.gpu</code> 展开为 <code>LDG.E.STRONG.GPU + CCTL.IVALL</code>（失效本 SM 旧 L1 行）；<code>red.release.gpu</code> 展开为 <code>MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + REDG</code></td>
+</tr>
+<tr>
+<td style="text-align:left">84</td>
+<td style="text-align:left">协作启动全网格同步栅栏（<code>grid.sync</code>）</td>
+<td style="text-align:left"><code>cooperative_groups::this_grid().sync()</code>；<code>cudaLaunchCooperativeKernel</code></td>
+<td style="text-align:left">标准库展开：全局原子计数 + 内存栅栏 + <code>ld.acquire</code> 自旋 + <code>bar.sync</code></td>
+<td style="text-align:left"><code>ATOMG.E.ADD.STRONG.GPU</code>、<code>MEMBAR.ALL.GPU</code>、<code>LDG.E.STRONG.GPU</code>、<code>CCTL.IVALL</code>、<code>BAR.SYNC.DEFER_BLOCKING</code></td>
+<td style="text-align:left">L2 原子单元 + 各 SM 轮询（推断）· 第 0 级</td>
+<td style="text-align:left">本地反汇编无 <code>grid.sync</code> 样本，其展開为块内屏障、全卡栅栏与 L2 计数器轮询整行为推断（132 个 CTA 实测耗时约 1.42 µs）</td>
+</tr>
+<tr>
+<td style="text-align:left">85</td>
+<td style="text-align:left">轮询休眠与让出调度（<code>nanosleep</code>）</td>
+<td style="text-align:left"><code>__nanosleep(ns)</code>；<code>__nv_nanosleep</code></td>
+<td style="text-align:left"><code>nanosleep.u32 t</code></td>
+<td style="text-align:left"><code>NANOSLEEP</code>、<code>YIELD</code></td>
+<td style="text-align:left">SMSP 线程束调度器 · 第 3 级</td>
+<td style="text-align:left">在 <code>[0, 2t]</code> 纳秒区间内挂起当前 warp（上限 1 ms），自旋循环中常辅以 <code>YIELD</code>（<code>mbarrier</code> 等待循环中的 <code>NANOSLEEP.SYNCS</code> 变体为推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">86</td>
+<td style="text-align:left">读取周期计数器与全局纳秒计时器</td>
+<td style="text-align:left"><code>clock64()</code>；<code>clock()</code>；内联读取 <code>%globaltimer</code> 或 <code>%clock64</code></td>
+<td style="text-align:left"><code>mov.u64 d, %clock64</code>；<code>mov.u64 d, %globaltimer</code></td>
+<td style="text-align:left"><code>CS2R</code>、<code>S2UR</code>、<code>S2R</code></td>
+<td style="text-align:left">特殊寄存器读取 · 第 3 级</td>
+<td style="text-align:left"><code>%clock64</code> 编译为 <code>CS2R Rd, SR_CLOCKLO</code>，<code>%globaltimer</code> 编译为 <code>CS2R Rd, SR_GLOBALTIMERLO</code>（仅在本地 SASS 反汇编中直接观测；<code>CS2R Rx, SRZ</code> 亦用于清零寄存器对）</td>
+</tr>
+<tr>
+<td style="text-align:left">87</td>
+<td style="text-align:left">分支、调用、返回、退出与断点</td>
+<td style="text-align:left"><code>if / for / switch</code>；函数调用；<code>return</code>；<code>__trap()</code></td>
+<td style="text-align:left"><code>bra / bra.uni</code>；<code>call.uni</code>；<code>brx.idx</code>；<code>ret</code>；<code>exit</code>；<code>trap</code></td>
+<td style="text-align:left"><code>BRA</code>、<code>BRX</code>、<code>CALL</code>、<code>RET</code>、<code>EXIT</code>、<code>BPT</code>、<code>BSSY</code>、<code>BSYNC</code>、<code>BREAK</code></td>
+<td style="text-align:left">分支与发射单元 · 第 3 级</td>
+<td style="text-align:left">整束一致跳转标有 <code>.U</code>（如 <code>BRA.U</code>）；可能分化的分支由编译器包在 <code>BSSY ... BSYNC</code> 重汇合区间内</td>
+</tr>
+<tr>
+<td style="text-align:left">88</td>
+<td style="text-align:left">线程与块下标读取及统一寄存器搬运</td>
+<td style="text-align:left"><code>threadIdx.x</code>；<code>blockIdx.x</code>；<code>blockDim.x</code>；<code>gridDim.x</code>；整束一致标量</td>
+<td style="text-align:left"><code>mov.u32 %tid.x / %ctaid.x / %ntid.x / %nctaid.x</code></td>
+<td style="text-align:left"><code>S2R</code>、<code>S2UR</code>、<code>R2UR</code>、<code>UMOV</code>、<code>ULDC</code></td>
+<td style="text-align:left">特殊寄存器与统一寄存器文件 · 第 3 级</td>
+<td style="text-align:left"><code>S2R</code> 读入每线程向量寄存器 <code>R</code>；<code>S2UR</code> 直接读入整束共享的统一寄存器 <code>UR</code>；<code>R2UR</code> 把向量寄存器值拷入 <code>UR</code></td>
+</tr>
+<tr>
+<td style="text-align:left">89</td>
+<td style="text-align:left">双元素半精度快速指数（<code>ex2.approx.f16x2 / bf16x2</code>）</td>
+<td style="text-align:left">内联 <code>ex2.approx.f16x2</code>；<code>ex2.approx.ftz.bf16x2</code>；<code>h2exp2(__half2)</code></td>
+<td style="text-align:left"><code>ex2.approx.f16x2 d,a</code>；<code>ex2.approx.ftz.bf16x2 d,a</code></td>
+<td style="text-align:left"><code>MUFU.EX2.F16</code>、<code>MUFU.EX2.BF16</code>、<code>PRMT</code></td>
+<td style="text-align:left">SFU 管线（2 次 <code>MUFU</code>）+ ALU 管线 · 第 4 级</td>
+<td style="text-align:left">编译实测 1 条 <code>ex2.approx.f16x2</code> 被拆成 <strong>2</strong> 条标量 <code>MUFU.EX2.F16</code>（含 <code>.H1</code> 高半字）加 1 条 <code>PRMT</code> 重排（<code>bf16x2</code> 对应 <code>MUFU.EX2.BF16</code> 与 <code>tanh</code> 打包形态按同族规则推断）</td>
+</tr>
+<tr>
+<td style="text-align:left">90</td>
+<td style="text-align:left"><code>volatile</code> 与系统级作用域访存</td>
+<td style="text-align:left"><code>volatile T*</code> 读写；<code>cuda::atomic_ref&lt;T, thread_scope_system&gt;</code>；内联 <code>ld.relaxed.sys</code></td>
+<td style="text-align:left"><code>ld.volatile.global</code>；<code>ld/st.relaxed.sys.global</code></td>
+<td style="text-align:left"><code>LDG.E.STRONG.SYS</code>、<code>LD.E.STRONG.SYS</code>、<code>STG.E.STRONG.SYS</code></td>
+<td style="text-align:left">LSU → L2 → PCIe / NVLink · 第 1 级</td>
+<td style="text-align:left"><code>.STRONG.SYS</code> 仅在本地 SASS 反汇编中直接观测，其与 PTX 修饰符的配对及 <code>STG.E.STRONG.SYS</code> 为推断；<code>ld.volatile.shared</code> 生成普通 <code>LDS</code></td>
+</tr>
+<tr>
+<td style="text-align:left">91</td>
+<td style="text-align:left">其他全局缓存修饰符（<code>.ca / .lu / .cv / .wt</code>）</td>
+<td style="text-align:left"><code>__ldca(p)</code>；<code>__ldlu(p)</code>（最后一次使用）；<code>__ldcv(p)</code>；<code>__stwt / __stcs</code></td>
+<td style="text-align:left"><code>ld.global.ca/lu/cv</code>；<code>st.global.wt/cs</code></td>
+<td style="text-align:left"><code>LDG.E</code>、<code>LDG.E.LU</code>、<code>LDG.E.STRONG.SYS</code>、<code>STG.E.EF</code></td>
+<td style="text-align:left">LSU · 第 2 级</td>
+<td style="text-align:left">本地反汇编无此组内置函数样本：<code>.ca</code> 默认为 <code>LDG.E</code>，其余 <code>.LU</code>、<code>.STRONG.SYS</code>、<code>.EF</code> 整行均为按同族后缀规则推断</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>带走一句话：</strong> 对照这 91 项 <code>CUDA C++ → PTX → SASS</code> 映射关系，就能在 NCU 的 Source 页面与 <code>cuobjdump --dump-sass</code> 输出中把每一条机器指令还原回源码操作、所在的硬件管线以及它在第 0 级到第 4 级上的真实代价。</p>
 </section></main></body></html>

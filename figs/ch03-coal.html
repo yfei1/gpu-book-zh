@@ -138,11 +138,15 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .lg .k3{background:var(--anatomy-blue);border-radius:5px;width:10px}.lg .k4{background:var(--anatomy-strong);width:2px}
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
 .iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0}
+.kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
 .iso-plate{padding-bottom:58px}
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
 .iso-plate-corner[data-corner="readout"]{max-width:100%}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-.fc .nar{margin:14px 8px 8px;min-height:4.2em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fc .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
+.fc .nar{margin:14px 8px 8px;min-height:15em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fc .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
 </style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 3-2</span><span class="iso-plate-corner" data-corner="title">一条 warp 读指令取回几个扇区</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fc"><svg class="flat" viewBox="0 0 640 214" role="img" aria-label="算法：这条读指令读 W 的哪些元素">
 <text class="lab2" x="70" y="16" id="algT"></text>
 <rect class="wbg" x="70" y="34" width="512" height="128"/>
@@ -162,7 +166,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <text class="lab" x="195.3" y="41.9">HBM：W 存在这里</text><text class="lab" x="309.0" y="84.8">L2</text>
 <path class="ldr" d="M332.7 150.4L382.7 97.4M391.2 153.4L425.2 128.4"/>
 <text class="lab" x="386.7" y="97.4">LSU（读写单元）</text><text class="lab" x="429.2" y="128.4">warp 0 的寄存器</text><text class="lab" x="318.9" y="277.0">1 个 SM</text>
-</svg><p class="nar"><b id="stepN"></b><span id="stepT"></span></p><svg class="flat" viewBox="0 0 640 112" role="img" aria-label="这条指令取回的扇区，按地址排列">
+</svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 112" role="img" aria-label="这条指令取回的扇区，按地址排列">
 <defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" class="hl"/></pattern></defs>
 <text class="lab2" x="48" y="16">这条指令向 L1 请求的扇区（每格 32 字节，按地址排；有颜色的字节有用）</text><g id="secs"></g><g id="ringS"></g></svg><svg class="flat" viewBox="0 0 640 112" role="img" aria-label="这条指令在时间上的先后">
 <text class="lab2" x="124" y="16">时间（只表示先后）</text>
@@ -170,6 +174,12 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <clipPath id="clipT"><rect id="clipR" x="124" y="22" width="0" height="80"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. 每个线程读一行（v0）</label><label><input type="radio" name="mode" value="2">2. 相邻线程读相邻元素（v1）</label><label><input type="radio" name="mode" value="3">3. 每个线程读 16 字节（v5）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="40" step="0.05" value="0"></label></div><div class="lg"><span><i class="k1"></i>线程 0 → 线程 31 读的数据</span><span><i class="k2"></i>请求了但这一轮没用的字节</span><span><i class="k3"></i>一个 32 字节扇区在路上</span><span><i class="k4"></i>现在</span></div>
 <p class="cap">切换三种写法，看同一条读指令取回几个扇区、其中多少字节有用。同一种颜色在 W、扇区和结果 y 里是同一个线程的数据。</p></main><script type="module">
+const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function splitCost(s){ const m=s.match(/(总代价|代价)：/); if(!m) return {t:s,c:"—"}; const h=s.slice(0,m.index).replace(/[。；;，\s]+$/,""); return {t:h||"总代价", c:(h?s.slice(m.index):s.slice(m.index+m[0].length)).replace(/^代价：/,"")}; }
+function card(a,b){ const c=Object.assign({},a,b||{}); document.getElementById("stepT").textContent=c.t||"";
+  const K=document.getElementById("stepK"); if(!c.f){ K.innerHTML=""; return; }
+  K.innerHTML=[["公式",c.f,1],["输入",c.i],["输出",c.o],["交给下一步",c.x],["代价",c.c]].map(r=>"<div><dt>"+r[0]+"</dt><dd"+(r[2]?' class="m"':"")+">"+esc_(r[1])+"</dd></div>").join(""); }
+
 const SRC=[216.7,68.1], L2C=[251.5,125.5], LSU=[330.7,153.4], REG=[389.2,156.4];
 const AX=70,AY=34,CW=2,RH=4,NC=256,NR=32,SX0=48,SY0=30;
 const TL0=124,TL1=620,TY0=26,T_END=40; const TX=(t)=>TL0+(TL1-TL0)*t/T_END;
@@ -197,9 +207,16 @@ function events(md){ const n=Sx.length, useful=M[md].useful;
   E.push({t:end-1.5,s:"32 个线程都拿到数据。总代价："+(md===1?"1 条指令请求 "+(n*32)+" 字节，这一轮只用 "+useful+" 字节；后面 15 轮会从 L1 再用这些扇区，所以 HBM 总读取量不变，但请求数是写法 2 的 16 倍":"1 条指令请求 "+(n*32)+" 字节，有用 "+useful+" 字节"+(md===2?"；带宽不浪费，但读满一行要 256 条指令":"；带宽不浪费，读满一行只要 32 条指令"))});
   return E.sort((a,b)=>a.t-b.t); }
 let EV=[];
+function anat(k){ const e=EV[k], md=mode, n=Sx.length, d=M[md];
+  const FM=md===1?"acc[i] += W[r+i, k] · x[k]，i = 0…31（每个线程算自己的一行）":md===2?"acc[i] += W[r, k+i] · x[k+i]，i = 0…31":"acc[i] += Σⱼ₌₀…₇ W[r, k+8i+j] · x[k+8i+j]，i = 0…31";
+  const AD=md===1?"32 个地址，相隔一整行（8192 × 2 B = 16 KiB）":md===2?"32 个相邻地址，共 64 B 连续":"32 个地址各 16 B，连起来是同一行上连续 512 B";
+  if(k===0) return {f:FM,i:"W BF16 [2304, 8192]（HBM）里的 "+AD+"；x BF16 [8192]（L2/L1）",o:"32 个线程的地址，交给 LSU（寄存器 → LSU）",x:"LSU 把这 32 个地址合成扇区请求"};
+  if(e.i===undefined && k===1) return {f:"扇区号 = ⌊地址 ÷ 32 B⌋，相同的合并",i:AD+"（寄存器）",o:n+" 个 32 B 扇区请求，向 L1 一共请求 "+(n*32)+" B；这一轮有用 "+d.useful+" B",x:"L1 没有的扇区再去 L2 / HBM 取，回来后交给线程"};
+  if(e.i!==undefined){ const l=Sx[e.i].lanes, who=l.length>2?l[0]+"–"+l[l.length-1]:l.join("、"); return {f:"线程 "+who+" 的寄存器 ← 扇区 "+(e.i+1)+" 里属于自己的 "+(md===1?"2 B":md===2?"2 B × 16":"16 B × 2")+"（BF16）",i:"扇区 "+(e.i+1)+"：W 的 32 B（HBM / L2 → L1）",o:"线程 "+who+" 的寄存器收到 "+(md===1?"2":"32")+" B 有用数据",x:"32 个扇区（共 "+n+" 个）都到齐，warp 才能做这一轮的乘加"}; }
+  return {f:FM,i:"32 个线程的寄存器里的 W 值 + x 的对应元素",o:"acc[i] 更新（FP32，寄存器）；本轮 "+(md===1?"请求 "+(n*32)+" B，用 "+d.useful+" B":"请求 "+(n*32)+" B，用 "+d.useful+" B"),x:md===1?"下一轮 k+1：同一批扇区还在 L1 里，后 15 轮直接复用":md===2?"下一轮读 W[r, k+32 …]，读满一行共 256 条指令":"下一轮读 W[r, k+256 …]，读满一行共 32 条指令"}; }
 function narrate(){ let k=-1; for(let i=0;i<EV.length;i++){ if(EV[i].t<=t+1e-9) k=i; else break; }
-  const n=document.getElementById("stepN"), s=document.getElementById("stepT");
-  if(k<0){ n.textContent=""; s.textContent="按播放，或拖动时间"; $("ringI").innerHTML=""; $("ringS").innerHTML=""; return; } n.textContent="第 "+(k+1)+" 步"; s.textContent=EV[k].s; ring(k); }
+  const n=document.getElementById("stepN");
+  if(k<0){ n.textContent=""; card({t:"按播放，或拖动时间"}); $("ringI").innerHTML=""; $("ringS").innerHTML=""; return; } n.textContent="第 "+(k+1)+" 步"; card(splitCost(EV[k].s),anat(k)); ring(k); }
 function ring(k){ const e=EV[k], num=k+1; let ri="", rs="";
   const badge=(x,y)=>'<circle class="rb" cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8.5"/><text class="rn" x="'+x.toFixed(1)+'" y="'+(y+3.6).toFixed(1)+'">'+num+'</text>';
   if(e.i!==undefined){ const p=SPOS[e.i]; rs='<rect class="rr" x="'+(p[0]-2)+'" y="'+(p[1]-2)+'" width="36" height="26" rx="3"/>'+badge(p[0]+34,p[1]-2); }
