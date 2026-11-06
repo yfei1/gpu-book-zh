@@ -42,16 +42,16 @@ hr{border:none;border-top:1px solid #ddd;margin:30px 0}
 <hr />
 <h2>1. 单层模型的七个计算阶段与层间小操作</h2>
 <p>每个用户的输入文本是一个 <strong>request</strong>（请求）。它被切成一串 <strong>token</strong>（词元）。自回归生成每步都要用刚算出的词去预测下一个词，所以在 <strong>decode</strong>（逐词生成）阶段，每个请求每步只输入 1 个新 token。每个 token 在层内是一个固定宽度的浮点数向量，叫 <strong>residual stream</strong>（残差流）。各阶段从残差流读入向量并输出中间向量。这些中间向量统称 <strong>activation</strong>（激活），其中 <code>o</code> 与 <code>unpooler</code> 把结果加回残差流。</p>
-<p>本层是 <strong>MoE</strong>（混合专家）结构，共有 256 组独立的专家权重矩阵，每步只为每个 token 挑 8 个专家。线上由 8 张 H200 分担同一层。卡间通信不计入赛题耗时，所以本书只测单张卡分到的部分。每张卡放 32 个专家，单 token 挑出的 8 个专家平摊到各卡上平均每卡只有 <code>8 × 32 ÷ 256 = 1</code> 个。但挑中的专家不会均匀落到各卡上，均匀抽取时命中最多专家的那张最忙卡平均分到约 2.5 个不同专家。一步推理必须等最忙卡算完，赛题下界公式给该期望值乘上 0.75 的路由折扣系数，按 <code>2.5 × 0.75 ≈</code> <strong>1.87</strong> 个专家（约 53 MB，接近平均数的两倍）计入单卡下界（图 0-1）。</p>
+<p>本层是 <strong>MoE</strong>（混合专家）结构，共有 256 组独立的专家权重矩阵，每步只为每个 token 挑 8 个专家。线上由 8 张 H200 分担同一层。卡间通信不计入赛题耗时，所以本书只测单张卡分到的部分。每张卡放 32 个专家，单 token 挑出的 8 个专家平摊到各卡上平均每卡只有 <code>8 × 32 ÷ 256 = 1</code> 个。但挑中的专家不会均匀落到各卡上，均匀抽取时命中最多专家的那张最忙卡平均分到约 2.5 个不同专家。一步推理必须等最忙卡算完。赛题下界给该期望值乘上 0.75 的路由折扣，按 <code>2.5 × 0.75 ≈</code> <strong>1.87</strong> 个专家（约 53 MB，接近平均数的两倍）计入耗时（图 0-1）。</p>
 <p>如图 0-1 所示，单张卡上的一层依次执行七个核心阶段，各阶段前后夹着不读大矩阵权重的归一化与残差相加小操作。
 - <code>qkv_gate</code> 投影（读 37.7 MB）。把残差流乘上 <strong>BF16</strong>（脑浮点，每参数 2 字节）权重矩阵，算出查询（Q）、键（K）、值（V）与门控向量。
-- attention（注意力，即 P1）。用当前 token 的 Q 与可见历史 token 的 K 求权重，再按权重对 V 加权求和。历史 K、V 按 <strong>FP8</strong>（8 位浮点，1 字节）存进 <strong>KV cache</strong>（键值缓存）。只看最近固定数量历史 token 的<strong>滑窗层</strong>读 0.5 MB，看全部历史 token 的<strong>全长层</strong>读 20.5 MB。
+- attention（注意力，即 P1）。用当前 token 的 Q 与可见历史 token 的 K 求权重，再按权重对 V 加权求和。历史 K、V 按 <strong>FP8</strong>（8 位浮点，1 字节）存进 <strong>KV cache</strong>（键值缓存）。只看最近固定数量历史 token 的滑窗层读 0.5 MB，看全部历史 token 的全长层读 20.5 MB。
 - <code>o</code> 输出投影（读 16.8 MB）。把注意力输出乘上 BF16 矩阵，加回残差流。
 - <code>router</code>（路由器，读 8.4 MB）。用 FP32（单精度浮点，每参数 4 字节）矩阵为每个 token 给 256 个专家打分，挑出得分最高的 8 个。
 - <code>pooler</code>（降维投影，读 67.1 MB）。用 BF16 矩阵把残差流压窄一半，送入专家。
 - MoE 专家计算（即 P2，最忙卡读约 53 MB）。每个被选中的本地专家执行上投影 <code>w13</code> 与下投影 <code>w2</code> 两次矩阵乘，权重存为 <strong>NVFP4</strong>（4 位浮点，见第 6 章）。
 - <code>unpooler</code>（升维投影，小批量切片读 8.4 MB）。用 BF16 矩阵把专家输出升回残差流宽度，加回残差流。</p>
-<p>同一步里一起算的所有请求的 token 合称一个 <strong>batch</strong>（批量，总词数记作 <code>T</code>），一次算完用户整段输入的所有 token 则称为 <strong>prefill</strong>（预填充）。竞赛把单层拆成 5 道计时题：P1 注意力、P2 专家、P3 小批量整层、P4 五个稠密矩阵乘（上方第 1、3、4、5、7 阶段）、P5 预填充整层，因为不同阶段的瓶颈类型不同，需要分别评测与合成。</p>
+<p>同一步里一起算的所有 token 合称一个 <strong>batch</strong>（批量，总数记作 <code>T</code>）。一次算完用户整段输入的所有 token 则称为 <strong>prefill</strong>（预填充）。不同阶段的瓶颈类型不同，所以竞赛把单层拆成 5 道计时题分别评测：P1 注意力、P2 专家、P3 小批量整层、P4 五个稠密矩阵乘（第 1、3、4、5、7 阶段）、P5 预填充整层。</p>
 <hr />
 <h2>2. 算术强度、平衡点与单层理论下界</h2>
 <div class="slot">图 0-2（图还在画）</div>
@@ -92,24 +92,24 @@ __global__ void gemv_kernel(const __nv_bfloat16* W, const __nv_bfloat16* x,
 gemv_kernel&lt;&lt;&lt;M, 128, 0, stream&gt;&gt;&gt;(W, x, y, K);                // → 第 1 章..第 3 章
 </code></pre>
 <hr />
-<h2>2. 为什么启动语句返回时 <code>y</code> 还没算出来？</h2>
+<h2>2. 启动语句与五个关键字各规定了什么？</h2>
 <p>当 CPU 执行完最后一行启动语句继续往下走时，输出数组 <code>y</code> 往往还没有算出来（此时 GPU 可能还没开始算第 0 行）。这是由于启动语句只把命令放进队列就立刻返回，不等 GPU 算完。函数的启动与块内共享遵循下面五组规则。
 - <code>__global__</code> 与 <strong>kernel</strong>（GPU 函数）。<code>__global__</code> 声明 <code>gemv_kernel</code> 由 CPU 发起调用、在 GPU 上执行。
-- <code>&lt;&lt;&lt;M, 128, 0, stream&gt;&gt;&gt;</code> 异步启动与 <strong>stream</strong>（命令流）。前两个参数为 CTA 数 <code>M</code> 与每 CTA 线程数 <code>128</code>。后两个参数为动态共享内存字节数 <code>0</code>（本例 <code>smem[128]</code> 大小已写死在代码里）与顺序队列 <code>stream</code>。CPU 要读结果时，需调用 <code>cudaStreamSynchronize(stream)</code> 等待队列做完。
+- <code>&lt;&lt;&lt;M, 128, 0, stream&gt;&gt;&gt;</code> 异步启动与 <strong>stream</strong>（命令流）。前两个参数为 CTA 数 <code>M</code> 与每 CTA 线程数 <code>128</code>。第三个参数为动态共享内存字节数 <code>0</code>（本例 <code>smem[128]</code> 大小已写死在代码里）。第四个参数是顺序命令队列 <code>stream</code>，CPU 要读结果时需调用 <code>cudaStreamSynchronize(stream)</code> 等待队列做完。
 - <strong>grid</strong>（网格）与编号变量。全部 <code>M</code> 个 CTA 合称一个 <code>grid</code>。在 <code>gemv_kernel</code> 中，每个 CTA 靠 <code>blockIdx.x</code> 认领第 <code>row</code> 行。每个 thread 靠块内编号 <code>threadIdx.x</code> 与块宽 <code>blockDim.x</code>（128）跨列读取元素。
 - 三种变量空间。指针 <code>W, x, y</code> 指向所有 CTA 可读写的 <strong>global memory</strong>（全局内存，位于第 0 章的 HBM）。<code>__shared__ float smem[128]</code> 仅当前 CTA 内部所有 thread 共享读写。<code>row, tid, acc</code> 为每个 thread 独占的私有局部变量。
-- <code>__syncthreads()</code> 块内同步与 <strong>reduction</strong>（归约）。<code>__syncthreads()</code> 是本 CTA 的执行同步屏障与 <strong>memory fence</strong>（内存栅栏）。它等本块 128 个 thread 全部到达、且此前对 <code>smem</code> 的写入全部可见后才放行。随后 <code>if (tid == 0)</code> 让 0 号 thread 把 <code>smem</code> 的 128 个值加成 1 个总和（即归约）写回 <code>y[row]</code>。</p>
+- <code>__syncthreads()</code> 块内同步与 <strong>reduction</strong>（归约）。<code>__syncthreads()</code> 先作为执行同步屏障，等本块 128 个 thread 全部到达这一行。它同时是本 CTA 范围的 <strong>memory fence</strong>（内存栅栏），保证此前对 <code>smem</code> 的写入对全块可见后再放行。随后 <code>if (tid == 0)</code> 让 0 号 thread 把 <code>smem</code> 的 128 个值加成 1 个总和（即归约）写回 <code>y[row]</code>。</p>
 <hr />
 <h2>3. gemv 演化（v0 → v1）：从单线程算一行到 128 线程协作算一行</h2>
-<p><code>qkv_gate</code> 的矩阵形状为 <code>M = 2304, K = 8192</code>，下界为 7.9 µs。最朴素的 <strong>v0</strong> 启动 <code>&lt;&lt;&lt;18, 128, 0, stream&gt;&gt;&gt;</code>（编译占每线程 29 个寄存器、0 字节静态共享内存）。全卡共 2,304 个线程，每个线程独自循环 8,192 步算完 1 行。本章的 <strong>v1</strong>（上方 <code>gemv_kernel</code>）启动 <code>&lt;&lt;&lt;2304, 128, 0, stream&gt;&gt;&gt;</code>（每线程 22 个寄存器、每 CTA 512 字节静态共享内存），改为每行 1 个 128 线程的 CTA。</p>
+<p>在 <code>qkv_gate</code>（<code>M = 2304, K = 8192</code>）上，最朴素的 <strong>v0</strong> 启动 <code>&lt;&lt;&lt;18, 128, 0, stream&gt;&gt;&gt;</code>，全卡共 2,304 个线程，每个线程独自循环 8,192 步算完 1 行。本章的 <strong>v1</strong>（上方 <code>gemv_kernel</code>）启动 <code>&lt;&lt;&lt;2304, 128, 0, stream&gt;&gt;&gt;</code>，改为每行 1 个 128 线程的 CTA。</p>
 <pre><code class="language-cuda">// v0：每个线程独自算完 1 行（int row = blockIdx.x * 128 + threadIdx.x;）
 for (int k = 0; k &lt; K; ++k) acc += __bfloat162float(W[row * K + k]) * __bfloat162float(x[k]);
 // v1：1 个 CTA 的 128 个相邻线程协作分段读同一行（见第 1 节完整代码）
 for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * __bfloat162float(x[k]);
 </code></pre>
-<p>v0 只有 18 个 CTA，全卡 132 个处理器里只有 18 个在工作（平均每处理器在途仅约 0.2 KiB）。并且 v0 相邻线程读的地址相隔一整行（16 KiB）。v1 让每个处理器同时驻留 16 个 CTA，全卡一次驻留 2,112 个 CTA（共 270,336 个线程，约为 v0 的 <strong>117</strong> 倍）。这使每处理器在途读取升至 4.0 KiB，且 128 个相邻线程紧挨着读同一行的相邻元素（见第 2、3 章）。</p>
+<p>v0 只有 18 个 CTA，全卡 132 个 <strong>SM</strong>（Streaming Multiprocessor，流式多处理器，即执行指令的独立处理器）里只有 18 个分到工作。并且 v0 相邻线程读的地址相隔一整行（16 KiB）。v1 派出 2,304 个 CTA 铺满全部 132 个 SM，让每个 CTA 的 128 个相邻线程紧挨着读同一行的相邻元素（为什么铺满 SM 与相邻地址能拉高带宽，见第 2、3 章）。H200 实测（每次迭代前写 512 MiB 清空缓存的冷缓存中位数，下同）：<code>675.71 →</code> <strong>58.88 µs</strong>（<code>11.5×</code>），约为 7.9 µs 下界的 <code>13.4%</code>。同一测具下空 kernel 的启动与事件计时固定开销约为 3.68 µs，后续各版本的实测耗时都包含这约 3.7 µs 固定开销，因此单次实测永远不会达到下界的 100%。</p>
 <hr />
-<p><strong>带走一句话：</strong> v1 用 2,304 个 128 线程 CTA 把全卡同时驻留的读线程扩至 v0 的约 117 倍，每处理器保持 4.0 KiB 在途读取。</p>
+<p><strong>带走一句话：</strong> v1 用 2,304 个 128 线程 CTA 铺满全卡 132 个 SM，使 <code>qkv_gate</code> 实测耗时从 675.71 µs 降到 58.88 µs（11.5 倍）。</p>
 <p><strong>下一章要回答的问题：</strong> 当一层模型连续向 <code>stream</code> 发起一串小 kernel 时，它们之间的时间空隙是怎么产生的，怎样把空隙与等待压到最低？→ 进入 第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</p></section><section id="ch01"><h1>第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？</h1>
 <p><strong>本书地图：</strong> 第 0 章 → 第 0.5 章 → <strong>【第 1 章 [第 0 级]：时间线上的 kernel】</strong> → 第 2 章 [第 1 级] → 第 3 章 [第 2 级] → 第 4 章 [第 3 级] → 第 5 章 [第 4 级] → 第 6 章 [第 5 级] → 第 7–8 章 → 第 9 章</p>
 <p>承接第 0.5 章末尾的问题（第 0 级：时间线）：按第 0 章的下界，单层计算本身只需约 40 µs。当一层模型连续向 <code>stream</code> 发起一串小 kernel 时，时间线上的空隙从哪里来，怎样压到最低？</p>
@@ -120,36 +120,36 @@ for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * 
 <hr />
 <h2>2. 用 PDL（编程依赖启动）让前序收尾与后继读权重重叠</h2>
 <p>如图 1-1 第三行所示，每个 kernel 末尾都不是同时停下的。大部分 CTA 已结束时，仍有少数 CTA 在收尾。收尾期大部分计算单元已经空出，且后继预读静态权重不依赖前序刚算出的激活。所以 Hopper 的 <strong>PDL</strong>（Programmatic Dependent Launch，编程依赖启动）允许后继在前序收尾时提前进场。PDL 按下面四步工作。
-- 声明编程依赖边。主机端启动后继时挂上属性 <code>cudaLaunchAttributeProgrammaticStreamSerialization</code>，允许它在前序退出前提前进场。
+- 声明编程依赖边。主机端启动后继时挂上属性 <code>cudaLaunchAttributeProgrammaticStreamSerialization</code>。
 - 前序触发。前序每个 CTA 在算完主体循环、进入收尾期前调用 <code>cudaTriggerProgrammaticLaunchCompletion()</code>。所有前序 CTA 都已触发或退出时，硬件派发器即可启动后继 kernel。
 - 后继预读静态权重。后继 kernel（如 <code>o</code> 或 <code>pooler</code>）进场后先不读前序尚未写完的激活向量，而是先从 HBM 预读自己最先要用的几块静态权重分块。
 - 后继等待前序数据可见。读取前序激活之前，后继调用 <code>cudaGridDependencySynchronize()</code> 停下等待，等前序显存写入全部落定后再继续执行。</p>
-<p>在 P1 全长层 decode（<code>T = 1</code>）测试中，把触发点放在前序函数开头反而比放在主体循环之后慢了近 <strong>2 µs</strong>。触发调用并不代表前序数据已写完。过早进场的后继 CTA 只能停在等待函数上，空占芯片上的 CTA 位置（见第 3 章，具体唤醒开销尚未单独实测）。</p>
+<p>在 P1 全长层 decode（<code>T = 1</code>）测试中，把触发点放在前序函数开头反而比放在主体循环之后慢了近 <strong>2 µs</strong>。触发调用并不代表前序数据已写完。过早进场的后继 CTA 只能停在等待函数上，空占芯片上的 CTA 位置（见第 3 章）。</p>
 <hr />
 <h2>3. 合写成一个协作大 kernel 还是拆成两个 PDL 串联 kernel？</h2>
 <div class="slot">图 1-2（图还在画）</div>
 
-<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 2 章）。图 1-2 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。</p>
+<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 3 章）。图 1-2 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。</p>
 <hr />
 <h2>4. gemv 演化（v1 → v2）：把流启动链录进单张 CUDA Graph 重放</h2>
-<p><strong>v1</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）编译占 22 个寄存器，每 SM 驻留 16 个 CTA，在途 4.0 KiB/SM。单层里 <code>gemv_kernel</code> 前后紧跟归一化（<code>rmsnorm</code>）与写缓存后处理（<code>rope_kv</code>）。若主机端逐个下发 <code>[rmsnorm, gemv_kernel, rope_kv]</code>，相邻 kernel 之间会暴露流启动空隙。本章的 <strong>v2</strong> 在预热期把三步调用链录进同一张 CUDA Graph 并实例化，运行时单次重放。</p>
+<p>单层里 <strong>v1</strong>（见第 0.5 章）的 <code>gemv_kernel</code> 前后紧跟归一化（<code>rmsnorm</code>）与写缓存后处理（<code>rope_kv</code>）。若主机端从 Python 逐个流启动 <code>[rmsnorm, gemv_kernel, rope_kv]</code>，相邻 kernel 之间会暴露下发空隙。本章的 <strong>v2</strong> 在预热期把三步调用链录进同一张 CUDA Graph 并实例化，运行时单次重放。</p>
 <pre><code class="language-cuda">// v1：主机端在 stream 上逐个下发三步 kernel
 gemv_kernel&lt;&lt;&lt;2304, 128, 0, stream&gt;&gt;&gt;(W, x, y, K);
 // v2：预热期录制三步链并实例化为 graph_exec，运行时单次提交整张图
 cudaGraphLaunch(graph_exec, stream);
 </code></pre>
-<p>整图重放由片上硬件派发器自主启动，消除了逐个流启动的排空等待。这把三步链的节点间隔压到每次约 1 µs 的切换空隙（v2 对比三步整链耗时与三步总读取字节的下界）。</p>
+<p>整图重放由片上硬件派发器自主启动，消除了 CPU 逐个下发的排空等待。三步链的 H200 实测：由 CPU 逐步流启动（热缓存）耗时 73.02 µs，改为单张 CUDA Graph 重放后降至 36.19 µs（省去 36.8 µs 下发空隙）。在冷缓存且流队列预先排满时，整图重放也从流启动的 <code>67.23 µs</code> 降至 <strong>65.15 µs</strong>（2 个节点边界共省约 2.1 µs，平均每个边界省约 1 µs）。</p>
 <hr />
-<p><strong>带走一句话：</strong> 算子融合把单请求 decode 的单层启动从约 17 次压到 11 次，配合整图重放与 PDL 交接消除节点间的隐式栅栏空隙。</p>
-<p><strong>下一章要回答的问题：</strong> 把时间线上代表单个 kernel 的条块横向剖开，成百上千个 CTA 怎样分批落到芯片的各 <strong>SM</strong>（Streaming Multiprocessor，流式多处理器：芯片上执行指令的独立处理器）上，每个 SM 为什么需要挂起足够的在途读取，彼此之间又怎样安全地交换数据？→ 进入 第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</p></section><section id="ch02"><h1>第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</h1>
+<p><strong>带走一句话：</strong> 算子融合把单请求 decode 的单层启动从约 17 次压到 11 次，每次节点切换仍留约 1 µs 空隙。</p>
+<p><strong>下一章要回答的问题：</strong> 把时间线上代表单个 kernel 的条块横向剖开，成百上千个 CTA 怎样分批落到芯片的各 SM 上，每个 SM 为什么需要挂起足够的在途读取，彼此之间又怎样安全地交换数据？→ 进入 第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</p></section><section id="ch02"><h1>第 2 章 [第 1 级]：点开一个 kernel，整张 H200 芯片怎么接住它？</h1>
 <p><strong>本书地图：</strong> 第 0 章 → 第 0.5 章 → 第 1 章 [第 0 级] → <strong>【第 2 章 [第 1 级]：整张 H200 芯片】</strong> → 第 3 章 [第 2 级] → 第 4 章 [第 3 级] → 第 5 章 [第 4 级] → 第 6 章 [第 5 级] → 第 7–8 章 → 第 9 章</p>
-<p>承接第 1 章末尾的问题（第 1 级：整张芯片）：第 1 章消除了时间线上相邻 kernel 之间的启动空隙。把时间线上代表单个 kernel 的条块横向剖开，成百上千个 CTA 怎样分批落到芯片的各 SM 上，每个 SM 为什么需要挂起足够的在途读取，彼此之间又怎样安全地交换数据？</p>
+<p>承接第 1 章末尾的问题（第 1 级：整张芯片）：第 1 章把单层启动从约 17 次压到 11 次，每次节点切换仍留约 1 µs。把时间线上代表单个 kernel 的条块横向剖开，成百上千个 CTA 怎样分批落到芯片的各 SM 上，每个 SM 为什么需要挂起足够的在途读取，彼此之间又怎样安全地交换数据？</p>
 <hr />
 <h2>1. 132 个 SM 上的 wave、tail 与 K-halves</h2>
 <figure class="fig"><iframe src="figs/ch02-a.html" loading="lazy" title="图 2-1" onload="fit(this)"></iframe></figure>
 
-<p>图 2-1 上方画出了 H200 芯片表面，裸片上的每个小方块是 1 个 SM（全卡共 132 个）。先假设每个 SM 一次只跑 1 个 CTA 来演示波次概念。第 3 章会算出 <code>v1 / v2</code> 实际每 SM 驻留 16 个 CTA（全卡一轮装 2,112 个，<code>2,304 = 2,112 + 192</code> 实际分两轮跑完）。全卡 SM 齐步跑完的一批 CTA 称为一个 <strong>wave</strong>（波次）。在图 2-1 的单 CTA 模型中，启动 2,304 个 CTA 与启动 2,376 个 CTA 都要跑 <code>⌈2304 ÷ 132⌉ = 18</code> 个 wave。第 18 个 wave 无论有 60 个还是 132 个 SM 在算，整个 kernel 都要等这一波跑完才结束。</p>
-<p>只要总 CTA 数不是每波容量的整数倍，最后一个 wave 就只有余数 <code>r</code> 个 SM 在算（图 2-1 中 <code>r = 60</code>）。其余 <strong><code>132 − r</code></strong>（72）个 SM 空等到终点线，这段空等就是 <strong>tail</strong>（尾波）。图 2-1 按每个 CTA 用时固定画出了尾波上界。受 HBM 带宽限制的 kernel 在尾波里在算的 SM 更少、排队更短，单个 CTA 会跑得略快，所以实际尾波损失小于图中的上界。当最后一波繁忙的 SM 不超过一半（<code>r ≤ 66</code>）时，可把队尾工作块沿 <code>K</code> 维对半切开。这一做法称为 <strong>K-halves</strong>（勾选图 2-1 的切半开关可见）。切开后的 <code>2r ≤ 132</code> 刚好放进空闲 SM 里，两半结果经跨 SM 同步合并（见第 4 节）即可把尾波缩短约半个 wave。</p>
+<p>图 2-1 上方画出了 H200 芯片表面，裸片上的每个小方块是 1 个 SM（全卡共 132 个）。先假设每个 SM 一次只跑 1 个 CTA 来演示波次概念。第 3 章会算出 <code>v1 / v2</code> 实际每 SM 驻留 16 个 CTA（全卡一轮容量为 <code>132 × 16 = 2,112</code> 个，<code>2,304 = 2,112 + 192</code> 实际分两轮跑完）。全卡齐步跑完的一轮 CTA 称为一个 <strong>wave</strong>（波次）。在图 2-1 的单 CTA 模型中，启动 2,304 个 CTA 与启动 2,376 个 CTA 都要跑 <code>⌈2304 ÷ 132⌉ = 18</code> 个 wave。第 18 个 wave 无论有 60 个还是 132 个 SM 在算，整个 kernel 都要等这一波跑完才结束。</p>
+<p>只要总 CTA 数不是单轮容量的整数倍，最后一个 wave 就只有余数 <code>r</code> 个块在算（图 2-1 中 <code>r = 60</code>）。其余 <strong><code>132 − r</code></strong>（72）个 SM 空等到终点线，这段空等就是 <strong>tail</strong>（尾波）。图 2-1 按每个 CTA 用时固定画出了尾波上界。受 HBM 带宽限制的 kernel 在尾波里在算的 SM 更少、排队更短，单个 CTA 会跑得略快，所以实际尾波损失小于图中的上界。当最后一波的余数 <code>r</code> 不超过单轮容量的一半（单 CTA 模型下 <code>2r ≤ 132</code>，即 <code>r ≤ 66</code>）时，可把队尾工作块沿 <code>K</code> 维对半切开。这一做法称为 <strong>K-halves</strong>（勾选图 2-1 的切半开关可见）。切开后的 <code>2r</code> 个半块刚好放进最后一轮的空闲位置里，两半结果经跨 SM 同步合并（见第 4 节）即可把尾波缩短约半个 wave。</p>
 <hr />
 <h2>2. PDL 提前进场时发生了什么：观察到的 CTA 派发顺序</h2>
 <p>按第 1 章的触发规则，PDL 后继 CTA 会落进图 2-1 最后一个 wave 里那些刚空闲出来的 SM 中。P2 的后继阶段采用了 <strong>persistent kernel</strong>（持久 kernel）。全卡每个 SM 启动 1 个 CTA，依次处理按 <code>blockIdx.x</code> 预先分给它的工作块。本来每个 CTA 分到的工作量相同，应该同时结束。但实测发现编号最大的 131 号 CTA 比编号小的 CTA 晚开始约 <strong>2–3 µs</strong>，在 decode 批量 16–32 的多数输入种子下成为最慢的 CTA。前序 kernel 的 SM 是一批批退场的，H200 的硬件派发器在交接处按 <code>blockIdx.x</code> 从小到大的顺序把新 CTA 依次派给刚退出的 SM。所以在代码里给编号大的 CTA 略微少分一点工作量，就能让各 CTA 的结束时间更接近。</p>
@@ -157,17 +157,17 @@ cudaGraphLaunch(graph_exec, stream);
 <h2>3. 全卡内存层次与利特尔法则：为什么每个 SM 要挂起约 <code>64 KiB</code> 在途读取？</h2>
 <figure class="fig"><iframe src="figs/ch02-b.html" loading="lazy" title="图 2-2" onload="fit(this)"></iframe></figure>
 
-<p>如图 2-2 所示，全卡 SM 读写全局指针 <code>W, x, y</code> 时，全部连向芯片中央共享的 <strong>L2 cache</strong>（L2 缓存）。L2 未命中时再去芯片两侧的 HBM 读取。第 0 章算下界用的 4.8 TB/s 是手册标称峰值，而全卡用普通向量读取指令持续流式读 HBM 的实测可达上限约为 4.54 TB/s。平摊到每个 SM，目标带宽约为 <code>4.54 TB/s ÷ 132 ≈ 34 GB/s</code>。一条读取发出后、数据返回前，它请求的字节叫 <strong>bytes in flight</strong>（在途数据量）。图 2-2 把 <code>W</code> 的 1 整行（<code>8,192 × 2 B = 16 KiB</code>）画作 1 个在途单元。根据 <strong>Little's Law</strong>（利特尔法则），要跑满单 SM 的目标带宽，SM 上同时保持的在途字节数必须覆盖往返延迟。</p>
+<p>如图 2-2 所示，全卡 SM 读写全局指针 <code>W, x, y</code> 时，全部连向芯片中央共享的 <strong>L2 cache</strong>（L2 缓存，容量 60 MiB）。L2 未命中时再去芯片两侧的 HBM 读取。第 0 章算下界用的 4.8 TB/s 是手册标称峰值，而全卡用普通向量读取指令持续流式读 HBM 的实测可达上限约为 4.54 TB/s。平摊到每个 SM，目标带宽约为 <code>4.54 TB/s ÷ 132 ≈ 34 GB/s</code>。一条读取发出后、数据返回前，它请求的字节叫 <strong>bytes in flight</strong>（在途数据量）。图 2-2 把 <code>W</code> 的 1 整行（<code>16 KiB = 32</code> 条每次 512 字节的线程束读取，见第 3 章）画作 1 个在途单元，并在横轴上用“▲”标出了本书 <code>v1–v10</code> 各版本的在途位置（<code>v1–v4</code> 每线程只发 2 字节读取，每 SM 在途仅 4.0 KiB，远在最左档 16 KiB 之外）。根据 <strong>Little's Law</strong>（利特尔法则），要跑满单 SM 的目标带宽，SM 上同时保持的在途字节数必须覆盖往返延迟。</p>
 <pre><code class="language-text">所需在途数据量（Bytes in flight） = 单 SM 目标带宽 × 包含排队在内的往返延迟
 </code></pre>
-<p>先按空载延迟估算。当全卡只有 1 个请求在路上时（空载），读 HBM 往返约 0.33 µs，算出每 SM 只需挂起 <code>34 GB/s × 0.33 µs ≈ 11 KiB</code>。切换图 2-2 的档位。选“每个 SM 在途 16 KiB（同时读 1 行 W）”时，读数为“全卡 2.29 TB/s，是标称的 48%；一行往返约 0.94 µs”。再切到“每个 SM 在途 <strong>64 KiB</strong>（同时读 4 行 W）”。此时读数到达拐点“全卡 4.49 TB/s，是标称的 94%；一行往返约 1.92 µs”。此时满载往返约为空载延迟的 6 倍（可继续切到 80 与 96 KiB 档位查看读数）。超过约 64 KiB 后，增加在途字节只会拉长在 L2 与显存控制器前的排队时间，带宽停在约 4.54 TB/s。若改用第 3 章的专用 TMA 搬运，约 48 KiB 即可到达平台。</p>
+<p>先按空载延迟估算。当全卡只有 1 个请求在路上时（空载），读 HBM 往返约 0.33 µs，算出每 SM 只需挂起 <code>34 GB/s × 0.33 µs ≈ 11 KiB</code>。切换图 2-2 的档位。选“每个 SM 在途 16 KiB（同时读 1 行 W）”时，读数为“全卡 2.29 TB/s，是标称的 48%；一行往返约 0.94 µs”。再切到“每个 SM 在途 <strong>64 KiB</strong>（同时读 4 行 W）”。此时读数到达拐点“全卡 4.49 TB/s，是标称的 94%；一行往返约 1.92 µs”。满载往返约为空载延迟的 6 倍（可继续切到 80 与 96 KiB 档位查看读数）。超过约 64 KiB 后，增加在途字节只会拉长在 L2 与显存控制器前的排队时间，带宽停在约 4.54 TB/s。</p>
 <hr />
-<h2>4. 跨 SM 交换数据：为什么不同 SM 的 L1 不一致，必须走 L2 同步？</h2>
+<h2>4. 跨 SM 交换数据：为什么必须走 L2 同步？</h2>
 <div class="slot">图 2-3（图还在画）</div>
 
 <p>同一 <strong>cluster</strong>（线程块集群）内的 CTA 可直接互读片上内存。但 K-halves 的两半与 P1 的各拆分块由任意空闲 SM 接手，不保证在同一 cluster 内。所以跨任意 SM 汇总必须走全卡唯一的一致点 L2。</p>
 <p>在 P1 注意力中，各拆分块的部分和用无返回值的全局原子加法累加到同一个 FP32 工作区地址。L2 内部的硬件原子加法器把“读旧值、相加、写回”一步完成，发送方不用等旧值返回。</p>
-<p>在 K-halves 中，两半各算完半行部分和后需要在 L2 汇合。CPU 的硬件缓存一致性保证普通写入按序对其他核可见，但 GPU 各 SM 的私有缓存（见第 3 章的 L1 cache）之间硬件不自动保持一致。普通写入也不保证跨地址顺序：<code>flag</code> 可能先于 <code>data</code> 到达 L2，后半块的普通读取也可能命中自己私有的旧缓存行。因此跨 SM 交接必须指定 <strong>device</strong>（全卡作用域）的 <strong>release / acquire</strong>（释放/获取）内存序。实战中常把两步合成一个带 <code>acq_rel</code>（兼具 release 与 acquire）的原子计数。每个半块写完部分和后，对 L2 中的计数器执行一次 <code>fetch_add(1, memory_order_acq_rel)</code>。拿到旧值 <code>1</code> 的后到半块直接读取另一半的部分和并相加写回 <code>y[row]</code>，无需自旋等待。</p>
+<p>在 K-halves 中，两半各算完半行部分和后需要在 L2 汇合。x86 CPU 的 TSO（总存储序）内存模型保证同一核发出的写入按程序顺序对其他核可见（ARM 等弱序 CPU 不保证，而缓存一致性本身只保证同一地址的顺序）。但在 GPU 上，各 SM 的私有缓存（见第 3 章的 L1 cache）之间硬件不自动保持一致。普通写入也不保证跨地址顺序：计数器的更新可能先于部分和到达 L2，后半块的普通读取也可能命中自己私有的旧缓存行。因此跨 SM 交接必须指定 <strong>device</strong>（全卡作用域）的 <strong>release / acquire</strong>（释放/获取）内存序。实战中把两步合成一个带 <code>acq_rel</code>（兼具 release 与 acquire）的原子计数。每个半块写完部分和后，对 L2 中的计数器执行一次 <code>fetch_add(1, memory_order_acq_rel)</code>。拿到旧值 <code>1</code> 的后到半块读取另一半的部分和并相加写回 <code>y[row]</code>，同时把计数器复位为 <code>0</code> 供下一次重放（后到者合并不必自旋等待）。</p>
 <pre><code class="language-cuda">#include &lt;cuda/atomic&gt;
 // 每个半块块内归约后，0 号线程写出本半块部分和，并以 device 级 acq_rel 递增计数器
 __syncthreads();
@@ -175,22 +175,25 @@ if (threadIdx.x == 0) {
     partial[half_id * M + row] = sum;
     cuda::atomic_ref&lt;int, cuda::thread_scope_device&gt; cnt(done_cnt[row]);
     if (cnt.fetch_add(1, cuda::memory_order_acq_rel) == 1) {
-        y[row] = partial[row] + partial[M + row]; // 后到者读取两半并写回
+        y[row] = partial[row] + partial[M + row];
+        cnt.store(0, cuda::memory_order_relaxed); // 复位供下一次 CUDA Graph 重放
     }
 }
 </code></pre>
-<p>在图 2-3 的测试中，跨 SM 经 L2 交接一次的中位耗时约为 <strong>0.67 µs</strong>，与第 1 章两个 kernel 之间的 PDL 交接（约 0.6 µs）同量级。所以能留在单 SM 内部完成的计算不跨 SM 交接。</p>
+<p>在图 2-3 的测试中，跨 SM 经 L2 交接一次的中位耗时约为 <strong>0.67 µs</strong>。这与第 1 章两个 kernel 之间的 PDL 交接（约 0.6 µs）同量级。所以能留在单 SM 内部完成的计算不跨 SM 交接。</p>
 <hr />
 <h2>5. gemv 演化（v2 → v3 → v4）：K-halves 切尾波与 L2 缓存留存提示</h2>
-<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡一轮装 2,112 个 CTA，第二轮留下 192 个尾波 CTA。<strong>v3</strong>（23 个寄存器、每 SM 16 个 CTA、在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA）。两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。接着 <strong>v4</strong>（27 个寄存器、每 SM 16 个 CTA、在途 4.0 KiB/SM）用 <code>createpolicy</code> 为中央 L2 加上留存提示。权重 <code>W</code> 只读 1 次，标为 <strong><code>evict_first</code></strong>（读完优先淘汰）；向量 <code>x</code>（16 KiB）被重复读取，标为 <strong><code>evict_last</code></strong>（优先留在 L2）。</p>
-<pre><code class="language-cuda">// v3：后 192 行拆成 384 个半长 K/2 的 CTA，后到半块经 L2 acq_rel 原子计数合并
-if (cnt.fetch_add(1, cuda::memory_order_acq_rel) == 1) y[row] = part0[row] + part1[row];
-// v4：用 createpolicy 生成 L2 策略描述符，W 标 evict_first，x 标 evict_last
+<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡单轮容量为 2,112 个 CTA，第二轮留下 <code>r = 192</code> 个尾波 CTA。由于 <code>192 ≤ 2,112 ÷ 2</code> 满足第 1 节“余数不超过单轮容量一半”的切半条件，<strong>v3</strong>（每 SM 16 个 CTA，在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA），两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。尾波里每个 CTA 只有 <code>128 × 2 B = 256</code> 字节在途，耗时由串行往返次数决定，切半 <code>K</code> 直接把尾波块的串行往返次数减半。H200 实测：<code>58.88 →</code> <strong>48.26 µs</strong>（<code>1.22×</code>），约为 7.9 µs 下界的 <code>16.3%</code>。</p>
+<p>接着 <strong>v4</strong>（每 SM 16 个 CTA，在途 4.0 KiB/SM）用 <code>createpolicy</code> 为中央 L2 加上留存提示（<code>.L1::evict_first</code> 同时提示本 SM 的 L1 优先淘汰流式数据）。权重 <code>W</code> 每字节只读 1 次，标为 <strong><code>evict_first</code></strong>（读完优先淘汰）；向量 <code>x</code>（16 KiB）被重复读取，标为 <strong><code>evict_last</code></strong>（优先留在 L2）。</p>
+<pre><code class="language-cuda">// v4：用 createpolicy 生成 L2 策略描述符，W 标 evict_first，x 标 evict_last
 asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;
 &quot;
-             &quot;ld.global.L1::evict_first.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pol), &quot;=h&quot;(w) : &quot;l&quot;(Wp));
+             &quot;ld.global.L1::evict_first.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pW), &quot;=h&quot;(w) : &quot;l&quot;(Wp));
+asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;
+&quot;
+             &quot;ld.global.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pX), &quot;=h&quot;(xv) : &quot;l&quot;(xp));
 </code></pre>
-<p>单层 <code>W</code>（37.7 MB）小于 60 MiB 的 L2，单层独立测试中 <code>x</code> 本就不易被冲出（预期收益很小）。但在多层连续推理时，该提示可防止权重流冲掉共享激活。</p>
+<p>测具在每次冷缓存计时前写入 512 MiB 清空 60 MiB 的 L2，H200 冷缓存实测：<code>48.26 →</code> <strong>43.94 µs</strong>（<code>1.10×</code>），约为 7.9 µs 下界的 <code>17.9%</code>。但在不清空 L2 的热缓存重复测试中，单层 <code>W</code>（37.7 MB）本可装进 60 MiB 的 L2，<code>evict_first</code> 阻止了 <code>W</code> 留在 L2，使热缓存耗时反而从 <code>29.02 µs</code> 退化到 <code>42.88 µs</code>（真实多层推理中其他层本就会冲掉 <code>W</code>，冷缓存才是真实工作点）。</p>
 <hr />
 <p><strong>带走一句话：</strong> 普通读取指令需在每个 SM 上挂起约 64 KiB 在途字节（覆盖约 1.92 µs 满载排队往返）才能跑满 4.54 TB/s 的 HBM 带宽，而跨 SM 交接一次约需 0.67 µs。</p>
 <p><strong>下一章要回答的问题：</strong> 把图 2-1 里的 1 个 SM 小方块拆开，它的四项固定容量与片上存储结构怎样限制驻留 CTA 数、把全局读取合并成扇区并无冲突地从共享内存读出？→ 进入 第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</p></section><section id="ch03"><h1>第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</h1>
@@ -224,7 +227,7 @@ asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;
 <p>在图 3-3 中选方式 1，读数为“64 条 warp 指令（32 条读 + 32 条写）· 每个线程自己算地址”（<code>16 KiB ÷ 512 B = 32</code> 次读加 32 次写）。第二行读数为“数据先进寄存器：每个线程最多占 32 个寄存器”（<code>16 KiB ÷ 128 = 128 B = 32</code> 个寄存器）。再选方式 4，读数变为“1 条指令 · TMA 单元按描述符搬，每行内部再重排（第 5 节）”。此时“寄存器里的数据”一行是空的。TMA 单元自己算地址、自己搬数据，只需 1 个线程发 1 条命令，占 <strong>0</strong> 个数据寄存器。其余 warp 在搬运期间可以做别的事，只在使用数据前等一次片上屏障。</p>
 <hr />
 <h2>4. 有界环形缓冲：为什么总槽数等于 <code>在途槽数 + 1</code>？</h2>
-<div class="slot">图 3-4（图还在画）</div>
+<figure class="fig"><iframe src="figs/ch03-c.html" loading="lazy" title="图 3-4" onload="fit(this)"></iframe></figure>
 
 <p>SMEM 里的 <code>N</code> 个缓冲槽组成生产者-消费者有界环形队列（图 3-4），用来保持 TMA 所需的 48 KiB 在途量（见第 2 章第 3 节）。当前正在被消费者读取计算的 1 个槽已经到齐，不属于在途状态。所以在稳态下，路上的在途槽数等于 <code>N − 1</code>。</p>
 <pre><code class="language-text">所需缓冲槽总数 N = ⌈ 所需在途字节数 ÷ 每个分块的字节数 ⌉ + 1

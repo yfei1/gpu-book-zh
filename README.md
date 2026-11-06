@@ -25,4 +25,5 @@
 - [图 3-1 一个 SM 能同时放下几个 CTA](figs/ch03-a.html)
 - [图 3-2 一条 warp 读指令取回几个扇区](figs/ch03-coal.html)
 - [图 3-3 把 16 KiB 搬进 SMEM 的四种方式](figs/ch03-b.html)
+- [图 3-4 环形缓冲：几个槽才能一边搬一边算](figs/ch03-c.html)
 - [图 4-1 调度器每个周期选哪个 warp](figs/ch04-a.html)
