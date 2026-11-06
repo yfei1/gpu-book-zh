@@ -150,7 +150,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 </svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 222" role="img" aria-label="时间线：每个步骤依次发生，按光标裁剪">
 <text class="lab2" x="132" y="16">时间线（横轴只表示先后，不表示耗时）</text>
 <text class="rl" x="124" y="39">取词 id（CPU）</text><rect class="row" x="132" y="26" width="488" height="18"/><text class="rl" x="124" y="63">嵌入</text><rect class="row" x="132" y="50" width="488" height="18"/><text class="rl" x="124" y="87">62 层</text><rect class="row" x="132" y="74" width="488" height="18"/><text class="rl" x="124" y="111">最终归一化、lm_head</text><rect class="row" x="132" y="98" width="488" height="18"/><text class="rl" x="124" y="135">softcap、采样、回流</text><rect class="row" x="132" y="122" width="488" height="18"/><text class="rl" x="124" y="159">KV 写入（高 = 字节）</text><rect class="row" x="132" y="146" width="488" height="18"/><text class="rl" x="124" y="183">KV 读取（高 = 字节）</text><rect class="row" x="132" y="170" width="488" height="18"/>
-<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="176"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. Prefill：5 个词同时流过</label><label><input type="radio" name="mode" value="2">2. Decode：只有 1 个新词</label><label><input type="radio" name="mode" value="3">3. Verify：8 个草稿词一次检验</label></div>
+<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="176"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. Prefill：5 个词同时流过</label><label><input type="radio" name="mode" value="2">2. Decode：只有 1 个新词</label><label><input type="radio" name="mode" value="3">3. Verify：8 个词一次检验（含 7 个草稿）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="60" step="0.05" value="0"></label></div><div class="lg"><span><i style="background:hsl(137 62% 36%)"></i>一个词（编号 = 位置，同色同号）</span><span><i style="background:#8a8a92;border-radius:5px;width:8px"></i>权重从 HBM 读出</span><span><i style="background:var(--anatomy-blue)"></i>KV 写入</span><span><i style="background:var(--anatomy-mid)"></i>KV 读取</span><span><i style="background:var(--anatomy-strong);height:3px"></i>全长层</span></div>
 <p class="cap">选一种方式，看同一句话怎样流过 62 层，并拖动时间看每一步的公式、输入、输出和代价。三种方式读的权重一样多，所以每个词摊到的字节数不同。</p></main><script type="module">
 const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
@@ -177,51 +177,51 @@ const MODES={
 const RO={
  1:"本趟 5 个词同时流过 62 层 · 每层写入 KV 5 格 · 产出第 6 个词\n读权重 11.89 GB（不含专家）· 平均每个词摊 2.38 GB · 带宽下界 2.48 ms",
  2:"本趟 1 个词流过 62 层 · 每层读 KV 6 格、写 1 格 · 产出第 7 个词\n读权重 11.89 GB（不含专家）· 平均每个词摊 11.89 GB · 带宽下界 2.48 ms",
- 3:"本趟 8 个草稿词一次流过 62 层 · 每层读 KV 13 格、写 8 格\n读权重 11.89 GB（不含专家）· 平均每个词摊 1.49 GB · 带宽下界 2.48 ms"};
+ 3:"本趟 8 个词（第 6 个已知 + 7 个草稿）一次流过 62 层 · 每层读 KV 13 格、写 8 格\n读权重 11.89 GB（不含专家）· 平均每个词摊 1.49 GB · 带宽下界 2.48 ms"};
 let mode=1, M=MODES[1], t=0, EVS=[];
 const cols=(a)=>a.map(col);
 
 function steps(){
  const m=mode, L=M.L, R=M.R, c=M.c, vis=M.vis, kv=L*256, rd=vis*256, KiB=(n)=>n+" KiB";
  const S1=[
-  {s:["CPU 把用户的一句话切成 5 个词，得到 5 个整数 id，送进 GPU 的 HBM。代价：这一步在 CPU 上做；传给 GPU 5 × 4 B = 20 B",
-      "上一趟采样得到的第 6 个词已经是整数 id，不用再分词，直接作为这一趟的输入。代价：传给 GPU 1 × 4 B = 4 B",
-      "小草稿模型先连猜 8 个词，得到 8 个整数 id，作为这一趟的输入。代价：草稿模型本身的开销不在本图内；传给 GPU 8 × 4 B = 32 B"][m-1],
-   f:["ids = Tokenizer(text)","ids = [next_id]","ids = [d₁, …, d₈]（草稿模型的 8 个猜测）"][m-1],
-   i:["text：用户的一句话（CPU 内存）；词表共 202,048 个词","next_id int32 [1]（上一趟的输出，HBM）","8 个草稿 id（位置 6 到 13）"][m-1],
-   o:"ids int32 ["+L+"]（"+4*L+" B），写进 HBM",x:"ids → 第 2 步，作为嵌入表的行号"}];
- const E2={s:"按 id 从嵌入表取出 "+L+" 行，每行 8192 个 BF16，作为这 "+L+" 个词的初始向量。代价：读 "+L+" × 16 KiB = "+16*L+" KiB，写 "+L+" × (32 + 16) KiB = "+48*L+" KiB；嵌入表 3.31 GB 只用了其中 "+L+" 行",
-  f:"stream_0[t] = FP32(W_embed[ids[t]]);  x_0[t] = RMSNorm(stream_0[t]) · (1 + w_norm0)",
-  i:"ids int32 ["+L+"]（HBM）；W_embed BF16 [202048, 8192]（3.31 GB，HBM，只读 "+L+" 行）",
+  {s:["CPU 把用户的一句话切成 5 个词，得到 5 个整数 id，送进 GPU 的 HBM。代价：这一步在 CPU 上做；id 的字节宽度本图不算",
+      "上一趟采样得到的第 6 个词已经是整数 id，不用再分词，直接作为这一趟的输入。代价：id 的字节宽度本图不算",
+      "第 6 个词是上一趟（Prefill）产出的，已知，直接作为输入的第 1 个词。草稿机制再猜它后面的 7 个词（位置 7 到 13）；草稿从哪里来，本图不展开。代价：草稿的开销不在本图内；id 的字节宽度本图不算"][m-1],
+   f:["ids = Tokenizer(text)","ids = [next_id]","ids = [next_id, d₁, …, d₇]（d₁ … d₇ 是 7 个草稿猜测）"][m-1],
+   i:["text：用户的一句话（CPU 内存）；词表共 202,048 个词","next_id [1]（上一趟的输出，HBM）","next_id（第 6 个词，已知）和 7 个草稿 id（位置 7 到 13）"][m-1],
+   o:"ids ["+L+"]，写进 HBM",x:"ids → 第 2 步，作为嵌入表的行号"}];
+ const E2={s:"按 id 从嵌入表取出 "+L+" 行，每行 8192 个 BF16，作为这 "+L+" 个词的初始向量。代价：读 "+L+" × 16 KiB = "+16*L+" KiB，写 "+L+" × (32 + 16) KiB = "+48*L+" KiB；嵌入表共 3.31 GB，只用其中 "+L+" 行。嵌入表是否由一张 GPU 整表持有（词表是否按 8 张卡切分）未知",
+  f:"stream_0[t] ← W_embed[ids[t]]（FP32 residual，转换细节未公开）;  x_0[t] = RMSNorm(stream_0[t])，不乘可学习权重",
+  i:"ids ["+L+"]（HBM）；W_embed [202048, 8192]（3.31 GB，HBM，只读 "+L+" 行；整表在哪张 GPU 上未知）",
   o:"stream_0 FP32 ["+L+", 8192]（"+32*L+" KiB）与 x_0 BF16 ["+L+", 8192]（"+16*L+" KiB），写回 HBM",
   x:"(x_0, stream_0) → 第 0 层的输入"};
- const E4={s:[ "5 个词都过完第 61 层后，只取最后一个位置（第 5 个词）的行做最终归一化，因为只有它用来预测下一个词。","这 1 个词过完第 61 层后，取它的行做最终归一化。","8 个词过完第 61 层后，取全部 8 个位置的行做最终归一化，8 行都要送去检验。"][m-1]+"代价：读 "+32*R+" KiB，写 "+16*R+" KiB；权重 w_norm 只有 8192 个数",
-  f:m===3?"h[j] = RMSNorm(stream_62[j, :]; w_norm)，j = 0 … 7":"h = RMSNorm(stream_62["+(L-1)+", :]; w_norm)",
-  i:"stream_62 FP32 ["+L+", 8192]（HBM），用其中 "+R+" 行；w_norm [8192]（HBM）",
+ const E4={s:[ "5 个词都过完第 61 层后，按常见做法只取最后一个位置（第 5 个词）的行做最终归一化，因为只有它用来预测下一个词。","这 1 个词过完第 61 层后，取它的行做最终归一化。","8 个词过完第 61 层后，按常见做法取全部 8 个位置的行做最终归一化，8 行都要送去检验。"][m-1]+"代价：读 "+32*R+" KiB，写 "+16*R+" KiB；归一化权重未知，不计入",
+  f:m===3?"h[j] = RMSNorm(stream_62[j, :])（权重未知），j = 0 … 7":"h = RMSNorm(stream_62["+(L-1)+", :])（权重未知）",
+  i:"stream_62 FP32 ["+L+", 8192]（HBM），用其中 "+R+" 行；最终归一化的权重未知",
   o:"h BF16 ["+R+", 8192]（"+16*R+" KiB），HBM / L2",x:"h → lm_head"};
- const E5={s:"h 与 lm_head 的 202,048 行逐行做点乘，得到整张词表的分数。代价：读 lm_head 3.31 GB，不管有几行 h；"+R+" × 3.31 GFLOP，每字节只做 "+R+" 次浮点运算（H200 的分界是 206），仅读这块权重就要 0.69 ms 以上",
+ const E5={s:"h 与 lm_head 的 202,048 行逐行做点乘，得到整张词表的分数。代价：读 lm_head 3.31 GB，不管有几行 h；"+R+" × 3.31 GFLOP，每字节只做 "+R+" 次浮点运算（H200 的分界是 206）。若一张 GPU 读完整张表，仅读这块权重就要 0.69 ms 以上；词表是否按 8 张卡切分未知",
   f:"z = h · W_lm_headᵀ",
-  i:"h BF16 ["+R+", 8192]（HBM / L2）；W_lm_head BF16 [202048, 8192]（3.31 GB，HBM）",
+  i:"h BF16 ["+R+", 8192]（HBM / L2）；W_lm_head BF16 [202048, 8192]（3.31 GB，HBM；整表在哪张 GPU 上未知）",
   o:"z ["+R+", 202048]：每个词的分数（HBM / L2）",x:"z → softcap"};
- const E6={s:"用 softcap 把每个分数压进 (−20, 20) 之内。代价：不读权重；"+R+" × 202,048 = "+(R*202048).toLocaleString("en-US")+" 次 tanh",
-  f:"logits = 20 · tanh(z / 20)",i:"z ["+R+", 202048]（HBM / L2）",o:"logits ["+R+", 202048]（同一块内存原地更新）",x:"logits → 采样"};
+ const E6={s:"模型配置里有 final_logit_softcapping = 20.0；本书的计时题目都不跑这一步。下面是 softcap 的常见定义，不是从题目代码读来的：把每个分数压进 (−20, 20) 之内。代价：不读权重；按此定义是 "+R+" × 202,048 = "+(R*202048).toLocaleString("en-US")+" 次 tanh",
+  f:"logits = 20 · tanh(z / 20)（常见定义）",i:"z ["+R+", 202048]（HBM / L2）",o:"logits ["+R+", 202048]（同一块内存原地更新）",x:"logits → 采样"};
  const nxt=[6,7,0][m-1];
- const E7={s:(m===3?"对 8 行 logits 各采样 1 个词，用来检验 8 个草稿词。":"按概率从 202,048 个词里选出第 "+nxt+" 个词的 id。")+"代价：每行一次 softmax 和一次采样，共 "+R+" × 202,048 个元素；写 "+4*R+" B",
-  f:"p = softmax(logits / temp);  next_id = Sample(p)",i:"logits ["+R+", 202048]",
-  o:"next_id int32 ["+R+"]（"+4*R+" B），HBM",x:m===3?"8 个 next_id 与 8 个草稿词比对（接受规则本图不展开）":"next_id → 第 8 步，回到输入"};
- const tot="总代价：读稠密权重 62 × 138.4 MB = 8.58 GB，读 lm_head 3.31 GB，共 11.89 GB（不含专家，每个被选中的专家再加 28.3 MB），按 4.8 TB/s 至少 2.48 ms；这 "+L+" 个词平均各摊 "+(11.89/L).toFixed(2)+" GB；写 KV 62 × "+L+" × 256 B = "+fm(62*kv)+" B；稠密部分约 "+(8.31*L).toFixed(1)+" GFLOP + lm_head "+(3.31*R).toFixed(2)+" GFLOP";
+ const E7={s:(m===3?"对 8 行 logits 各选出 1 个词，用来和草稿词比对。":"从 202,048 个词里选出第 "+nxt+" 个词的 id。")+"采样的具体规则未知，本图不展开。代价：每行扫一遍 202,048 个分数，共 "+R+" × 202,048 个元素",
+  f:"next_id = 采样(logits)（规则未知）",i:"logits ["+R+", 202048]",
+  o:"next_id ["+R+"]，HBM",x:m===3?"8 个 next_id 与草稿词比对（接受规则本图不展开）":"next_id → 第 8 步，回到输入"};
+ const tot="总代价：读稠密权重 62 × 138.4 MB = 8.58 GB，读 lm_head 3.31 GB，共 11.89 GB（不含专家，每个被选中的专家再加 28.3 MB；设一张 GPU 读完整 lm_head，词表是否切分未知），按 4.8 TB/s 至少 2.48 ms；这 "+L+" 个词平均各摊 "+(11.89/L).toFixed(2)+" GB；写 KV 62 × "+L+" × 256 B = "+fm(62*kv)+" B；稠密部分约 "+(8.321*L).toFixed(1)+" GFLOP + lm_head "+(3.31*R).toFixed(2)+" GFLOP";
  const E8={s:[ "第 6 个词的 id 回到输入，下一趟只有这 1 个词，进入 Decode。","第 7 个词的 id 回到输入，开始下一趟 Decode。","保留哪些草稿词由接受规则决定，本图不展开；保留的词回到输入，开始下一趟。"][m-1]+tot,
   f:["pos ← 6;  ids = [next_id]","pos ← 7;  ids = [next_id]","pos ← pos + 保留的词数"][m-1],
-  i:m===3?"next_id int32 [8]（HBM）":"next_id int32 [1]（HBM）",o:m===3?"下一趟的 ids 与 pos":"ids int32 [1]；pos = "+nxt,
+  i:m===3?"next_id [8]（HBM）":"next_id [1]（HBM）",o:m===3?"下一趟的 ids 与 pos":"ids [1]；pos = "+nxt,
   x:m===1?"→ 第 1 步，下一趟是 Decode（1 个词）":m===2?"→ 第 1 步，下一趟仍是 Decode":"→ 第 1 步"};
  return [S1[0],E2,null,E4,E5,E6,E7,E8];
 }
 function layerCard(l){ const m=mode, L=M.L, c=M.c, vis=M.vis, full=isFull(l), nf=(l===0||l===61);
  return {s:"第 "+l+" 层（"+(full?"全长层":"滑窗层")+"）："+(L>1?"这 "+L+" 个词一起":"这个词")+"过本层的计算阶段，并把 K、V 写进本层自己的 KV cache。代价：读稠密权重 138.4 MB；写 KV "+L+" × 256 B = "+fm(L*256)+" B；读 KV "+vis+" × 256 B = "+fm(vis*256)+" B；这层的权重对 "+L+" 个词只读 1 次",
-  f:"x["+(l+1)+"], stream["+(l+1)+"] = Layer["+l+"](x["+l+"], stream["+l+"], KV["+l+"])；层内：qkv_gate → 注意力 → o → 路由 → 池化 → 专家 → 反池化",
+  f:(l<61?"x["+(l+1)+"], stream["+(l+1)+"]":"stream[62]")+" = Layer["+l+"](x["+l+"], stream["+l+"], KV["+l+"])；层内：qkv_gate → 注意力 → o → 路由 → 池化 → 专家 → 反池化",
   i:"x["+l+"] BF16 ["+L+", 8192] 与 stream["+l+"] FP32 ["+L+", 8192]（HBM / L2）；稠密权重 BF16 138.4 MB（HBM）；"+(nf?"本层专家不用 NVFP4":"被选中的专家 NVFP4，每个 28.3 MB（HBM）")+"；KV["+l+"]：已有 "+c+" 格，FP8，每格 256 B（HBM）",
-  o:"x["+(l+1)+"] BF16 ["+L+", 8192] 与 stream["+(l+1)+"] FP32 ["+L+", 8192]（HBM / L2）；KV["+l+"] 新增 "+L+" 格（HBM）。"+(full?"全长层：看全部历史，不做 RoPE":"滑窗层：窗口 2048，本例的 "+vis+" 格全部可见，做 RoPE"),
-  x:(l<61?"x["+(l+1)+"] → 第 "+(l+1)+" 层的 qkv_gate；":"x[62] → 第 4 步；")+"KV["+l+"] 留在第 "+l+" 层，供之后的步骤读"}; }
+  o:(l<61?"x["+(l+1)+"] BF16 ["+L+", 8192] 与 stream["+(l+1)+"] FP32 ["+L+", 8192]":"stream[62] FP32 ["+L+", 8192]；第 61 层末尾是否另算 x[62] 未知")+"（HBM / L2）；KV["+l+"] 新增 "+L+" 格（HBM）。"+(full?"全长层：看全部历史，不做 RoPE":"滑窗层：窗口 2048，本例的 "+vis+" 格全部可见，做 RoPE"),
+  x:(l<61?"x["+(l+1)+"] → 第 "+(l+1)+" 层的 qkv_gate；":"stream[62] → 第 4 步；")+"KV["+l+"] 留在第 "+l+" 层，供之后的步骤读"}; }
 function stepOf(){ let k=0; for(let i=0;i<EVT.length;i++) if(t>=EVT[i]-1e-9) k=i; return k; }
 function layerNow(){ return Math.max(0,Math.min(61,Math.floor((t-L0)/LT+1e-9))); }
 const ringAt=(k_)=> k_===0?CPU : k_===1?ST[0] : k_===4?ST[3] : k_===7?ST[0] : TILE;
@@ -238,7 +238,7 @@ function buildStrip(){ const a=$("alg"); let h="";
   else h+='<rect class="emp" x="'+x+'" y="22" width="38" height="24" rx="4"/>'; }
  const seg=(a_,b_,txt,en)=>'<path d="M'+(bx+(a_-1)*pitch)+' 51h'+((b_-a_+1)*pitch-5)+'" stroke="var(--anatomy-lo)" stroke-width=".8"/><text class="tn" '+(en?'text-anchor="end" x="'+(bx+b_*pitch-5):'x="'+(bx+(a_-1)*pitch))+'" y="62">'+txt+'</text>';
  if(M.c>0) h+=seg(1,M.c,"已在 KV cache 里");
- h+=seg(M.pos[0],M.pos[M.pos.length-1],"本趟流过："+M.pos.length+" 个词",M.pos.length===1);
+ if(mode===3){ h+=seg(6,6,"已知"); h+=seg(7,13,"草稿：7 个词",1); } else h+=seg(M.pos[0],M.pos[M.pos.length-1],"本趟流过："+M.pos.length+" 个词",M.pos.length===1);
  if(M.out) h+=seg(M.out,M.out,"产出");
  const names=[M.s1,"嵌入","62 层","归一化","lm_head","softcap","采样","回流"], k_=stepOf();
  for(let i=0;i<8;i++){ const x=19+i*76; h+='<rect class="sb'+(i<k_?" dn":i===k_?" on":"")+'" x="'+x+'" y="72" width="70" height="22" rx="4"/><text class="st'+(i===k_?" on":"")+'" x="'+(x+35)+'" y="87">'+(i+1)+" "+names[i]+'</text>'; if(i<7) h+='<path d="M'+(x+70)+' 83h6" stroke="var(--anatomy-lo)" stroke-width="1"/>'; }
