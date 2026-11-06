@@ -34,6 +34,7 @@
 - [图 1-2 PDL 四步交接：后继趁前序收尾时预读权重](figs/ch01-pdl.html)
 - [图 1-3 w13 与 w2 两步：合写成一个大 kernel，还是拆成两个 PDL 串联 kernel](figs/ch01-b.html)
 - [图 2-1 132 个 SM 怎样做完 2304 个 CTA（每个 SM 一次只做 1 个）](figs/ch02-a.html)
+- [图 2-5 PDL 提前进场：后继 kernel 的 CTA 按 blockIdx.x 顺序填进空出来的 SM](figs/ch02-e.html)
 - [图 2-2 每个 SM 要同时读几行 W，HBM 才跑得满](figs/ch02-b.html)
 - [图 2-3 跨 SM 交接：两个部分和经 L2 的计数器合并](figs/ch02-c.html)
 - [图 2-4 K-halves：尾部一行切成两半，两个 SM 各算一半](figs/ch02-d.html)

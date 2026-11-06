@@ -152,7 +152,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs><text class="lab2" x="100" y="16">时间（clk）：每条指令占管线 2 clk，依赖延迟按约 4 clk 推导</text>
 <text class="rl" x="92" y="39">ALU 管线</text><rect class="row" x="100" y="26" width="520" height="18"/><text class="rl" x="92" y="63">FMA 管线</text><rect class="row" x="100" y="50" width="520" height="18"/><text class="rl" x="92" y="87">目标寄存器就位</text><rect class="row" x="100" y="74" width="520" height="18"/>
 <clipPath id="clipT"><rect id="clipR" x="100" y="22" width="0" height="80"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">8 条整数指令全走 ALU</label><label><input type="radio" name="mode" value="2">2 条移位改走 FMA-heavy 管线</label></div>
-<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="22" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>每个目标寄存器 D0–D3 一种颜色，它的移位、LOP3、HMUL2 同色</span><span><i class="k2"></i>掩码 0x81C081C0 选中的 8 位</span><span>时间线上 IMAD 即 IMAD.SHL</span><span>每组 4 格：圆圈里是权重编号 1–8（符号位），e 是指数位，m 是尾数位</span></div>
+<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="22" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>每个目标寄存器 D0–D3 一种颜色，它的移位、LOP3、HMUL2 同色</span><span><i class="k2"></i>掩码 0x81C081C0 选中的 8 位</span><span>时间线上 IMAD 即 IMAD.SHL</span><span>每组 4 格：圆圈里是权重编号 1–8（符号位），e 是指数位，m 是尾数位</span><span>源按参考顺序画；目标里的配对为示意（kernel 的重排布局未解出）</span></div>
 <p class="cap">换一种分法，看 ALU 管线和 FMA 管线各占多少个周期。拖动时间，看目标寄存器里的比特一个个就位。</p></main><script type="module">
 const REGC=[345,96.9], ALUC=[234,93.8], FMAC=[308.2,121.5];
 const SX=100,CWID=14,SY=28,DY0=76,DSTEP=22,TL0=100,TL1=620,TY0=26,TEND=21;
@@ -180,7 +180,7 @@ function setMode(md){ mode=md; INS=build(md); readout.textContent=M[md].ro; cons
   const tot= ser ? "总代价：8 条整数指令全在 ALU，ALU 16 clk；4 条 HMUL2 占 FMA 8 clk。最后一条 HMUL2 在第 18 个 clk 发射；寄存器：源 1 + 临时 4 + 目标 4" : "总代价：ALU 只剩 6 条，12 clk（比 16 clk 少四分之一）；2 条 IMAD.SHL + 4 条 HMUL2 占 FMA 12 clk。最后一条 HMUL2 在第 14 个 clk 发射，早 4 clk；寄存器：源 1 + 临时 4 + 目标 4";
   EV.push({t:end-0.01,s:tot,p:null});
   const FS=["<code>s1 = (R ⟲ 8) = (R ≪ 8) | (R ≫ 24)</code>","<code>s2 = (R ⟲ 12) = (R ≪ 12) | (R ≫ 20)</code>","<code>s3 = R ≪ 2</code>","<code>s4 = R ≪ 6</code>"];
-  const RR="<code>R</code> 32 位 = 8 个 E2M1，4 B，取自 <code>w13</code> uint8 [256, 8192, 2048] · 寄存器堆";
+  const RR="<code>R</code> 32 位 = 8 个 E2M1（半字节：位 3 符号，位 2…0 码），4 B，取自 <code>w13</code> uint8 [256, 8192, 2048]；图中源按参考顺序（元素 k 在位 4k+3…4k，图 6-2）画，kernel 实际用离线重排后的布局 · 寄存器堆";
   INS.forEach((x,i)=>{ const kk=x.k, d="D"+kk, sN="s"+(kk+1); let c;
     if(x.name==="SHF"||x.name==="IMAD.SHL") c={ f:FS[kk], i:RR, o:"<code>"+sN+"</code> 32 位临时值 · 寄存器堆", h:"→ LOP3 ("+d+") 用 "+sN+"（配对为推断）" };
     else if(x.name==="LOP3") c={ f:"<code>"+d+" = (R ⊕ "+sN+") ∧ 0x81C081C0</code>（lut 0x28）",
@@ -212,7 +212,7 @@ function show(){
   let r=""; const lbl=(x,y,tx,a)=>'<text class="tn" x="'+x+'" y="'+y+'" text-anchor="'+(a||"end")+'">'+tx+'</text>';
   const num=(x,y,n)=>'<circle cx="'+(x+CWID/2-0.5)+'" cy="'+(y+8)+'" r="6" fill="rgba(0,0,0,.28)" stroke="#fff" stroke-width="1"/><text x="'+(x+CWID/2-0.5)+'" y="'+(y+11.5)+'" font-size="9.5" font-weight="700" fill="#fff" text-anchor="middle">'+n+'</text>';
   r+=lbl(SX-22,SY+12,"源 R")+lbl(SX-22,SY-12,"");
-  r+=cellsOf(0,SY,(bit,x,y)=>{ const n=bit>>2, b=bit&3, f=b===3?"S":(b===0?"M":"E"); const fill=hsl(HUE[n%4],55,LF[f]); return '<rect x="'+x+'" y="'+y+'" width="'+(CWID-1)+'" height="16" fill="'+fill+'"/>'+(f==="S"?num(x,y,n+1):'<text class="cc" x="'+(x+CWID/2-0.5)+'" y="'+(y+12)+'" fill="'+(f==="M"?"#14233f":"#fff")+'">'+"semm"[3-b]+'</text>'); });
+  r+=cellsOf(0,SY,(bit,x,y)=>{ const n=bit>>2, b=bit&3, f=b===3?"S":(b===0?"M":"E"); const fill=hsl(HUE[n%4],55,LF[f]); return '<rect x="'+x+'" y="'+y+'" width="'+(CWID-1)+'" height="16" fill="'+fill+'"/>'+(f==="S"?num(x,y,n+1):'<text class="cc" x="'+(x+CWID/2-0.5)+'" y="'+(y+12)+'" fill="'+(f==="M"?"#14233f":"#fff")+'">'+"seem"[3-b]+'</text>'); });
   r+=lbl(SX-22,DY0-6,"掩码")+cellsOf(0,DY0-14,(bit,x,y)=>'<rect class="'+(MASK.includes(bit)?"mk":"zero")+'" x="'+x+'" y="'+y+'" width="'+(CWID-1)+'" height="8"/>')+'<text class="tn" x="'+(SX+32*CWID+8)+'" y="'+(DY0-6)+'">0x81C081C0</text>';
   for(let kk=0;kk<4;kk++){ const y=DY0+kk*DSTEP; const lop=INS.find(x=>x.name==="LOP3"&&x.k===kk), hm=INS.find(x=>x.name==="HMUL2"&&x.k===kk);
     const placed=t>=lop.t0+2, scaled=t>=hm.t0+2;

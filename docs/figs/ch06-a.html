@@ -143,8 +143,8 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .fx .issue{--anatomy-face:#3e63dd;--anatomy-top:#5b7bea;--anatomy-hi:#22389a;--anatomy-shade-0:#2c4bb0;--anatomy-shade-1:#3352c0;--anatomy-shade-2:#3a5bd0;--anatomy-shade-3:#4466dd}
 .fx .free{fill:var(--anatomy-green);opacity:.28}.fx .rowbg{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.5}.fx .red{fill:var(--anatomy-red)}
 .lg .k1{background:linear-gradient(90deg,hsl(212 55% 46%),hsl(262 55% 46%),hsl(312 55% 46%))}.lg .k2{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}.lg .k3{background:color-mix(in srgb,var(--anatomy-green) 28%,transparent)}.lg .k4{background:var(--anatomy-red)}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 6-1</span><span class="iso-plate-corner" data-corner="title">同一段 HGMMA 循环：正常发射与被插入等待</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fx"><svg class="flat" viewBox="0 0 640 204" role="img" aria-label="同一段异步区间的三种写法：CUDA C++、PTX、SASS">
-<text class="lab2" x="8" y="14">算法：qkv_gate（T = 128）主循环里的一段异步区间。三列是同一段程序的三种写法，彩色行是当前这条 HGMMA</text>
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 6-1</span><span class="iso-plate-corner" data-corner="title">同一段 HGMMA 循环：正常发射与被插入等待</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fx"><svg class="flat" id="algsvg" viewBox="0 0 640 204" role="img" aria-label="同一段异步区间的三种写法：CUDA C++、PTX、SASS">
+<text class="lab2" x="8" y="14">算法：qkv_gate（T = 128）的一个 K 步：8 条 HGMMA.64x64x16。三列是同一段程序，彩色行是当前这条</text>
 <text class="lab" x="8" y="32">CUDA C++（示意）</text><text class="lab" x="218" y="32">PTX</text><text class="lab" x="428" y="32">SASS（128 位指令字）</text>
 <path d="M205 76h10m-3 -3 3 3 -3 3M415 76h10m-3 -3 3 3 -3 3" stroke="var(--anatomy-mid)" fill="none"/>
 <g id="algR"></g></svg><svg class="isov" viewBox="0 0 640 310" role="img" aria-label="一个 SM 的 4 个 SMSP：warp 调度器把 HGMMA 交给各自的 Tensor Core">
@@ -153,34 +153,38 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 </svg><div class="nar"><b id="stepN"></b><span id="stepT"></span></div><dl class="card" id="card"></dl><svg class="flat" viewBox="0 0 640 138" role="img" aria-label="同一段主循环的时间线">
 <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs><text class="lab2" x="132" y="16">时间（µs）：总长为实测，每条 HGMMA 的位置按条数平分</text>
 <text class="rl" x="124" y="39">warp 发射 / 等待</text><rect class="row" x="132" y="26" width="488" height="18"/><text class="rl" x="124" y="63">ptxas 插入的 DEPBAR</text><rect class="row" x="132" y="50" width="488" height="18"/><text class="rl" x="124" y="87">Tensor Core 运算</text><rect class="row" x="132" y="74" width="488" height="18"/>
-<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="80"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">正常：异步区间里没有分支</label><label><input type="radio" name="mode" value="2">异步区间里有条件分支（告警 C7515）</label></div>
-<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="22" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>每种颜色是一条 HGMMA（图中取 6 条，条数为示意）</span><span><i class="k2"></i>warp 停发，在等 DEPBAR</span><span><i class="k3"></i>warp 可以继续往下发</span><span><i class="k4"></i>ptxas 插入的 DEPBAR 指令</span></div>
+<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="80"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">正常：异步区间里没有别的指令</label><label><input type="radio" name="mode" value="2">异步区间里有 st.release（告警 C7515）</label></div>
+<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="22" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>每种颜色是一条 HGMMA.64x64x16（一个 K 步 8 条，实测）</span><span><i class="k2"></i>warp 停发，在等 DEPBAR</span><span><i class="k3"></i>warp 可以继续往下发</span><span><i class="k4"></i>ptxas 插入的 DEPBAR 指令</span></div>
 <p class="cap">选一种情况，看每条 HGMMA 后面有没有 DEPBAR，以及 Tensor Core 在时间线上空了多少。红圈和编号标出当前这一步说的那条 HGMMA。</p></main><script type="module">
 const SCH=[[356.9,94.3],[470.3,161.9],[261.9,134.2],[375.3,201.8]], TC=[[329.6,130.7],[443,198.3],[234.6,170.6],[348,238.2]];
-const N=6, HUE=[212,262,312,172,32,142], TOT=[8.84,20.74];
+const N=8, HUE=[212,262,312,172,32,142,352,92], TOT=[8.84,20.74];
 const AY=36,RH=12.5,CX=[8,218,428],CW=[200,200,204],TL0=132,TL1=620,TY0=26,TEND=22;
 const TX=(x)=>TL0+(TL1-TL0)*x/TEND;
 const MODE0=2; let mode=2, t=0, end=1, EV=[], slot=1, u=1;
-const M={1:{ro:"主循环 8.84 µs（P4 qkv_gate，T = 128）\nDEPBAR 只在末尾 1 条 · ptxas 告警：无"},
-         2:{ro:"主循环 20.74 µs（慢 2.35 倍）\n每条 HGMMA 后 1 条 DEPBAR.LE 0 · 告警 C7515"}};
+const M={1:{ro:"主循环 8.84 µs（P4 qkv_gate，T = 128）\n每个 K 步 8 条 HGMMA.64x64x16 · 1 条 DEPBAR.LE gsb0, 0x1 · ptxas 告警：无"},
+         2:{ro:"主循环 20.74 µs（慢 2.35 倍）\n每条 HGMMA 后 1 条 DEPBAR.LE gsb0, 0x0 · 告警 C7515"}};
 const stillT=()=>end*0.42;
 function setMode(md){ mode=md; end=TOT[md-1]; slot=end/N; u=TOT[0]/N; readout.textContent=M[md].ro; $("tIn").max=String(end);
   EV=[]; const ser=md===2;
-  EV.push({t:0,p:SCH[0],r:11,s: ser ? "编译期，ptxas 在异步区间里看到条件分支，报告 C7515，并在每条 HGMMA 后面写入 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x0。运行时 4 个 warp 先执行 WARPGROUP.ARRIVE 集合。代价：SASS 里多出 "+N+" 条 DEPBAR（条数为示意）" : "4 个 warp 执行 WARPGROUP.ARRIVE，在 4 个 SMSP 上集合，准备发第一条 HGMMA。代价：1 条同步指令，要等最慢的那个 warp"});
+  EV.push({t:0,p:SCH[0],r:11,s: ser ? "编译期：流水循环里的 st.release.gpu 触发 ptxas 的 C7515，ptxas 在每条 HGMMA 后面写入 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x0（每条前还补 1 条 ARRIVE）。运行时 4 个 warp 先执行 WARPGROUP.ARRIVE 集合。代价：SASS 里多出 "+N+" 条 DEPBAR 和 "+(N-1)+" 条 ARRIVE（由 4 条 HGMMA 的复现外推）" : "4 个 warp 执行 WARPGROUP.ARRIVE，在 4 个 SMSP 上集合，准备发第一条 HGMMA。代价：每个 K 步 1 条 ARRIVE，要等最慢的那个 warp"});
   for(let i=0;i<N;i++){ EV.push({t:i*slot+0.02,p:TC[0],n:i+1,s: ser ? "4 个 warp 各发 1 条 HGMMA "+(i+1)+"，矩阵乘交给各自 SMSP 的 Tensor Core。紧接着的 DEPBAR 让 warp 停发，等它做完。代价：1 条 HGMMA + 1 条 DEPBAR，一次排空约 40–67 clk 暴露在外" : (i===0 ? "4 个 warp 各发 1 条 HGMMA 1，矩阵乘交给各自 SMSP 的 Tensor Core；warp 不等它做完，直接去发下一条。代价：每个 warp 1 条指令，累加器一直占着寄存器" : "HGMMA "+(i+1)+" 排在 HGMMA "+i+" 后面进入 Tensor Core。代价：1 条指令，0 次等待")}); }
-  EV.push({t:end-0.01,p:SCH[0],r:11,s: ser ? "最后一条 HGMMA 做完，循环结束。总代价：图中 "+N+" 条 HGMMA + "+N+" 条 DEPBAR，主循环 20.74 µs，是 8.84 µs 的 2.35 倍" : "末尾 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x0（对应 wait_group<0>）等全部 HGMMA 做完。总代价：图中 "+N+" 条 HGMMA + 1 条等待，主循环 8.84 µs"});
-  const FM="D[m,n] += Σₖ x[m,k] · W[n,k]", XA="<code>x</code> 片 BF16 [64, 16] · 2 KiB · 本 SM 的 SMEM", WB="<code>W</code> 片 BF16 [n, 16] · 32·n B · 本 SM 的 SMEM（例 n = 128：4 KiB）", DD="<code>D</code> FP32 [64, n] · 4 个 warp 的寄存器，每线程 n/2 个（例 n = 128：32 KiB）";
-  EV[0].c={ f:"无数学运算：<code>wgmma.fence</code> → <code>WARPGROUP.ARRIVE</code>，4 个 warp 汇合",
-    i:DD+"；初值 0", o:"无新数据。只保证：此前对 <code>D</code> 的寄存器访问，先于后面的 HGMMA", h:"→ HGMMA 1 读 <code>D</code> 并累加"+(ser?"；ptxas 已在每条 HGMMA 后面写好 DEPBAR":"") };
-  for(let i=0;i<N;i++) EV[1+i].c={ f:"<code>"+FM+"</code>，k 取第 "+(i+1)+" 个 16 列片",
-    i:"A："+XA+"<br>B："+WB+"<br>"+DD+(i?"（HGMMA "+i+" 的输出）":""),
-    o:"<code>D</code> FP32 [64, n]，原地写回同一组寄存器。异步：发出后不可读，要等 wait",
-    h: ser ? (i<N-1 ? "DEPBAR 等 <code>D</code> 排空 → 才发 HGMMA "+(i+2) : "DEPBAR 排空 → 主循环结束，<code>D</code> 可读")
-           : (i<N-1 ? "不等：HGMMA "+(i+2)+" 排在后面，继续累加同一个 <code>D</code>" : "→ 末尾 DEPBAR 等全部 HGMMA 做完") };
-  EV[N+1].c={ f: ser ? "<code>D = Σᵢ x_i · W_iᵀ</code>，i = 1…"+N+"；每条后 1 条 DEPBAR" : "<code>wgmma.wait_group 0</code> → <code>DEPBAR.LE gsb0, 0x0</code>：等待组数 ≤ 0",
-    i:"挂起的 HGMMA 组（组分数器 gsb0），"+N+" 条（示意）；<code>D</code> FP32 [64, n] · 寄存器",
-    o:"<code>D</code> 可读：x[:, K 片] · W[:, K 片]ᵀ 的部分和。真实 K = 8192（= 512 个 k16 片）；图中 "+N+" 条是示意",
-    h:"→ 图外尾声：转 BF16，经 SMEM 与 TMA 写出 <code>out</code> BF16 [128, 2304]（576 KiB）到 HBM" };
+  EV.push({t:end-0.01,p:SCH[0],r:11,s: ser ? "最后一条 HGMMA 做完，这一步结束。总代价：每个 K 步 "+N+" 条 HGMMA + "+N+" 条 DEPBAR，主循环 20.74 µs，是 8.84 µs 的 2.35 倍（20.74 µs 来自 flag release 放在这个循环里的 sf75ab 实验；最终 kernel 把它放在 producer warp，无告警）" : "每个 K 步末尾 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x1（wait_group<1>）：最多留 1 组在飞，其余做完；后面是 BAR.SYNC 和释放 SMEM 阶段的 SYNCS.ARRIVE。总代价：每个 K 步 "+N+" 条 HGMMA + 1 条等待，主循环 8.84 µs"});
+  const FM="D[m,n] += Σₖ x[m,k] · W[n,k]", XA="<code>x</code> 片 BF16 [64, 16] · 2 KiB · 本 SM 的 SMEM", WB="<code>W</code> 片 BF16 [64, 16] · 2 KiB（n = 64）· 本 SM 的 SMEM", DD=(i)=>"<code>D"+(i<4?0:1)+"</code> FP32 [64, 64] · 16 KiB · 4 个 warp 的寄存器，每线程 32 个（"+(i<4?"R24..R55":"R56..R87")+"）";
+  const MSG="(C7515) Potential Performance Loss: wgmma.mma_async instructions are serialized due to non wgmma instructions defining accumulator registers of a wgmma between start and end of the pipeline stage in the function '&lt;kernel&gt;'";
+  EV[0].c= ser ? { f:"<code>ptxas info    : "+MSG+"</code>",
+    i:"流水循环（实测复现，ptxas 12.8.93）：<code>fence; 4 × wgmma; commit_group; if (tid==0 &amp;&amp; kb==ks-2) st.release.gpu [flag]; wait_group 1</code>",
+    o:"每条 HGMMA 后 <code>WARPGROUP.DEPBAR.LE gsb0, 0x0</code>（复现里 4 条 HGMMA → 4 条 DEPBAR）；信息打印在 <code>-Xptxas -v</code> 的 info 级，不是 warning。原因按 ptxas 的话：流水阶段里有非 wgmma 指令",
+    h:"→ HGMMA 1，发完马上 DEPBAR" } : { f:"无数学运算：<code>wgmma.fence</code> → <code>WARPGROUP.ARRIVE</code>，4 个 warp 汇合",
+    i:DD(0)+"；初值 0", o:"无新数据。只保证：此前对 <code>D</code> 的寄存器访问，先于后面的 HGMMA", h:"→ HGMMA 1 读 <code>D</code> 并累加" };
+  for(let i=0;i<N;i++) EV[1+i].c={ f:"<code>"+FM+"</code>，<code>HGMMA.64x64x16.F32.BF16</code>：行块 "+(i<4?0:1)+"，k 取该 K 步的第 "+(i%4+1)+" 个 16 列片",
+    i:"A："+XA+"<br>B："+WB+"<br>"+DD(i)+(i%4?"（HGMMA "+i+" 的输出）":""),
+    o:"<code>D"+(i<4?0:1)+"</code> FP32 [64, 64]，原地写回同一组寄存器。异步：发出后不可读，要等 wait",
+    h: ser ? (i<N-1 ? "DEPBAR 等 <code>D</code> 排空 → 才发 HGMMA "+(i+2) : "DEPBAR 排空 → 这一步结束，<code>D</code> 可读")
+           : (i<N-1 ? "不等：HGMMA "+(i+2)+" 排在后面"+(i===3?"，改写另一块 <code>D1</code>":"，继续累加同一个 <code>D"+(i<4?0:1)+"</code>") : "→ 末尾 DEPBAR.LE gsb0, 0x1（只有最后一条带 gsb0）") };
+  EV[N+1].c={ f: ser ? "<code>D = Σᵢ x_i · W_iᵀ</code>，i = 1…"+N+"；每条后 1 条 DEPBAR" : "<code>wgmma.wait_group 1</code> → <code>DEPBAR.LE gsb0, 0x1</code>：等待组数 ≤ 1",
+    i:"挂起的 HGMMA 组（组分数器 gsb0），本 K 步 "+N+" 条；<code>D0</code>、<code>D1</code> 各 FP32 [64, 64] · 寄存器",
+    o:"<code>D</code> 的部分和 x[:, K 片] · W[:, K 片]ᵀ。真实 K = 8192（= 512 个 k16 片 = 128 个 K 步，BK = 64，SPLIT 3 分给 3 个 CTA）；图只画 1 个 K 步",
+    h:"→ 图外：循环结束后 <code>DEPBAR.LE gsb0, 0x0</code>，转 BF16，经 SMEM 与 TMA 规约写出 <code>out</code> BF16 [128, 2304]（576 KiB）到 HBM" };
   const bar=(a,b,y,c,col)=>'<rect class="'+c+'" x="'+TX(a).toFixed(1)+'" y="'+(y+2)+'" width="'+Math.max(1,TX(b)-TX(a)).toFixed(1)+'" height="14"'+(col!=null?' fill="'+hsl(col,55,46)+'"':'')+'/>';
   const mark=(a,y,c,col)=>'<rect class="'+c+'" x="'+TX(a).toFixed(1)+'" y="'+(y+1)+'" width="3" height="16"'+(col!=null?' fill="'+hsl(col,55,46)+'"':'')+'/>';
   let h="";
@@ -207,16 +211,19 @@ function show(){ const ser=mode===2; let dots="", lk="";
   const hot=(i)=> started && live_ && cur===i ? hsl(HUE[i],55,82) : bg;
   const num=(c,j,i)=>'<circle cx="'+(CX[c]+9)+'" cy="'+(y(j)+5.5)+'" r="5" fill="'+hsl(HUE[i],55,46)+'"/><text x="'+(CX[c]+9)+'" y="'+(y(j)+8.7)+'" font-size="8" fill="#fff" text-anchor="middle">'+(i+1)+'</text>';
   let r="";
-  const cpp=[["wgmma_fence();"],["for (k = 0; k &lt; K_STEPS; ++k) {"],["  wgmma(D, a[k], b[k]);"]]; if(ser) cpp.push(["  if (flag) release();  // 分支",1]); cpp.push(["}"],["wgmma_commit(); wgmma_wait&lt;0&gt;();"]);
-  cpp.forEach((l,j)=>{ const mma=j===2; r+=box(0,j,mma?hot(cur):bg)+txt(0,j,l[0],{red:l[1]}); if(mma&&started&&live_) r+='<text class="tn" x="'+(CX[0]+CW[0]-4)+'" y="'+(y(j)+9.5)+'" text-anchor="end">第 '+(cur+1)+' 次</text>'; });
+  const cpp=[["wgmma_fence();"],["for (kb = 0; kb &lt; ks; ++kb) {"],["  8 × wgmma(D, a, b);"]]; if(ser) cpp.push(["  if (kb==ks-2) st_release(f);",1]); cpp.push(["  wgmma_commit(); wait&lt;1&gt;();"],["}"]);
+  cpp.forEach((l,j)=>{ const mma=j===2; r+=box(0,j,mma?hot(cur):bg)+txt(0,j,l[0],{red:l[1]}); if(mma&&started&&live_) r+='<text class="tn" x="'+(CX[0]+CW[0]-4)+'" y="'+(y(j)+9.5)+'" text-anchor="end">第 '+(cur+1)+' 条</text>'; });
   r+=box(1,0,bg)+txt(1,0,"wgmma.fence.sync.aligned;");
-  for(let i=0;i<N;i++) r+=box(1,1+i,hot(i))+num(1,1+i,i)+txt(1,1+i,"wgmma.mma_async.sync.aligned…",{ind:1});
-  let j1=1+N; if(ser){ r+=box(1,j1,bg)+txt(1,j1,"@%p bra  L_release;",{red:1}); j1++; }
-  r+=box(1,j1,bg)+txt(1,j1,"wgmma.commit_group.sync.aligned;")+box(1,j1+1,bg)+txt(1,j1+1,"wgmma.wait_group.sync.aligned 0;");
+  for(let i=0;i<N;i++) r+=box(1,1+i,hot(i))+num(1,1+i,i)+txt(1,1+i,"wgmma.mma_async…m64n64k16",{ind:1});
+  let j1=1+N; r+=box(1,j1,bg)+txt(1,j1,"wgmma.commit_group.sync.aligned;"); j1++;
+  if(ser){ r+=box(1,j1,bg)+txt(1,j1,"st.release.gpu.global.b32 [f],1;",{red:1}); j1++; }
+  r+=box(1,j1,bg)+txt(1,j1,"wgmma.wait_group.sync.aligned 1;"); j1++;
   let j=0; r+=box(2,j,bg)+txt(2,j,"WARPGROUP.ARRIVE"); j++;
-  for(let i=0;i<N;i++){ r+=box(2,j,hot(i))+num(2,j,i)+txt(2,j,"HGMMA …",{ind:1}); j++;
+  for(let i=0;i<N;i++){ r+=box(2,j,hot(i))+num(2,j,i)+txt(2,j,"HGMMA.64x64x16.F32.BF16",{ind:1}); j++;
     if(ser){ r+=box(2,j,waiting&&cur===i?"#fbd5d6":bg)+txt(2,j,"WARPGROUP.DEPBAR.LE gsb0, 0x0",{red:1}); j++; } }
-  if(!ser) r+=box(2,j,waiting?"#fbd5d6":bg)+txt(2,j,"WARPGROUP.DEPBAR.LE gsb0, 0x0",{red:1});
+  if(!ser) r+=box(2,j,waiting?"#fbd5d6":bg)+txt(2,j,"WARPGROUP.DEPBAR.LE gsb0, 0x1",{red:1}), j++;
+  else { r+=box(2,j,bg)+txt(2,j,"@!P0 STG.E.STRONG.GPU [flag]",{red:1}); j++; }
+  $("algsvg").setAttribute("viewBox","0 0 640 "+(AY+Math.max(cpp.length,j1,j)*RH+6));
   $("algR").innerHTML=r;
   const e=Math.min(t,end); $("clipR").setAttribute("width",(TX(e)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(e).toFixed(1)+" "+(TY0-4)+"V"+(TY0+3*24)); $("tIn").value=String(t);
   narr(EV); }

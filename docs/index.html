@@ -279,6 +279,7 @@ cudaGraphLaunch(graph_exec, stream);
 <hr />
 <h2>2. PDL 提前进场时发生了什么：观察到的 CTA 派发顺序</h2>
 <p>按第 1 章的触发规则，PDL 后继 CTA 会落进图 2-1 最后一个 wave 里那些刚空闲出来的 SM 中。P2 的后继阶段采用了 <strong>persistent kernel</strong>（持久 kernel）。全卡每个 SM 启动 1 个 CTA，依次处理按 <code>blockIdx.x</code> 预先分给它的工作块。本来每个 CTA 分到的工作量相同，应该同时结束。但实测发现编号最大的 131 号 CTA 比编号小的 CTA 晚开始约 <strong>2–3 µs</strong>，在 decode 批量 16–32 的多数输入种子下成为最慢的 CTA。前序 kernel 的 SM 是一批批退场的，H200 的硬件派发器在交接处按 <code>blockIdx.x</code> 从小到大的顺序把新 CTA 依次派给刚退出的 SM。所以在代码里给编号大的 CTA 略微少分一点工作量，就能让各 CTA 的结束时间更接近。如图 2-5 所示，拖动时间线，可以看到后继 CTA 按 <code>blockIdx.x</code> 顺序依次填进空出来的 SM。</p>
+<figure class="fig"><iframe src="figs/ch02-e.html" loading="lazy" title="图 2-5"></iframe></figure>
 <hr />
 <h2>3. 全卡内存层次与利特尔法则：为什么每个 SM 要挂起约 <code>64 KiB</code> 在途读取？</h2>
 <figure class="fig"><iframe src="figs/ch02-b.html" loading="lazy" title="图 2-2"></iframe></figure>
