@@ -28,7 +28,7 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 </style>
 <script>addEventListener("message",e=>{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";});});</script></head>
 <body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>
-<nav><ol class="toc"><li><a href="#preface">前言</a></li><li><a href="#ch00_0">第 0.0 章（导引）：一句话怎样穿过 62 层大模型变成下一个词？</a></li><li><a href="#ch00">第 0 章：拆开一层模型——它在 Decode 与 Prefill 下算什么、最快能跑多快？</a></li><li><a href="#ch00_5">第 0.5 章：一段最小的 CUDA 程序</a></li><li><a href="#ch01">第 1 章 [第 0 级]：时间线上的 Kernel 序列——阶段之间怎样消除启动空隙并提前重叠？</a></li><li><a href="#ch02">第 2 章 [第 1 级]：整张 H200 芯片——132 个 SM 怎样铺平波次、喂饱 HBM 并在中央 L2 归约？</a></li><li><a href="#ch03">第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</a></li><li><a href="#ch04">第 4 章 [第 3 级]：单个 SMSP——调度器每个周期怎样选 Warp、掩盖长短记分牌并在寄存器内直通交换？</a></li><li><a href="#ch05">第 5 章 [第 4 级]：物理执行管线与 Tensor Core——为什么 <code>T = 8</code> 必须切入 <code>wgmma</code> 并跨管线重叠？</a></li><li><a href="#ch06">第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</a></li><li><a href="#ch07">第 7 章 [第二部分 · 阶段 2]：分页 GQA 注意力——从 <code>T = 1</code> 到 <code>T = 16,384</code> 的完整解剖与演化（<code>a0 → a6</code>）</a></li><li><a href="#ch08">第 8 章 [Part II · 阶段 6]：路由 NVFP4 混合专家——从 2.27 秒到 6 毫秒及 Prefill 大分块的五代演化（m0 → m5）</a></li><li><a href="#ch09">第 9 章：把阶段 1–8 焊成一条无缝单层流水线——特殊稠密投影、跨阶段线性折入与全层 PDL / 旁路流编排</a></li><li><a href="#appA">附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>B200 sm_100a</code>）变了什么？</a></li><li><a href="#appB">附录 B：Hopper（<code>sm_90a</code>）<code>CUDA C++ → PTX → SASS</code> 速查表</a></li></ol></nav><section id="preface"><h1>前言</h1>
+<nav><ol class="toc"><li><a href="#preface">前言</a></li><li><a href="#ch00_0">第 0.0 章（导引）：一句话怎样穿过 62 层大模型变成下一个词？</a></li><li><a href="#ch00">第 0 章：拆开一层模型——它在 Decode 与 Prefill 下算什么、最快能跑多快？</a></li><li><a href="#ch00_5">第 0.5 章：一段最小的 CUDA 程序</a></li><li><a href="#ch01">第 1 章 [第 0 级]：时间线上的 Kernel 序列——阶段之间怎样消除启动空隙并提前重叠？</a></li><li><a href="#ch02">第 2 章 [第 1 级]：整张 H200 芯片——132 个 SM 怎样铺平波次、喂饱 HBM 并在中央 L2 归约？</a></li><li><a href="#ch03">第 3 章 [第 2 级]：单个 SM——四项容量池、LSU 合并、TMA 环形缓冲与 SMEM 32 Banks</a></li><li><a href="#ch04">第 4 章 [第 3 级]：单个 SMSP——调度器每个周期怎样选 Warp、掩盖长短记分牌并在寄存器内直通交换？</a></li><li><a href="#ch05">第 5 章 [第 4 级]：物理执行管线与 Tensor Core——为什么 <code>T = 8</code> 必须切入 <code>wgmma</code> 并跨管线重叠？</a></li><li><a href="#ch06">第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</a></li><li><a href="#ch07">第 7 章 [第二部分 · 阶段 2]：分页 GQA 注意力——从 <code>T = 1</code> 到 <code>T = 16,384</code> 的完整解剖与演化（<code>a0 → a6</code>）</a></li><li><a href="#ch08">第 8 章 [Part II · 阶段 6]：路由 NVFP4 混合专家——从 2.27 秒到 6 毫秒及 Prefill 大分块的五代演化（m0 → m5）</a></li><li><a href="#ch09">第 9 章：把阶段 1–8 焊成一条无缝单层流水线——特殊稠密投影、跨阶段线性折入与全层 PDL / 旁路流编排</a></li><li><a href="#appA">附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>B200 sm_100a</code>）变了什么？</a></li><li><a href="#appB">附录 B：Hopper（<code>sm_90a</code>）<code>CUDA C++ → PTX → SASS</code> 速查表</a></li></ol></nav><section id="preface"><h1>前言</h1>
 <p>本书围绕公开的 GPU 内核优化竞赛（Open Kernel Challenge）展开。目标是在单张 NVIDIA <strong>H200</strong> GPU（<strong>Hopper</strong> 架构）上运行大模型 <strong>Muse Spark Open</strong>。单层是模型里重复堆叠的一段计算，本书要把单层推理耗时推到读完权重所需的最短时间附近。竞赛以开源推理服务框架 <strong>SGLang</strong> 的耗时除以参赛者耗时计分，所以全书用 SGLang 作为基线对照。</p>
 <p>全书顺着 <strong>profiler</strong>（性能剖析器）由粗到细的六级放大顺序（第 0 级 → 第 5 级）推进。从第 2 章起，每章只拆开上一章刚看到的那个硬件部件，因为先看清部件的物理边界，才能判断哪项代码改动缩短耗时。从第 0.5 章起每章结尾给出 <code>gemv_kernel</code> 的一个新版本，展示本章机制带来的代码改动。</p>
 <hr />
@@ -236,7 +236,7 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 <li>输入：<code>p</code>（<code>[T, 4096]</code>，BF16）、<code>topk_ids [T, 8]</code>、<code>topk_weights [T, 8]</code>，以及本卡 32 个本地专家的 NVFP4 权重 <code>W13</code>（<code>[32, 8192, 2048] uint8</code> + <code>sf13 [32, 8192, 256] FP8</code> + <code>gs13 [32] FP32</code>）、<code>W2</code>（<code>[32, 4096, 2048] uint8</code> + <code>sf2 [32, 4096, 256] FP8</code> + <code>gs2 [32] FP32</code>）和 <code>w_post_expert</code>（<code>[4096]</code>，BF16）。全部权重位于 HBM（单专家占 <code>28.3 MB</code>，32 个本地专家共 <code>906 MB</code>）。</li>
 <li>输出：本地专家汇总结果 <code>m</code>（形状 <code>[T, 4096]</code>，BF16，每词 <code>8,192 B</code>，写回 HBM；线上在此处做跨卡归约，单卡赛题直接将 <code>m</code> 传给下一步）。</li>
 <li>交给下一步：<code>m [T, 4096]</code> 交给阶段 7（<code>unpooler</code>）。</li>
-<li>本步代价：每处理一对 <code>(tok, e)</code> 需执行 <code>2 × 50.33 M = 100.7 MFLOP</code> 运算。单专家权重 <code>28.3 MB</code>，单次命中的算术强度为 <code>2 ÷ 0.5625 = 3.56 FLOP/B</code>（约 <code>3.6</code>）。必须有 <code>206 ÷ 3.56 ≈</code> <strong>58 个词元</strong>同时命中同一个本地专家，该专家的矩阵乘才能跨过 206 平衡点。因此在 <code>Decode (T = 1..32)</code> 与 <code>Verify (T = 8..256)</code> 下，专家阶段始终受 HBM 读权重带宽限制。在 <code>T = 1</code> 下，P3 计入约 <code>53 MB</code>（<code>11.0 µs</code>），P2 下界为 <code>54.7 MB</code>（<code>11.4 µs</code>）。在 <code>T = 256</code> 下，P2 单题下界为 <code>522.7 MB</code>（<code>108.9 µs</code>），而 P3 整层下界反推出的专家部分约为 <code>424.5–426.0 MB</code>（<code>88.4–88.7 µs</code>）。到了长序列 <code>Prefill</code>（如 <code>T = 16,384</code>，平均每本地专家分到 <code>16,384 ÷ 32 = 512</code> 个词 <code>&gt;&gt; 58</code>），专家阶段则转为 Tensor Core 算力受限（<code>1,649.3 GFLOP</code>，算力下界约 <code>1,667.6 µs</code>）。</li>
+<li>本步代价：每处理一对 <code>(tok, e)</code> 需执行 <code>2 × 50.33 M = 100.7 MFLOP</code> 运算。单专家权重 <code>28.3 MB</code>，单次命中的算术强度为 <code>2 ÷ 0.5625 = 3.56 FLOP/B</code>（约 <code>3.6</code>）。必须有 <code>206 ÷ 3.56 ≈</code> <strong>58 个词元</strong>同时命中同一个本地专家，该专家的矩阵乘才能跨过 206 平衡点。因此在 <code>Decode (T = 1..32)</code> 与 <code>Verify (T = 8..256)</code> 下，专家阶段始终受 HBM 读权重带宽限制。在 <code>T = 1</code> 下，P3 计入约 <code>53 MB</code>（<code>11.0 µs</code>），P2 下界为 <code>54.7 MB</code>（<code>11.4 µs</code>）。在 <code>T = 256</code> 下，P2 单题下界为 <code>522.7 MB</code>（<code>108.9 µs</code>），而 P3 整层下界反推出的专家部分约为 <code>424.5–426.0 MB</code>（<code>88.4–88.7 µs</code>）。到了长序列 <code>Prefill</code>（如 <code>T = 16,384</code>，平均每本地专家分到 <code>16,384 ÷ 32 = 512</code> 个词 <code>&gt;&gt; 58</code>），专家阶段则转为矩阵运算算力受限（<code>1,649.3 GFLOP</code>，算力下界约 <code>1,667.6 µs</code>）。</li>
 </ul>
 </li>
 <li>
@@ -260,7 +260,7 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 </li>
 </ul>
 <figure class="fig"><iframe src="figs/ch00-dag.html" loading="lazy" title="图 0-3"></iframe></figure>
-<p><strong>DAG</strong> 是有向无环图。把上面八个阶段的数据依赖连起来，整层就是一个带有一处分叉与一处汇合的 DAG（图 0-3）。阶段 3 算出的 <code>h</code> 同时分叉送入阶段 4（<code>router</code>）与阶段 5（<code>pooler</code>），两个阶段互不依赖，随后在阶段 6（<code>MoE</code> 专家，同时需要路由结果与降维激活 <code>p</code>）处汇合。在层与层之间，第 <code>l + 1</code> 层依赖第 <code>l</code> 层的 <code>(x_next, stream_2)</code>，62 层纵向严格串行；阶段 2 写入的 <code>K_cache[l], V_cache[l]</code> 则是留在当前层、通往后续时间步的横向边。在每一阶段内部，动态激活边必须等前一步算完并落定后才能读取；但各阶段的静态权重矩阵在计算开始前早已固定，完全不依赖前一步的激活结果，理论上可以提前读取。硬件和调度怎样利用这一点，见第 1 章与第 9 章。</p>
+<p>把上面八个阶段的数据依赖关系连起来，整层就构成一张有向无环图（<strong>DAG</strong>，见图 0-3）。在默认停驻的第 4 步上，图 0-3 的读数写着：<code>阶段 4：router</code>；<code>要等：阶段 3 的 h；与阶段 5 互不依赖，权重读取不用等</code>。把步进滑块拖到第 9 步，读数总结了整张图的结构：<code>整层走完：激活只有一条必须串行的主链</code>；<code>加一处分叉（h → 阶段 4 ‖ 5）、一处汇合（阶段 6）</code>。具体来看，阶段 3 算出的 <code>h</code> 同时分叉送给阶段 4（<code>router</code>）和阶段 5（<code>pooler</code>），这两步彼此独立，随后在阶段 6（<code>MoE</code> 专家，同时需要路由结果与降维激活 <code>p</code>）处汇合；而在层与层之间，第 <code>l + 1</code> 层必须等第 <code>l</code> 层的 <code>(x_next, stream_2)</code>，62 层纵向严格串行，阶段 2 写入的 <code>K_cache[l], V_cache[l]</code> 则是留在当前层、通往未来时间步的横向边。更重要的是，图中的动态激活边（单请求全长层合计仅约 <code>0.29 MB</code>，占全层读取量的 <code>0.14%</code>）必须等前一步算完才能读取，但占全层读取量 <code>99.8%</code> 以上的各阶段静态权重矩阵完全不依赖前一步的激活结果，可以提前读取。硬件和调度怎样利用这一点，见第 1 章与第 9 章。</p>
 <hr />
 <h2>3. 算术强度、206 FLOP/B 平衡点与三种模式下的单层下界翻转</h2>
 <figure class="fig"><iframe src="figs/ch00-b.html" loading="lazy" title="图 0-2"></iframe></figure>
@@ -274,8 +274,8 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 1 次乘加含 2 FLOP，而 1 个 BF16 权重占 2 字节。当 <code>T = 1</code> 时每个权重只被用 1 次，四个 BF16 稠密投影（<code>qkv_gate</code>、<code>o</code>、<code>pooler</code>、<code>unpooler</code>）的算术强度都只有 <code>2 × 1 ÷ 2 = 1 FLOP/B</code>（矩阵单元仅忙 <code>1 ÷ 206 ≈ 0.5%</code>）。<code>router</code> 的权重是 4 字节 FP32，强度减半为 <code>2 ÷ 4 = 0.5 FLOP/B</code>。阶段 6 的 NVFP4 专家每权重占 <code>0.5625</code> 字节，单次命中强度为 <code>2 ÷ 0.5625 ≈ 3.6 FLOP/B</code>。阶段 2 的注意力每读 1 个历史词的 <code>256 B</code> 缓存，由 16 个查询头各做 <code>4 × 64</code> 次浮点运算，算术强度为 <code>(4 × 16 × 64) ÷ 256 = 16 FLOP/B</code>（矩阵单元最多只忙 <code>16 ÷ 206 ≈ 7.8%</code>）。七个有耗时下界的阶段全部落在左侧斜线上。滑窗层共读 <code>138.4 MB</code>（稠密）<code>+ 0.5 MB</code>（KV）<code>+ 53 MB</code>（约 1.87 个专家）<code>=</code> <strong>191.9 MB</strong>，除以 <code>4.8 TB/s</code> 得到单层下界 <strong>40.0 µs</strong>。全长层因 KV 缓存增至 <code>20.5 MB</code>，共读 <code>211.9 MB</code>，单层下界为 <strong>44.2 µs</strong>。<strong>gemv</strong> 是矩阵乘向量（<code>y = W · x</code>）。其中第一阶段 <code>qkv_gate</code> 在 <code>T = 1</code> 下单独读 <code>37.7 MB</code>、下界 <strong>7.9 µs</strong>，正是第 0.5 章至第 6 章 <code>gemv</code> 演化的终点线。</p>
 </li>
 <li>
-<p>模式二：大批量投机解码 <code>verify</code>（<code>T = 256</code>，即 <code>B = 32</code> 个并发请求 × 每请求 <code>L = 8</code> 个待检词）。在图 0-2 中选“verify，T = 256”，读数为：<code>verify，T = 256：qkv_gate 224 · pooler 与 unpooler 234 · o 约 200 · router 约 84</code>；<code>超过 206 的只有 3 个；attention 127.5 · MoE 约 75 仍在斜线上</code>。同步在图 0-1 中选“verify，T = 256”，滑窗层读数为：<code>verify，T = 256，滑窗层：一步共读 639.4 MB（权重和缓存）</code>；<code>整层下界 143.8 µs（题面 P3） · 3 段受限于 Tensor Core，4 段受限于 HBM</code>。全长层读数则为：<code>verify，T = 256，全长层：一步共读 1,231.7 MB（权重和缓存）</code>；<code>整层下界 267.2 µs（题面 P3） · 3 段受限于 Tensor Core，4 段受限于 HBM</code>。
-当 <code>T = 256</code> 个词元共享同一份 BF16 稠密权重时，计入激活读写后，<code>qkv_gate</code>（搬运 <code>43.1 MB</code>，强度 <code>224</code>，下界 <code>9.8 µs</code>）与 <code>pooler</code>（搬运 <code>73.4 MB</code>，强度 <code>234</code>，下界 <code>17.4 µs</code>）率先跨过 206 平衡点。<code>unpooler</code> 因 <code>T &gt; 8</code> 恢复完整 8,192 列（总搬运 <code>73.4 MB</code>，强度 <code>234</code>，下界 <code>17.4 µs</code>），同样转为 Tensor Core 算力受限。而 <code>o</code>（总搬运 <code>21.5 MB</code>，强度约 <code>200</code>，下界 <code>4.5 µs</code>）紧贴平衡点左侧，FP32 的 <code>router</code>（总搬运 <code>12.8 MB</code>，强度约 <code>84</code>，下界 <code>2.7 µs</code>）仍留在斜线上。再看注意力与专家。不同请求的历史 KV 缓存无法跨请求 <code>B</code> 共享，但同一请求内的 <code>L = 8</code> 个待检词会共享一次历史缓存读取（单请求算力翻 8 倍至 <code>2.62 GFLOP</code>，搬运约 <code>20.55 MB</code>）。因此注意力强度从 <code>L = 1</code> 的 16 升至 <strong>127.5 FLOP/B</strong>，仍低于 206（32 请求滑窗层读 <code>17.8 MB</code>、下界 <code>3.7 µs</code>，全长层读 <code>608.6 MB</code>、下界 <code>126.8 µs</code>）。同理，在专家阶段中，平均每专家仅分到约 16 个词（<code>&lt; 58</code>）。它在 P2 单题中强度约 <code>75 FLOP/B</code>（读 <code>522.7 MB</code>，下界 <code>108.9 µs</code>），在 P3 整层中反推约为 <code>424.5–426.0 MB</code>（<code>88.4–88.7 µs</code>），均受 HBM 带宽限制。</p>
+<p>模式二：大批量投机解码 <code>verify</code>（<code>T = 256</code>，即 <code>B = 32</code> 个并发请求 × 每请求 <code>L = 8</code> 个待检词）。在图 0-2 中选“verify，T = 256”，读数为：<code>verify，T = 256：qkv_gate 224 · pooler 与 unpooler 234 · o 约 200 · router 约 84</code>；<code>超过 206 的只有 3 个；attention 127.5 · MoE 约 75 仍在斜线上</code>。<strong>Tensor Core</strong> 是芯片上专门执行矩阵乘加的硬件单元（见第 5 章）。同步在图 0-1 中选“verify，T = 256”，滑窗层读数为：<code>verify，T = 256，滑窗层：一步共读 639.4 MB（权重和缓存）</code>；<code>整层下界 143.8 µs（题面 P3） · 3 段受限于 Tensor Core，4 段受限于 HBM</code>。全长层读数则为：<code>verify，T = 256，全长层：一步共读 1,231.7 MB（权重和缓存）</code>；<code>整层下界 267.2 µs（题面 P3） · 3 段受限于 Tensor Core，4 段受限于 HBM</code>。
+当 <code>T = 256</code> 个词元共享同一份 BF16 稠密权重时，计入激活读写后，<code>qkv_gate</code>（搬运 <code>43.1 MB</code>，强度 <code>224</code>，下界 <code>9.8 µs</code>）与 <code>pooler</code>（搬运 <code>73.4 MB</code>，强度 <code>234</code>，下界 <code>17.4 µs</code>）率先跨过 206 平衡点。<code>unpooler</code> 因 <code>T &gt; 8</code> 恢复完整 8,192 列（总搬运 <code>73.4 MB</code>，强度 <code>234</code>，下界 <code>17.4 µs</code>），同样转为矩阵算力受限。而 <code>o</code>（总搬运 <code>21.5 MB</code>，强度约 <code>200</code>，下界 <code>4.5 µs</code>）紧贴平衡点左侧，FP32 的 <code>router</code>（总搬运 <code>12.8 MB</code>，强度约 <code>84</code>，下界 <code>2.7 µs</code>）仍留在斜线上。再看注意力与专家。不同请求的历史 KV 缓存无法跨请求 <code>B</code> 共享，但同一请求内的 <code>L = 8</code> 个待检词会共享一次历史缓存读取（单请求算力翻 8 倍至 <code>2.62 GFLOP</code>，搬运约 <code>20.55 MB</code>）。因此注意力强度从 <code>L = 1</code> 的 16 升至 <strong>127.5 FLOP/B</strong>，仍低于 206（32 请求滑窗层读 <code>17.8 MB</code>、下界 <code>3.7 µs</code>，全长层读 <code>608.6 MB</code>、下界 <code>126.8 µs</code>）。同理，在专家阶段中，平均每专家仅分到约 16 个词（<code>&lt; 58</code>）。它在 P2 单题中强度约 <code>75 FLOP/B</code>（读 <code>522.7 MB</code>，下界 <code>108.9 µs</code>），在 P3 整层中反推约为 <code>424.5–426.0 MB</code>（<code>88.4–88.7 µs</code>），均受 HBM 带宽限制。</p>
 </li>
 <li>
 <p>模式三：长序列 <code>prefill</code>（对应赛题 P5：多轮追加 <code>T = 753</code> / <code>3,012</code>，以及首轮分块 <code>T = 16,384</code>）。先看 <code>T = 753</code>（单请求在 <code>80,000</code> 历史词上追加 753 个新词）：图 0-2 读数为：<code>prefill，T = 753：qkv_gate 531 · pooler 与 unpooler 590 · o 412 · router 147</code>；<code>MoE 84 低于 206；attention 的强度本图不算</code>。图 0-1 在 <code>T = 753</code> 下的滑窗层读数为：<code>prefill，T = 753，滑窗层：一步共算 227 GFLOP</code>；<code>各段相加 230.9 µs，题面 P5 整层下界 257.0 µs · 6 段受限于 Tensor Core，1 段受限于 HBM</code>。全长层读数为：<code>prefill，T = 753，全长层：一步共算 469 GFLOP</code>；<code>各段相加 475.6 µs，题面 P5 整层下界 496.7 µs · 6 段受限于 Tensor Core，1 段受限于 HBM</code>。
@@ -929,22 +929,117 @@ asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;\n&quot;
 <hr />
 <p><strong>带走一句话：</strong> 在第 1 级整卡视角下，普通读取需在每个 SM 挂起约 64 KiB 在途字节（TMA 需约 48 KiB）才能喂饱 4.54 TB/s 的 HBM 稳态带宽（配合流式权重 <code>evict_first</code> 保住复用激活省 <code>2.44 µs</code>，且自旋等待的清零 CTA 必须排在 <code>program_id 0..3</code> 防死锁），而将尾波与跨 SM 归约原语落实到 <code>qkv_gate</code> 双轨上，<code>gemv v3</code> 用 K-halves 省下 <code>10.62 µs</code>（<code>58.88 → 48.26 µs</code>），<code>qkv_gemm g1</code> 用 108/126-CTA 非整除 Split-K 加票据并行归约在 <code>T = 128 / 256</code> 上一举砍掉 <code>2.73 / 7.94 µs</code>（配清零 CTA 单调标志可在 <code>router</code> 上再省 <code>0.88–1.72 µs</code>，同时避开慢 <code>+12..+24 µs</code> 的标量 BF16 原子 CAS 陷阱）。</p>
 <p><strong>下一章要回答的问题：</strong> 把图 2-1 里的 1 个 SM 小方块拆开，它的四项固定容量上限怎样决定驻留与生产者/消费者寄存器分账，全局向量读取与二维矩阵分块又各自通过什么硬件通路无冲突地搬进共享内存环形缓冲？→ 进入 第 3 章 [第 2 级]：单个 SM——四项容量池、LSU 合并、TMA 环形缓冲与 SMEM 32 Banks</p>
-</section><section id="ch03"><h1>第 3 章 [第 2 级]：点开 1 个 SM：哪一项资源先用完，数据怎样搬进 SMEM？</h1>
-<ul class="map"><li>前言</li><li>第 0.0 章</li><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li class="here">第 3 章 [第 2 级]：单个 SM</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7–9 章</li></ul>
-<p>承接第 2 章末尾的问题（第 2 级：单个 SM）：第 2 章算出每个 SM 需要同时挂起约 64 KiB 的在途读取才能跑满 HBM 带宽。把图 2-1 里的 1 个 SM 小方块拆开，它的四项固定容量与片上存储结构怎样限制驻留 CTA 数、把全局读取合并成扇区并无冲突地从共享内存读出？</p>
-<p>在一句话穿过单层八个阶段（第 0 章）时，第 2 章派给每个 SM 的 CTA 都必须装进该 SM 的四项硬件池，并把输入从中央 L2 搬进片上存储或寄存器。阶段 1/3/4/5/7 在 <code>T = 1</code> 下靠向量读取把 <code>W</code> 的 16 KiB 行直接读进寄存器。而阶段 2（P1 分页注意力）要按 <code>page_table</code> 收集离散的 64 B 键值行写进共享内存，阶段 6（P2 本地专家）与大批量投影则要用专用硬件把 36 KiB 或 16 KiB 权重分块流式装进环形缓冲。因此第 2 级决定了单 SM 驻留上限与从 L2 到片上缓冲的交接通路。</p>
+</section><section id="ch03"><h1>第 3 章 [第 2 级]：单个 SM——四项容量池、LSU 合并、TMA 环形缓冲与 SMEM 32 Banks</h1>
+<ul class="map"><li>前言</li><li>第 0.0 章</li><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li class="here">第 3 章 [第 2 级]：单个 SM</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7–10 章</li></ul>
+<p>承接第 2 章末尾的问题（第 2 级：单个 SM）：第 2 章算出每个 SM 需要同时挂起约 64 KiB 普通读取或 48 KiB 块拷贝在途字节才能跑满 HBM 带宽。把图 2-1 里的 1 个 SM 小方块拆开，它的四项固定硬件容量怎样限制驻留 CTA 数与寄存器分账，全局向量读取与二维矩阵分块又各自通过什么硬件通路无冲突地搬进片上共享内存？</p>
+<p>在一句话穿过单层八个阶段（第 0 章）时，第 2 章派给每个 SM 的 CTA 都必须装进该 SM 的四项硬件资源池，并把数据从中央 L2 搬进片上存储或寄存器。阶段 1/3/4/5/7 在 <code>T = 1</code> 下靠向量读取把 <code>W</code> 的 16 KiB 行直接读进寄存器；而阶段 2（分页注意力）要按页表收集离散键值行写进共享内存，阶段 6（本地专家）与大批量投影则要用专用硬件把权重分块流式装进片上环形缓冲。本章第 2 级是全书唯一讲解单 SM 四项驻留池、全局扇区合并、四条片上搬运通路、有界环形缓冲（第 4 节）与 32 个存储体异或交错（第 5 节）的章节。</p>
 <hr />
-<h2>1. 四项容量上限与 <code>gemv_kernel</code> 的驻留 CTA 数</h2>
+<h2>1. 四项硬件容量上限（64 Warp / 32 CTA / 228 KiB SMEM / 65,536 寄存器）与 Warpgroup 寄存器重分配（<code>setmaxnreg</code>）</h2>
+<p><strong>本节要回答的问题：</strong> 哪一项资源最先卡住 SM 驻留，为什么大块矩阵乘要用 <code>setmaxnreg.dec 40 / inc 232</code> 把寄存器从搬运工划拨给计算工？</p>
 <figure class="fig"><iframe src="figs/ch03-a.html" loading="lazy" title="图 3-1"></iframe></figure>
-<p>如图 3-1 所示，1 个 SM 内部对称切分为 4 个 <strong>SMSP</strong>（SM 子分区，见第 4 章）。当 1 个 CTA 派给某个 SM 后，硬件将其内部的 thread 按每 32 个连续编号编成 1 个 <strong>warp</strong>（线程束）。每 4 个连续 warp 组成 1 个 <strong>warpgroup</strong>（线程束组）。第 0.5 章的 <code>gemv_kernel</code> 选 128 个 thread，恰好组成 1 个含 4 个 warp 的 warpgroup，可让 4 个 SMSP 各分到 1 个 warp。</p>
-<p>1 个 SM 能同时驻留几个 CTA，决定了它的 <strong>occupancy</strong>（占用率，即驻留活跃 warp 数除以硬件上限 64）。把 <code>gemv_kernel</code> 代进四项上限，每项算出一个可驻留的 CTA 数。</p>
+<p>如图 3-1 所示，1 个 SM 内部对称切分为 4 个 <strong>SMSP</strong>（SM 子分区，见第 4 章）。当 1 个 CTA 派给某个 SM 后，硬件将其内部的 thread 按每 32 个连续编号编成 1 个 <strong>warp</strong>（线程束），每 4 个连续 warp（128 个线程）组成 1 个 <strong>warpgroup</strong>（线程束组）。第 0.5 章的 <code>gemv_kernel</code> 选 128 个 thread，恰好组成 1 个含 4 个 warp 的 warpgroup，让 4 个 SMSP 各分到 1 个 warp。</p>
+<p>1 个 SM 能同时驻留几个 CTA，决定了它的 <strong>occupancy</strong>（占用率，即驻留活跃 warp 数除以硬件上限 64）。把 <code>gemv_kernel</code> 代进四项硬件上限，每项各算出一个可驻留的 CTA 数：</p>
 <ul>
-<li>warp 槽位（上限 64 个）。每个 CTA 含 <code>128 ÷ 32 = 4</code> 个 warp，最多放 <code>64 ÷ 4 = 16</code> 个 CTA。</li>
-<li>CTA 槽位（上限 32 个）。最多放 32 个 CTA。</li>
-<li><strong>SMEM</strong>（上限 228 KiB，即 <code>__shared__</code> 数组）与 <strong>L1 cache</strong>（一级数据缓存）。每个 SM 有一块 256 KiB 的片上存储池。从中切出当前 CTA 所需的 SMEM 后，剩余部分作为本 SM 私有的 L1 cache（各 SM 的 L1 之间不自动保持一致，见第 2 章第 4 节）。<code>gemv_kernel</code> 每 CTA 的 <code>smem[128]</code> 占 0.5 KiB，加系统保留的 1 KiB 共 1.5 KiB，可放 <code>⌊228 ÷ 1.5⌋ = 152</code> 个 CTA。</li>
-<li>寄存器（上限 65,536 个 32 位寄存器）。只要每线程不超过 <code>65,536 ÷ (64 × 32) = 32</code> 个寄存器，64 个 warp 都放得下。<code>v1</code> 实测每线程占 22 个寄存器（按 8 的倍数分配 24 个，16 个 CTA 共用 49,152 个），所以这一项不先触顶。</li>
+<li><strong>warp 槽位（上限 64 个）</strong>：每个 CTA 含 <code>128 ÷ 32 = 4</code> 个 warp，最多放 <code>64 ÷ 4 = 16</code> 个 CTA。</li>
+<li><strong>CTA 槽位（上限 32 个）</strong>：最多放 32 个 CTA。</li>
+<li><strong>SMEM（上限 228 KiB，即 <code>__shared__</code> 数组）与 L1 cache（一级数据缓存）</strong>：每个 SM 有一块 256 KiB 的片上存储池，从中切出当前驻留 CTA 所需的 SMEM 后，剩余部分作为本 SM 私有的 L1 cache（各 SM 的 L1 之间不自动保持一致，见第 2 章第 4 节）。<code>gemv_kernel</code> 每 CTA 的 <code>smem[128]</code> 占 0.5 KiB，加驱动为每块保留的 1 KiB 共 1.5 KiB，可放 <code>⌊228 ÷ 1.5⌋ = 152</code> 个 CTA。</li>
+<li><strong>寄存器（上限 65,536 个 32 位寄存器，每线程上限 255 个）</strong>：硬件按每 warp 256 个寄存器（即每线程向上取 8 的倍数）分配。只要每线程不超过 <code>65,536 ÷ (64 × 32) = 32</code> 个寄存器，64 个 warp 都放得下。<code>v1</code> 实测每线程占 22 个寄存器（按 8 的倍数分配 24 个，16 个 CTA 共用 49,152 个），所以这一项不先触顶。</li>
 </ul>
-<p>取四项的最小值，1 个 SM 最多驻留 <strong>16</strong> 个 CTA。图 3-1 默认预设“gemv_kernel（22 个寄存器）”的读数为：<code>驻留 16 个 CTA，共 64 个 warp（occupancy 100%）</code>；<code>先满的是：warp 槽位</code>。点击“寄存器加到 32”或拖动滑块，可观察先满的池子如何切换到寄存器或 SMEM。</p>
+<p>取四项的最小值，1 个 SM 最多驻留 <strong>16</strong> 个 CTA。图 3-1 默认预设“gemv_kernel（22 个寄存器）”的读数为：<code>驻留 16 个 CTA，共 64 个 warp（occupancy 100%）</code>；<code>先满的是：warp 槽位</code>。点击“寄存器加到 32”或拖动滑块，可观察先满的池子如何切换到寄存器或 SMEM。一旦每线程需要的变量超过分配的寄存器数，编译器就会把多出的变量 <strong>spill</strong>（寄存器溢出）到全局内存划分出的本地内存（<code>LDL / STL</code>），把 0 周期的寄存器访问变成 54–600 周期的内存往返。</p>
+<figure class="fig"><iframe src="figs/ch07-c1.html" loading="lazy" title="图 3-2"></iframe></figure>
+<p>在大分块矩阵乘中，每 SM 只驻留 1 个含 3 个 warpgroup（384 个线程）的持久 CTA：其中 1 个生产者 warpgroup（128 个线程）只负责发搬运指令，只需要几十个寄存器；而 2 个消费者 warpgroup（256 个线程）要保存庞大的单精度累加器块，每线程需要多达 <strong>232 个寄存器</strong>。如果按全 CTA 统一分配，384 个线程各拿 232 个寄存器需要 <code>384 × 232 = 89,088</code> 个寄存器，超出单 SM 上限 <code>65,536</code> 达 23,552 个，编译器只能大量溢出累加器！为此，Hopper 提供了 <strong>warp specialization</strong>（线程束分工）配合动态寄存器重分配指令 <strong><code>setmaxnreg</code></strong>（图 3-2 左半模式 1）：</p>
+<ul>
+<li><strong>公式</strong>：计算 <code>Y = X · W^T</code>（在预填充阶段 1/3/5/7 稠密投影中，<code>BM = 128, BK = 64</code>，每个 SM 驻留 1 个持久 CTA 循环领分块计算）。</li>
+<li><strong>输入</strong>：激活 <code>X [T, K]</code>（BF16）与权重 <code>W [N, K]</code>（BF16，位于 HBM），经片上环形缓冲（第 4 节）送入消费者。</li>
+<li><strong>输出</strong>：输出分块 <code>Y [BM, BN]</code>（BF16，写回 HBM）。</li>
+<li><strong>交给下一步</strong>：1 个生产者 warpgroup 在内核入口执行 <code>setmaxnreg.dec.sync.aligned.u32 40</code> 将自身配额削减到每线程 <strong>40 个寄存器</strong>（占 <code>128 × 40 = 5,120</code> 个），把省下的寄存器退回本 SM 寄存器池；2 个消费者 warpgroup 紧接着执行 <code>setmaxnreg.inc.sync.aligned.u32 232</code> 扩充到每线程 <strong>232 个寄存器</strong>（占 <code>256 × 232 = 59,392</code> 个）。全 CTA 合计占用 <code>5,120 + 59,392 =</code> <strong>64,512 ≤ 65,536</strong> 个寄存器（仅余 1,024 个），零溢出装下全部累加器！</li>
+<li><strong>本步代价与三元权衡</strong>：
+<ul>
+<li>在图 3-2 模式 1 中切换两种分配方式，读数分别为：<code>统一 232：需要 89,088 个寄存器 &gt; 65,536</code> / <code>超出 23,552 个，累加器溢出</code>，以及 <code>分工：5,120 + 59,392 = 64,512 ≤ 65,536 个寄存器</code> / <code>零溢出，Tensor Core 跑满</code>。</li>
+<li><strong>得到什么（实测收益）</strong>：在预填充（<code>T = 753 / 3,012 / 16,384</code>）的四个 BF16 稠密投影（<code>qkv_gate</code>、<code>o</code>、<code>pooler</code>、<code>unpooler</code>）上，这套 1 生产者 + 2 消费者的持久分工内核消除每步 K 的块内屏障与分块启动开销，单核比旧集群分块核快 <strong>1.05–1.30 倍</strong>（9 个算例全胜，整层配对提速 <code>1.0131×–1.0408×</code>；在检验批量 <code>T = 128 / 256</code> 的 <code>o</code> 投影上也将 cuBLAS 的 <code>7.36 µs</code> 压至 <code>6.95 µs</code>）。</li>
+<li><strong>付出什么（代价与硬件硬约束）</strong>：<code>setmaxnreg</code> 要求整个 128 线程 warpgroup 齐步执行，且一旦用满 <code>64,512</code> 个寄存器，每个 SM 就严格只能驻留 1 个 CTA（此外在编译器生成的分工分派代码中，必须把生产者设为默认分区以防跨 <code>setmaxnreg</code> 边界溢出 8 字节局部内存，该项在阶段 2 全长注意力上单独省下 <code>15.8 µs</code>，见第 7 章第 4 节）。</li>
+</ul>
+</li>
+</ul>
+<p>当内核不需要 232 个寄存器、每个 SM 可以驻留多个 CTA 时，<strong>每 SM 驻留 CTA 数的微小变化还会通过集群派发或波次边界决定全核的慢尾</strong>。以阶段 2 分页注意力在 <code>verify 16 sliding</code>（<code>T = 128</code> 滑窗）下的集群数 <code>NS 8 → 7</code> 调优为第二主例解剖这一机制：</p>
+<ul>
+<li><strong>公式</strong>：滑窗注意力内核（每 CTA 占 <code>72</code> 个寄存器、<code>0</code> 溢出、动态共享内存 <code>54,400 B</code>）按集群启动计算 <code>o_attn = rmsnorm(softmax(Q · K^T / 8) · V) ⊙ sigmoid(gate)</code>。</li>
+<li><strong>输入与输出</strong>：输入 <code>qkv [16, 8, 2304]</code>（BF16）与 2,048 窗口的 <code>K_cache, V_cache</code>（FP8）；输出 <code>o_attn [128, 1024]</code>（BF16）。</li>
+<li><strong>本步代价与三元权衡</strong>：
+<ul>
+<li>当集群数设为 <code>NS = 8</code> 时，有 <strong>16 个 SM 被塞进了 3 个 CTA</strong>。这 3 个 CTA 在同一个 SM 内争抢 4 个 SMSP 发射槽与片上带宽，导致落在这些 3-CTA SM 上的最后一行集群成为全卡最慢的拖油瓶（主循环末轮从 <code>5.6 µs</code> 拖慢到 <code>7.6 µs</code>，核退出时间从 <code>9.5 µs</code> 拖慢到 <code>11.3 µs</code>）。</li>
+<li><strong>得到什么与付出什么</strong>：将集群数从 <code>NS = 8</code> 调为 <strong><code>NS = 7</code></strong>（每集群行切分 <code>RPC = 12</code>，集群驻留容量 <code>47 &gt;= 32</code>），彻底消除了全卡所有的 3-CTA SM，在 <code>verify 16 sliding</code> 上 60 对正反序测试 100% 获胜，耗时縮短至 <strong><code>0.899×</code>（净省 <code>1.31 µs</code>，见第 7 章第 2 节）</strong>。</li>
+</ul>
+</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>应用场景（阶段与算例标签）</th>
+<th>单 SM 驻留与寄存器分配方案</th>
+<th>实测收益（Gain）</th>
+<th>付出的硬件与复杂度代价（Cost）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>阶段 1/3/5/7 稠密投影</strong> · <code>prefill T=753/3012/16384</code>（主例 1，见第 9 章第 2 节）</td>
+<td>1 生产者 WG（<code>setmaxnreg.dec 40</code>）+ 2 消费者 WG（<code>setmaxnreg.inc 232</code>），1 持久 CTA/SM，无每步 K 块内屏障</td>
+<td>9 个算例单核快 <strong>1.05–1.30×</strong>；整层配对提速 <strong>+1.31%..+4.08%</strong></td>
+<td>占满 <code>64,512 / 65,536</code> 寄存器，每 SM 严格限驻 1 个 CTA</td>
+</tr>
+<tr>
+<td><strong>阶段 2 注意力</strong> · <code>verify 16 sliding</code>（<code>T = 128</code>，主例 2，见第 7 章第 2 节）</td>
+<td>将集群数从 <code>NS = 8</code> 减为 <strong><code>NS = 7</code></strong>（<code>72</code> 寄存器，<code>54,400 B</code> SMEM），消除 16 个挤入 3-CTA 的慢 SM</td>
+<td>正反序 <strong><code>0.899× / 0.897×</code></strong>（净省 <strong>1.31 µs</strong>，退出 <code>11.3 → 9.5 µs</code>）</td>
+<td>每个集群分摊的查询行从 10 增至 12（<code>RPC = 12</code>）</td>
+</tr>
+<tr>
+<td><strong>阶段 3/7 <code>o / unpooler</code></strong> · <code>verify 16 / 32</code>（<code>T = 128 / 256</code>）</td>
+<td>双消费者 WG 持久 TMA 内核（<code>setmaxnreg 40 / 232</code>，<code>BM128 BK128</code>，消费者以计数 2 向 <code>empty[s]</code> 报到）</td>
+<td><code>o</code> 在 <code>T = 128</code> 上从 cuBLAS <code>7.36 µs</code> 降至 <strong>6.95 µs</strong></td>
+<td>1 持久 CTA/SM，占用全部寄存器池</td>
+</tr>
+<tr>
+<td><strong>阶段 6 专家</strong> · <code>verify 16 / 32</code>（<code>M &gt; 32</code>，见第 8 章第 3 节）</td>
+<td>4 个消费者 WG + 2 个生产者 warp（576 线程按 640 计费），统一上限 <strong>96 寄存器/线程</strong>（或 640 线程 <code>dec 24..32 / inc 112</code>）</td>
+<td>架构基石（后续加第 19 号释放 warp 为 608 线程）</td>
+<td>4 个消费者若拿 232 寄存器需 <code>118,784 &gt; 65,536</code> 不可行；608 线程因第 5 组不满 128 线程禁止调 <code>setmaxnreg</code></td>
+</tr>
+<tr>
+<td><strong>阶段 6 专家</strong> · <code>verify 32</code>、<code>verify 1</code>（见第 8 章第 1 节）</td>
+<td>对矩阵乘核强加 <code>__maxnreg__(56..80)</code> 试图抬高每 SM 驻留 CTA 数</td>
+<td><strong>全部实测变慢被拒</strong>：<code>r80</code> 慢 <code>+0.72 µs</code>，<code>r72</code> 慢 <strong><code>+26.43 µs</code></strong>，<code>wg56</code> 慢 <strong><code>+61.79 µs</code></strong>，<code>mr8</code> 慢 <code>+5.14 µs</code></td>
+<td>压低寄存器上限触发 <strong>2–18 个寄存器溢出</strong>到局部内存，溢出惩罚远大于多驻留 1 个 CTA 的收益</td>
+</tr>
+<tr>
+<td><strong>阶段 6 专家</strong> · <code>decode 32</code>（<code>M = 32</code>）</td>
+<td>将小批量持久核从 8 个 warp 扩为 16 个 warp/CTA（512 线程，1 CTA/SM）</td>
+<td>活跃 warp 从 <code>12.5%</code> 升至 <code>24.7%</code>，但 <code>-0.85 µs</code> 未超出控制包络 <code>-0.78 µs</code>（未采用）</td>
+<td>指令数涨 <code>+10%</code>，未被选中与数学管线节流停顿涨 3 倍吃掉增益</td>
+</tr>
+<tr>
+<td><strong>阶段 3/8 边界核 &amp; 路由</strong> · <code>prefill T=16384</code>（<code>T &gt; 1,024</code>，见第 9 章第 3 节）</td>
+<td>路由分块扩至 <code>16,384 / 16 warps</code>，两处残差边界核压至 <code>maxnreg 64</code> 使每 SM 驻留从 <strong>3 升至 4 个 CTA</strong></td>
+<td>第 4 轮提速 <strong>+0.23%</strong>，首轮平均 <strong>+0.30%</strong>（弱显著）</td>
+<td>阶段 8 边界核压到 64 寄存器产生 <code>8 B</code> 局部内存栈溢出</td>
+</tr>
+<tr>
+<td><strong>阶段 3/8 边界核</strong> · <code>prefill</code> 全批量（见第 9 章第 3 节）</td>
+<td>按批量切换线程束数：<code>T &lt; 4,096</code> 用 16 个 warp/CTA，<code>T ≥ 4,096</code> 用 8 个 warp/CTA</td>
+<td>扫描在 4 个算例上胜出合入（单项独立步增益未分离测量）</td>
+<td>在“每 CTA 处理行数”与“每 SM 驻留 CTA 数”之间按 <code>T</code> 折中</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>什么时候变成亏本（反例：扩充线程/SMEM 压掉驻留跨入第 2 波次，或在小工作量下未钉住驻留）</strong>：
+<ol>
+<li><strong>反例一（为增加消费者或填充 SMEM 把每 SM 驻留压到 2 个 CTA，导致集群掉入第 2 波次慢 <code>+11.7 µs</code>）</strong>：在阶段 2 滑窗注意力（<code>verify 32 sliding</code>，<code>T = 256</code>）上，曾尝试将单消费者 warpgroup 扩为 2 个消费者 warpgroup（384 线程，强迫每 SM 最多驻留 2 个 CTA），或通过填充共享内存强迫每 SM 驻留 <code>≤ 2</code> 个 CTA。然而在 <code>2 CTA/SM</code> 下，全卡可同时接纳的 4-CTA 集群容量仅为 <code>62 &lt; 64</code>、7-CTA 集群容量仅为 <code>32</code>（零余量），导致最后 2 个集群被迫掉入<strong>第 2 个波次</strong>，实测完成时间推迟 <strong>+11.7 µs</strong> 被否决。</li>
+<li><strong>反例二（在 <code>M = 1</code> 不满 1 个波次时盲目开启未钉住驻留的 SMEM 环，慢 <code>+4.18 µs</code>）</strong>：在阶段 6 专家 <code>decode 1</code>（<code>M = 1</code>，全卡仅约 <code>2–3</code> 个专家的工作量，远不满 1 个波次）上，直接开启未固定驻留的 3 槽共享内存环会使每 CTA 启动与环初始化开销压倒收益，实测在 <code>gemm1</code> 与 <code>gemm2</code> 上反而变慢 <strong>+4.18 µs</strong> 与 <strong>+1.92 µs</strong>；唯有将单权重环显式钉死在 <strong>每 SM 驻留 6 个 CTA</strong> 上，才能在 <code>decode 1</code> 上反败为胜省下 <strong>0.56 µs</strong>（<code>[-0.70, -0.35] µs</code>，5/5 种子全胜，详见第 8 章第 1 节）。</li>
+</ol>
+</li>
+</ul>
 <hr />
 <h2>2. 全局内存合并访问：为什么相邻线程要读相邻地址？</h2>
 <figure class="fig"><iframe src="figs/ch03-coal.html" loading="lazy" title="图 3-2"></iframe></figure>
@@ -1160,7 +1255,17 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 </li>
 </ul>
 <hr />
-<h2>4. 一个矩阵乘分块怎么算：K 循环、SS/RS、交换 A/B 与累加器排布</h2>
+<h2>4. 一个矩阵乘分块的 K 循环、<code>wait_group&lt;1&gt;</code>、累加器精度（FP8 快速累加 / F16 累加）、瓦片在途功（<code>BN128</code>）与 TMA 二维块原子归约（<code>UTMAREDG.2D.ADD</code>）</h2>
+<figure class="fig"><iframe src="figs/ch05-c.html" loading="lazy" title="图 5-3"></iframe></figure>
+<p><code>wgmma</code> 发出后，warp 无需停下等待，下一周期即可向 FMA、ALU 或 SFU 管线发射其他指令。这与第 4 章受 scoreboard 自动保护的普通指令不同：在 <code>wgmma</code> 后台运行期间，硬件 scoreboard 不会阻止线程读写正在被 Tensor Core 使用的累加器 <code>D</code> 或 RS 模式输入寄存器 <code>A</code>，未同步就读写它们的行为是未定义的。因此程序必须先调 <code>wgmma.fence</code> 对齐寄存器访问，发完一组 <code>wgmma</code> 后调 <code>commit_group</code> 打包成组，并在访问相关寄存器或释放第 3 章的 <code>empty[s]</code> 槽前调用 <strong><code>wait_group&lt;N&gt;</code></strong>（阻塞等待，直到在途未完成的 <code>wgmma</code> 组数不超过 <code>N</code>）。最后一条指令发出到结果写回累加器的尾延迟称为 <strong>drain latency</strong>（排空延迟）。图 5-3 以 4 组 <code>wgmma m64n256k16</code>（RS 模式，每线程 128 个累加器寄存器，张量管线每组耗时约 132 个周期，排空延迟实测 53.4 个周期，解码准备时间在图中取 66 个周期演示先后顺序）对比两种等待方式：</p>
+<ul>
+<li>锚点机制一（每个权重字 1 组 <code>wgmma</code> + <code>wait_group&lt;1&gt;</code> 跨管线重叠）：<code>wait_group&lt;0&gt;</code> 每次都暴露约 <strong>53</strong> 个周期排空延迟（读数为：<code>wait_group&lt;0&gt;：每组都等完：每组都暴露约 53 周期排空，共约 214 周期</code>）。反之，在 P5 预填充（<code>T ≤ 1,024</code>）专家内核中，每解完 1 个 32 位权重字（<code>K = 32</code>）就发 1 组 <code>wgmma</code>，交替使用两个子分块缓冲 <code>A0 / A1</code> 并在每次发射后调 <strong><code>wait_group&lt;1&gt;</code></strong>（读数为：<code>wait_group&lt;1&gt;：两套 A 交替：只暴露最后一组的约 53 周期排空</code>）：
+<ul>
+<li>得到什么：把下一权重字的 ALU 解码与在途 MMA 重叠，NCU MMA 等待停顿从 <code>36.8%</code> 降至 <strong><code>17.8%</code></strong>，<code>turn 1</code> 提速 <strong><code>+1.35%</code></strong>、<code>turn 4</code> 提速 <strong><code>+1.40%</code></strong>、<code>first turn</code> 提速 <strong><code>+1.04%</code></strong>（回指第 8 章第 5 节）。</li>
+<li>付出什么与何时亏本：输入缓冲寄存器翻倍（<code>A0 / A1</code> 共占 8 个寄存器）；若只留 1 套 <code>A</code> 寄存器却调 <code>wait_group&lt;1&gt;</code> 则直接覆写出错（图 5-3 第三档读数为：<code>wait_group&lt;1&gt;，但只有一套 A（错误）：覆写了正在被读的 A 寄存器 3 次</code>）；若跨轮在途的片段超出寄存器上限触发局部内存溢出（如阶段 2 P1 注意力在 <code>verify T = 128</code> 伸缩网格 <code>idx 9</code> 上用 <code>wait_group&lt;1&gt;</code> 让 <code>P · V</code> 跨轮在途单核从 <code>96.98</code> 降至 <code>96.51 µs</code>，但在 32 请求全长平坦网格 <code>idx 11</code> 上因溢出 <code>20 B</code> 即 5 条 <code>STL</code> + 5 条 <code>LDL</code> 而必须关闭，详见第 7 章第 6 节），就会变成亏本。</li>
+</ul>
+</li>
+</ul>
 <p>下面打开本书阶段 1（P4 <code>qkv_gate</code>，批量 <code>T = 128</code>）的实际提交内核，看一个矩阵乘分块从 HBM 到写回全局内存的完整 K 循环解剖。</p>
 <ul>
 <li>公式与分块参数：计算 <code>out [128, 2304] = x [128, 8192] @ W [2304, 8192]^T</code>（BF16 输入，FP32 累加，BF16 输出，推算总运算量为 <code>4.83 GFLOP</code>，权重 <code>37.7 MB</code>）。因为词元数 <code>T = 128</code> 恰好等于 <code>2 × 64</code>（可 100% 填满 2 个 <code>wgmma</code> 的 <code>M = 64</code> 行），该内核把词元 <code>x</code> 放在左矩阵 <code>A</code>（<strong>不交换 <code>A / B</code></strong>）。每个 CTA 负责输出矩阵的一个 <code>BM × BN = 128 × 64</code> 分块，沿 <code>K = 8,192</code> 每步推进 <code>BK = 64</code>（共 <code>8,192 ÷ 64 = 128</code> 个 K 步）。由于输出列方向只有 <code>2,304 ÷ 64 = 36</code> 个分块（不足以铺满 132 个 SM），内核采用 <code>split-K = 3</code> 把 128 个 K 步切给 3 个 CTA（推算各算 <code>42, 43, 43</code> 步），启动网格为 <code>1 × 36 × 3 =</code> <strong>108 个 CTA</strong>。每个 CTA 含 <code>160</code> 个线程（<code>1</code> 个生产者 warp + <code>1</code> 个含 4 个 warp 的消费者 warpgroup，每 SM 驻留 1 个 CTA）。SMEM 开辟 <code>ST = 8</code> 级环形缓冲：每级含 <code>x</code> 分块 <code>128 × 64 × 2 B = 16,384 B</code> 与 <code>W</code> 分块 <code>64 × 64 × 2 B = 8,192 B</code>（单级共 <code>24,576 B</code>，均采用 K 主序与第 3 章的 <code>128 B</code> XOR Swizzle），加上 <code>1,024 B</code> 保留区、8 对 <code>full / empty</code> <code>mbarrier</code>（<code>16 × 8 = 128 B</code>）与末尾 <code>64 B</code> 区域，动态 SMEM 合计推算为 <strong>197,824 B</strong>。</li>
@@ -1177,34 +1282,33 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 </ol>
 </li>
 <li>在图 5-k 中切换三档模式查看读数：选第一档（“一个 K 步的细节”），读数为：<code>步 1：已发 n / 8 条 HGMMA · Tensor Core 管线 8 × 32.06 = 256.5 clk</code>；<code>搬入 24,576 B · 算 1,048,576 FLOP · 42.7 FLOP/B</code>。选第二档（“稳态：8 槽环形缓冲”，在图 5-k 的时间线模型中取 <code>t = 20</code> 单位时刻），读数为：<code>此刻：在途 6 槽 · 已到齐 2 槽 · 空 0 槽（共 8 槽，最多在途 196,608 B）</code>；<code>Tensor Core 已算完 7 / 42 步 · 每步搬入 24,576 B、算 1,048,576 FLOP</code>。图上消费者大部分时间都在等 <code>full[s]</code>，是因为每步 8 条 <code>HGMMA</code> 在 Tensor Core 管线上只需 <code>8 × 32.06 =</code> <strong>256.5 个周期</strong>，而搬入 24,576 B 数据的通路（借用相同 <code>BK = 64</code>、8 级环的 <code>pooler</code> <code>T = 128</code> 内核在热 L2、1.7964 GHz 下实测的约 <code>68.95 B/ns</code> 交付速率作为替代值推算，约需 <code>640.3</code> 个周期；本内核每步 <code>x</code> 与 <code>W</code> 实际命中 L2 还是 HBM 未知）比 Tensor Core 慢约 <strong>2.5 倍</strong>。因此在 <code>T = 128</code> 下该分块仍处于第 2 节的第二区，需要靠 8 槽环挂起最多 <code>196,608 B</code> 在途请求。选第三档（“收尾：split-K 的 TMA reduce-add”），读数为：<code>累加器：每线程 64 个 FP32 → 转成 32 个 BF16 对 → 16,384 B 的 out 分块</code>；<code>1 条 UTMAREDG 加进 out · 3 个 split 各加 1 次 · 无单独的 reduce kernel</code>。</li>
-<li>上述 K 循环中三项优化机制的取舍：
-<ol>
-<li><code>split-K = 3</code>（沿 K 维切分）：得到的是把 36 个输出分块扩成 108 个 CTA 铺满 SM，在 P4 <code>qkv_gate</code> <code>T = 128</code> 上实测省 <strong><code>2.78–2.86 µs</code></strong>、<code>T = 256</code> 上省 <strong><code>7.50–7.89 µs</code></strong>、<code>pooler</code> <code>T = 128</code> 上省 <strong><code>1.41–1.42 µs</code></strong>；付出的是非整除 K 步（<code>42, 43, 43</code>）以及 3 个分片各自的尾声写出与票据同步开销；在分片过多使同步超过波次收益时（如 P2 专家 <code>split-K = 4</code> 不如 <code>2</code>），或一条 4-warp 拆 K 路径在 <code>T = 128</code> 触发非法指令报错时被否决（本内核更多切分数的损耗未测）。</li>
-<li>8 槽 SMEM 环形缓冲（<code>ST = 8</code>）：得到的是最多 <code>196,608 B</code> 在途量以掩盖数据搬运延迟（在 P4 <code>pooler</code> <code>T = 32</code> 上将环从 6 槽扩到 7 槽实测省 <strong><code>0.75–1.04 µs</code></strong>，在 <code>qkv_gate / pooler</code> <code>T = 8..32</code> 的 12 位内核上将过深的 14/12 槽收紧回 8 槽合计省 <strong><code>3.25 µs</code></strong>）；付出的是单 CTA 占用 <code>197,824 B</code> SMEM，把每 SM 驻留锁死在 1 个 CTA；在 <code>pooler</code> <code>T = 32</code> 上超过 7 槽反而变慢（原因未知），而在多 CTA 驻留的内核（如 P2 专家或 P1 <code>verify</code>）中盲目加槽一旦挤降每 SM 驻留 CTA 数就会实测亏本。</li>
-<li>尾声 <code>UTMAREDG.2D.ADD</code>（TMA 二维块异步归约加）：得到的是省去独立归约 kernel，在 <code>qkv_gate</code> <code>T = 128</code>、<code>T = 256</code> 与 <code>pooler</code> <code>T = 128</code> 上实测比逐线程 <code>BF16x2</code> 原子加分别省 <strong><code>1.24 µs</code>、<code>1.84 µs</code>、<code>0.72 µs</code></strong>（把尾声从 <code>2.7–5.1 µs</code> 压到 <code>1.0–1.6 µs</code>；若改用标量 BF16 原子加，因编译成 17 处比较交换循环在 <code>T = 16, 32</code> 上暴慢 <strong><code>12–24 µs</code></strong>）；付出的是各分片在全局内存中按 BF16 精度（而非 FP32）累加，且需配 0 号分片清零与标志同步；若把释放指令写进 <code>wgmma</code> 循环内会触发第 6 章的 <code>C7515</code> 使主循环从 <code>8.84 µs</code> 退化到 <strong><code>20.74 µs</code></strong>，若把释放放在内核入口等清零完成则会让本 CTA 停顿 <strong><code>2–3 µs</code></strong>（在 <code>qkv_gate / pooler</code> <code>T = 128</code> 上慢 <code>+0.38..+0.69 µs</code>）。</li>
-</ol>
-</li>
 </ul>
-<p>对比图 5-r 中的 <strong>SS 模式与 RS 模式及其取舍</strong>：<code>wgmma</code> 的右操作数 <code>B</code> 必须始终位于 SMEM，而左操作数 <code>A</code>（64 行）可在 SMEM 描述符（<code>SS</code>）与私有寄存器（<code>RS</code>）之间选择。在图 5-r 中依次选三档模式（均以 4 个 <code>k16</code> 切片推算共 <code>524,288</code> FLOP 对照）：</p>
-<ul>
-<li>选第一档（<code>SS</code> 模式，<code>qkv_gate</code> <code>T = 128</code> 前 64 行），读数为：<code>A 在 SMEM（描述符）· 4 条 HGMMA · A 占 0 个寄存器</code>；<code>B 在 SMEM · 管线 4 × 32.06 = 128.24 周期（实测）</code>。</li>
-<li>选第二档（<code>RS</code> 模式，P1 注意力 <code>P · V</code>），读数为：<code>A = p 在寄存器 · 4 条 HGMMA · A 占 16 个寄存器</code>；<code>B = V 在 SMEM（.tnspB）· 管线 4 × 35.24 = 140.96 周期（实测）</code>。</li>
-<li>选第三档（<code>RS</code> 模式，寄存器内解码 C12 权重 <code>BX = 32</code>），读数为：<code>A = 解码后的 W 在寄存器 · 8 条 wgmma · A 占 32 个寄存器</code>；<code>B = x 在 SMEM · 管线 8 × 20.38 = 163.04 周期（实测）</code>。</li>
-<li>取舍分析：（1）得到什么——当左操作数 <code>A</code> 原本就在寄存器里生成时，走 <code>RS</code> 模式省去“写回 SMEM + 异步代理栅栏（通用实测 19.8 周期）+ 从 SMEM 重读”的片上往返（该往返单独省下的周期数未测）；在我们追踪到的内核中，用到 <code>RS</code> 的三处为 P1 注意力（查询 <code>Q</code> 与在线 Softmax 概率 <code>p</code> 留在寄存器）、P2 专家融合 <code>RS-wgmma</code> 内核（ALU 解码 4 位权重进 4 个寄存器作为 <code>A</code>）以及 P4 的 12 位寄存器 <code>A</code> 实验内核（在 <code>pooler 1/8</code> 与 <code>unpooler 16/32</code> 单点测试中曾省 <code>0.83–1.81 µs</code>；P3 与 P5 的其余 <code>wgmma</code> 未逐一排查是否使用 <code>RS</code>）。（2）付出什么——每步 <code>k16</code> 每线程需占住 4 个 <code>A</code> 寄存器直到 <code>wait_group</code> 返回（图 5-r 第二、三档分别占 16 与 32 个 <code>A</code> 寄存器），语法不支持对寄存器 <code>A</code> 加转置标志，且在 <code>N = 64</code> 下单条管线耗时（<code>35.24</code> 周期）比 <code>SS</code>（<code>32.06</code> 周期）慢 <code>3.18</code> 个周期。（3）什么时候亏本（实测反例）——在 P4 的 12 位寄存器 <code>A</code> 候选包测试中，它在 <code>pooler 8/32/128/256</code>、<code>unpooler 128</code> 与 <code>qkv_gate 8/16/32</code> 上比稠密 BF16 TMA <code>SS</code> 内核或 <code>mma.sync</code> 流式内核慢 <strong><code>4.8–12.3 µs</code></strong> 而被回退（记录仅注明解码与矩阵乘重叠系数为 <code>0.54 × t_mma</code> 且在 <code>T = 128/256</code> 下更慢，具体微架构拆解未知；在单消费者实验版中 <code>unpooler 128</code> 也从 <code>19.68 µs</code> 退化到 <code>27.44 µs</code>）。</li>
-</ul>
-<p>再看图 5-s 的 <strong>交换 <code>A / B</code>（<code>swap-AB</code>）统一机制与取舍</strong>（后续第 7、8 章只回指本节）：<code>wgmma</code> 左操作数 <code>A</code> 固定为 <code>M = 64</code> 行，右操作数 <code>B</code> 的列数 <code>N</code> 可在 <code>8 .. 256</code>（步长 8）间选择。利用 <code>(A · B)^T = B^T · A^T</code> 改算 <code>C^T [N_w, T] = W [N_w, K] × x^T [K, T]</code>，即可把权重行 <code>N_w</code> 放到 <code>M = 64</code> 侧（<code>A</code>），把词元 <code>T</code> 放到宽度可调的 <code>N</code> 侧（<code>B</code>）。在图 5-s 中切换四档模式：</p>
-<ul>
-<li>选第一档（不交换，词元放 <code>M</code> 侧，<code>T = 8</code>，<code>m64n64k16</code>），读数为：<code>token 放 M 侧：T = 8</code>；<code>1 条 wgmma · 张量管线 32.06 周期 · M 侧有用 8 / 64 行 · 有用算力 12.5%</code>（只有第 0 号 Tensor Core 的前 8 行有用，其余 3 个 Tensor Core 全算零填充，且每线程占 32 个累加器寄存器）。</li>
-<li>选第二档（交换，权重放 <code>M</code> 侧，<code>T = 8</code>，<code>m64n8k16</code>），读数为：<code>交换：权重放 M 侧，T = 8</code>；<code>1 条 wgmma · 张量管线 18.26 周期 · M 侧有用 64 / 64 行 · 有用算力 21.9%</code>。实测 <code>N = 8</code> 的张量管线周期为 <code>18.26</code> 个周期（比 <code>N = 64</code> 的 <code>32.06</code> 周期省 <code>13.80</code> 周期，快 <code>1.76</code> 倍），且每线程累加器寄存器从 32 个缩至 <strong>4 个</strong>。</li>
-<li>选第三档（不交换，<code>qkv_gate</code> <code>T = 128</code>，2 条 <code>m64n64k16</code>），读数为：<code>token 放 M 侧（qkv_gate）：T = 128</code>；<code>2 条 wgmma · 张量管线 64.12 周期 · M 侧有用 64 / 64 行 · 有用算力 99.8%</code>（此时 <code>M = 128 = 2 × 64</code> 已经满载，若换成 1 条 <code>m64n128k16</code> 管线实测为 <code>64.04</code> 周期、有用算力 <code>99.9%</code>，两者相差不到 <code>0.1%</code>，无需交换）。</li>
-<li>选第四档（交换，P5 预填充 <code>router</code> <code>T = 3,012</code>，8 条 <code>m64n192k16</code>），读数为：<code>交换（P5 router，m64n192k16）：T = 3,012</code>；<code>8 条 wgmma · 张量管线 768.64 周期 · M 侧有用 64 / 64 行 · 整个 kernel 实测 60.5 → 37.6 µs</code>（图 5-s 按 <code>SS</code> 微基准每条 <code>m64n192k16</code> <code>96.08</code> 周期建模，该内核实际为 <code>SS</code> 还是 <code>RS</code> 未在记录中标明；FP32 权重拆为高/低两路 BF16 各发 4 条）。注意：在 <code>T = 3,012</code> 时，无论把词元切成 <code>⌈3012 ÷ 192⌉ = 16</code> 块（<code>N = 192</code>）还是不交换切成 <code>⌈3012 ÷ 64⌉ = 48</code> 块（<code>M = 64</code>），总行数或总列数都是 <code>3,072</code>，有效填充率都等于 <code>3,012 ÷ 3,072 =</code> <strong>98.0%</strong>。因此行填充率并不能解释 <code>60.5 → 37.6 µs</code> 的提速；该内核同时从 Gluon 改写为 CUDA C++ 并引入了 5 级环形缓冲、2-CTA 集群多播与 <code>split-K = 2</code>，<code>swap-AB</code> 只是其中一环，其单独贡献比例未知。</li>
-<li>取舍与全书应用汇总：（1）得到什么——在真正靠 <code>swap-AB</code> 避免小 <code>T &lt; 64</code> 零填充并缩小累加器的场景中，P4 的 <code>qkv_gate</code> <code>T = 32</code> 实测省 <strong><code>0.61–0.74 µs</code></strong>、<code>unpooler</code> <code>T = 8</code> 省 <strong><code>0.32–0.35 µs</code></strong>；P4 <code>router</code> 在 <code>T = 16</code> 上采用 <code>swap-AB</code> 的 <code>m64n16k16</code>（<code>split-K = 32</code>；<code>T = 32</code> 的 <code>wgmma</code> 内核实测 <code>9.95 µs</code>，比临时拆 K 版 <code>23.04 µs</code> 快 <code>13.09 µs</code>、比填充版快 <code>0.18 µs</code>，是否交换方向未标明）；P2 专家 <code>RS-wgmma</code>、P3 解码层的交换方向稠密投影模块以及 P4 <code>o 256 / pooler 32</code> 也采用了同一布局（另一套 36 层线上排序召回模型在批量 <code>M = 80</code> 下将 <code>o / qkv / down</code> 从通用内核切为交换方向的 <code>N = 80</code> 内核，端到端耗时从 <code>30.13 ms</code> 降至 <strong><code>25.57 ms</code></strong>，省 <code>4.56 ms</code>，单独交换方向的份额未拆分）。（2）付出什么——累加器产出转置分块 <code>C^T [64, T]</code>，尾声必须多做一次片上转置写出（转置指令数与周期代价未测），且激活 <code>x</code> 作为右操作数 <code>B</code> 必须先入 SMEM。（3）什么时候亏本（实测反例）——在 <code>T = 1..4</code> 下本层直接采用 <code>gemv</code> 内核（未测独立 <code>swap-AB</code> <code>wgmma</code> 内核）；在 P2 专家 <code>m = 1 / 8</code> 上，当 <code>swap-AB</code> 的 <code>wgmma</code> 因寄存器占用把每 SM 驻留从 9 压到 8 时实测亏本；在 <code>T ≥ 128</code> 且 <code>N_w</code> 很大时（如第三档 <code>qkv_gate</code> <code>T = 128</code>）不交换已达 <code>99.8%</code> 利用率；而在第四档 P5 <code>router</code> <code>T = 3,012</code> 上，若把 <code>swap-AB</code> 的集群多播扩为 4-CTA（<code>CM = 4</code>），实测反而退化到 <strong><code>71.0 µs</code></strong>（被否决）。</li>
-</ul>
-<p>最后看图 5-f 的 <strong>累加器寄存器排布、<code>mma.sync</code> vs <code>wgmma</code> 指令账本与 <code>HGMMA / QGMMA</code> 对比</strong>：</p>
+<p>接着看图 5-f 的 <strong>累加器寄存器排布、<code>mma.sync</code> vs <code>wgmma</code> 指令账本与 <code>HGMMA / QGMMA</code> 对比</strong>：</p>
 <ul>
 <li>累加器 <code>D [64, 64]</code>（每线程 <code>N / 2 = 32</code> 个 FP32 寄存器，共 128 B）在 128 个线程间的分布（按尾声 <code>stmatrix</code> 与单热自检关系推算；<code>RS</code> 模式下 <code>A</code> 寄存器片段的逐线程映射未知）：第 <code>w</code> 号 warp（<code>w = 0..3</code>）固定拥有第 <code>16w .. 16w + 15</code> 共 16 行，切分为 8 个 <code>16 行 × 8 列 = 128</code> 元素的列块（<code>j = 0..7</code>）。在每个列块内，设通道号为 <code>l = 0..31</code>、行组 <code>g = l &gt;&gt; 2</code>（<code>0..7</code>），该线程的 4 个寄存器 <code>e % 4 = 0..3</code> 分别落在行下标 <code>16w + g</code>（<code>0, 1</code>）与 <code>16w + g + 8</code>（<code>2, 3</code>）、列下标 <code>8j + 2 × (l &amp; 3) + (e &amp; 1)</code>（以从 0 起算的 <code>j = 0</code> 列块［图 5-f 标作“块 1”］中的 9 号通道 <code>l = 9</code> 为例，<code>g = 2, l &amp; 3 = 1</code>，它的 4 个寄存器落在行下标 2 与 10、列下标 2 与 3，该块内排布与单 warp <code>mma.sync</code> <code>m16n8k16</code> 的 <code>C</code> 块完全同构）。在图 5-f 中选第一档（<code>wgmma</code> 累加器分布），读数为：<code>HGMMA.64x64x16：每个 warp 1 条 · 累加器每线程 32 个寄存器</code>；<code>块 = 16 行 × 8 列 = 128 个值，每线程拿 4 个（线程 9 拿 e0…e3）</code>。</li>
 <li>选第二档（改用 <code>mma.sync</code> 算同一个 <code>64 × 64 × 16</code> 分块，推算数据通路指令数）：每个 warp 要先发 1 条 <code>ldmatrix.x4</code> 装入 <code>A</code>（4 个寄存器）、4 条 <code>ldmatrix.x4</code> 装入 8 个列块的 <code>B</code>（若一次装入占 16 个寄存器），再发 8 条 <code>mma.sync</code>，4 个 warp 共发 <code>20 条 ldmatrix + 32 条 mma = 52</code> 条指令，加上 16 条 <code>STSM</code> 尾声共 <strong>68</strong> 条 warp 指令（而第一档 <code>wgmma</code> 数据通路只需 <code>4 条 HGMMA + 16 条 STSM =</code> <strong>20</strong> 条 warp 指令，省 48 条指令与 20 个操作数寄存器）。第二档读数为：<code>mma.sync m16n8k16：每块 1 条，共 32 条，另有 20 条 ldmatrix.x4</code>；<code>每线程 A 4 + B 16 + C 32 = 52 个寄存器 · C 块的分布与 wgmma 相同</code>。</li>
 <li>单条 <code>wgmma</code> 恒定跨过 <strong>32 字节 K 切片</strong>（推算自各类型的 <code>K × 元素字节</code>）：对一个 <code>64 × 64 × 64</code>（<code>K = 64</code>）阶段，BF16（2 B）每条算 <code>k16</code>（<code>16 × 2 = 32 B</code>，单条 <code>131,072</code> FLOP，SASS 为 <strong><code>HGMMA</code></strong>），共需 4 条；而 FP8 <code>E4M3</code>（1 B）每条算 <code>k32</code>（<code>32 × 1 = 32 B</code>，单条 <code>262,144</code> FLOP，SASS 为 <strong><code>QGMMA</code></strong>），只需 2 条即可算完同一 <code>K = 64</code> 阶段（在阶段 2 注意力内核 SASS 中同时出现 <code>HGMMA.64x64x16.F32.BF16</code> 与 <code>RS</code> 模式的 <code>QGMMA.64x64x32.F32.E4M3.E4M3</code>；图 5-f 第四档为与第三档直接对比按 <code>SS</code> 画出）。选第三档，读数为：<code>HGMMA（BF16）：K = 64 要 4 条，每条 K = 16 · 131,072 FLOP</code>；<code>操作数共 16,384 B · 32 FLOP / B</code>。选第四档，读数为：<code>QGMMA（FP8 E4M3）：K = 64 只要 2 条，每条 K = 32 · 262,144 FLOP</code>；<code>操作数共 8,192 B · 64 FLOP / B</code>。同时 PTX 规范对 FP8 <code>wgmma</code> 有两条特别规则：一是语法中无 <code>imm-trans-a/b</code> 转置标志，故 SMEM 中的操作数必须预先排成 K 主序；二是 <code>.f32</code> 累加器的内部尾数加法精度“高于半精度但低于单精度”。</li>
+</ul>
+<p>如图 5-g 所示，围绕 <code>wgmma</code> 的累加器精度、瓦片在途功与尾声归约，还有三项关键优化机制及其取舍：</p>
+<ul>
+<li>锚点机制二（FP8 尾声行缩放 + 快速累加 <code>use_fast_accum</code> 与无掩码 F16 累加）：在 FP8 矩阵乘中，若采用 <code>1 × 128</code> 块缩放，每算完一个 <code>K = 128</code> 瓦片都必须打断连续的 <code>QGMMA</code> 流水，用 48 个周期的 <code>FFMA</code> 执行一次 FP32 累加器提升 <code>acc += tile * s_w</code>；改为在尾声按行乘一次缩放因子并开启快速累加 <strong><code>use_fast_accum</code></strong> 后，整条 K 循环保持单一连续 <code>QGMMA</code> 累加链：
+<ul>
+<li>得到什么：在 36 层线上排序召回模型的预填充 MLP（<code>bucket 640</code>）上，<code>B = 1</code> 与 <code>B = 4</code> 端到端分别提速 <strong><code>-12.2%</code> 与 <code>-12.4%</code></strong>（<code>B = 1</code> 从 <code>12.56–12.62 ms</code> 降至 <code>10.97–11.24 ms</code>，<code>gate_up</code> <code>M = 2,432</code> 单核从 <code>501.7 µs</code> 降至 <strong><code>463.5 µs</code></strong>，通过该档质量门）；同理，在阶段 2 P5 全长注意力的无掩码瓦片上，因得分幅值 <code>|S| ≤ 30,464 &lt; 65,504</code> 不会溢出半精度，将 <code>QK</code> 的 <code>wgmma m64n128k32</code> 累加器改为 <code>.f16</code>，可直接删掉 34 条 <code>f32 → f16x2</code> 转换指令并省下 32 个寄存器，单核提速 <code>14.5%–16.8%</code>、整层提速 <strong><code>+1.79%</code></strong>（详见第 7 章第 6 节）。</li>
+<li>付出什么与何时亏本（精度门控反例）：损失了每 128-K 瓦片的 FP32 提升精度或半精度动态范围；在线上排序召回模型的解码 <code>B = 6</code>（<code>M = 120</code>）下，开启 <code>use_fast_accum</code> 在 32/32 次门控运行中丢失了用户 104 的 <code>c10</code> 召回命中，必须关闭快速累加恢复全累加，为此付出 <strong><code>+10.9%</code>（<code>+3.59 ms</code>）</strong> 的速度代价；在注意力带因果掩码的尾部瓦片上也因含 <code>-inf</code> 掩码必须保留 <code>.f32</code> 累加。</li>
+</ul>
+</li>
+<li>锚点机制三（扩宽 <code>BN = 128</code> 瓦片提升每阶段在途 MMA 功）：当 <code>qkv_gate</code> 词元数升至 <code>T = 256</code>（算术强度达 <code>224 FLOP/B</code>）时，主循环速率取决于“每 CTA 在途 MMA 功 ÷ 每阶段搬运延迟（拟合为 <code>1.12 µs + 字节 ÷ 172 GB/s</code>）”。将输出列分块 <code>BN</code> 从 <code>64</code> 扩宽至 <strong><code>128</code></strong>（配置从 <code>(256, 64, 64, split 3, 5 槽)</code> 改为 <code>(256, 128, 64, split 7, 4 槽)</code>，共 126 个 CTA，并在尾声将归约瓦片复用暂存在 <code>x</code> 环形缓冲中以支持 <code>BK &lt; BN</code>）：
+<ul>
+<li>得到什么：每字节阶段搬运对应的 MMA 运算量提高，主循环耗时从 <code>14.33 µs</code> 压到 <strong><code>11.16 µs</code></strong>，张量管线活跃度从 <code>76%</code> 升至 <strong><code>88%</code></strong>，单核实测省 <strong><code>1.35 µs</code></strong>（在本章第 5 节演化链 <code>g4</code> 中省 <strong><code>1.65 µs</code></strong>）。</li>
+<li>付出什么与何时亏本：每阶段 <code>W</code> 分块翻倍使环形缓冲从 5 槽压到 4 槽；若在 <code>T = 128</code> 或小批量上盲目套用大阶段瓦片，会因环槽缩至 2–3 槽或寄存器涨至 154 个而反慢（<code>qkv_gate</code> <code>T = 128</code> 从 <code>17.89 µs</code> 退化到 <code>21.90 µs</code>，<code>unpooler</code> <code>T = 256</code> 从 <code>23.68 µs</code> 退化到 <code>42.4 µs</code>，详见第 6 章第 4 节）。</li>
+</ul>
+</li>
+<li>锚点机制四（尾声 <code>UTMAREDG.2D.ADD</code> 二维 TMA 块归约 + 生产者释放标志）：
+<ul>
+<li>得到什么：省去独立归约 kernel，在 <code>qkv_gate</code> <code>T = 128</code>、<code>qkv_gate</code> <code>T = 256</code> 与 <code>pooler</code> <code>T = 128</code> 上实测比逐线程 <code>BF16x2</code> 原子加分别省 <strong><code>1.24 µs</code>、<code>1.84 µs</code>、<code>0.72 µs</code></strong>（归约阶段耗时从 <code>1.00 / 2.62 / 0.61 µs</code> 压到 <code>0.60 / 1.02 / 0.56 µs</code>，整个尾部从 <code>3.2 / 5.1 / 2.7 µs</code> 压到 <code>1.0 / 1.6 / 1.1 µs</code>）；在 <code>pooler</code> <code>T = 256</code>（双消费者 warpgroup 内核）上合入同款归约尾后，每线程寄存器从 131 个降至 <strong>90 个</strong>，打点尾部从 <code>4.9 µs</code> 压到 <strong><code>2.06 µs</code></strong>，单核实测净省 <strong><code>2.66 µs</code></strong>（微扰删除实验从 <code>28.99 µs</code> 降至 <code>24.10 µs</code>，回指第 10 章第 4 节）。</li>
+<li>付出什么与何时亏本：各分片在全局内存中按 BF16 精度累加（在本章第 5 节 <code>g4b</code> 中使 <code>T = 128 / 256</code> 相对 L2 误差从 <code>1.6e-3</code> 微升至 <code>2.7e-3</code>，仍在合规上限 <code>1e-2</code> 以内）；若把释放指令写进 <code>wgmma</code> 循环内会触发第 6 章的 <code>C7515</code> 使主循环从 <code>8.84 µs</code> 退化到 <strong><code>20.74 µs</code></strong>，若把释放放在内核入口等清零完成则会让本 CTA 停顿 <strong><code>2–3 µs</code></strong>。</li>
+</ul>
+</li>
 </ul>
 <hr />
 <h2>5. gemv 演化（v8 → v9）：ALU 整数位移拆包与 8 路独立累加链</h2>
@@ -1876,17 +1980,17 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </tr>
 <tr>
 <td><strong>Prefill RAG 标量分支尾块裁剪</strong></td>
-<td><code>prefill T = 753 / 3,012 / 16,384</code>（<code>idx 0..7</code>）</td>
+<td><code>prefill T = 753 / 3,012 / 16,384</code>（滑窗与全长）</td>
 <td>有效对平均 MMA 行数 <code>1.68→1.18</code>（<code>T=753</code>）；<code>T=753</code> <code>gemm1</code> <code>211.0→189.3 µs</code>、<code>gemm2</code> <code>119.3→105.6 µs</code>；整层提速 <strong><code>+4.94% / +4.32% / +0.99%</code></strong></td>
 <td>标量加载统一分支模板（寄存器/SMEM 变化未测）</td>
 <td>若改用块内归约统计有效行数，环槽算术退回向量寄存器 <code>R</code>，每步 <code>K</code> 多出 <strong>34 条指令</strong>抵消收益</td>
 </tr>
 <tr>
 <td><strong>过渡区 <code>BM = 64</code> 分块 + 消费者发 TMA 权重环</strong></td>
-<td><code>prefill T = 753</code>（<code>T ≤ 1,024</code>，<code>idx 0/1</code>）</td>
-<td>64 对共享一次权重解码，Tensor 管线占用 <code>40% → 57%</code>，<code>gemm1</code> <code>240.0 → 222.3 µs</code>，<code>turn 1</code> 整层提速 <strong><code>+3.87%</code></strong>（滑窗 <code>+3.0%</code>、全长 <code>+6.5%</code>）</td>
+<td><code>prefill T = 753</code>（<code>T ≤ 1,024</code> 滑窗与全长）</td>
+<td>64 对共享一次权重解码，Tensor 管线占用 <code>40% → 57%</code>，<code>gemm1</code> <code>240.0 → 222.3 µs</code>，<code>T = 753</code> 整层提速 <strong><code>+3.87%</code></strong>（滑窗 <code>+3.0%</code>、全长 <code>+6.5%</code>）</td>
 <td>每个 3 维 TMA 盒装 2 个子块（需将寄存器从 180 压至 151/128 以保 3–4 CTA/SM 驻留）</td>
-<td>搬到 <code>T = 3,012</code>（<code>BM = 128</code>）时消费者发 TMA 环整层<strong>倒退 <code>-1.6%</code></strong>；在 <code>T = 753</code> 强上双 WG <strong><code>BM = 128</code></strong> 因填充浪费<strong>倒退 <code>-1.39%</code></strong>；在 <code>decode 16/32</code> 强上 <strong>16 对（<code>TT = 2</code>）</strong> 指令涨 <code>+16%</code> 慢 <strong><code>+1.71 / +2.54 µs</code></strong></td>
+<td>搬到 <code>T = 3,012</code>（<code>BM = 128</code>）时消费者发 TMA 环整层<strong>倒退 <code>-1.6%</code></strong>；在 <code>T = 753</code> 强上双 WG <strong><code>BM = 128</code></strong> 因填充浪费<strong>倒退 <code>-1.39%</code></strong>；在 <code>decode 16/32</code> 强上 <strong>16 对（双倍虚拟轮）</strong> 指令涨 <code>+16%</code> 慢 <strong><code>+1.71 / +2.54 µs</code></strong></td>
 </tr>
 </tbody>
 </table>
@@ -1910,7 +2014,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <p><strong>取舍与什么时候变成亏本（反例）</strong>：</p>
 <ul>
 <li><strong>8 对虚拟轮与错峰窗口的 U 型边界</strong>：8 对虚拟轮让超过 8 对的热门专家每轮重读一次权重；而错峰延迟若在 <code>M = 8</code> 上从 <code>600–800 ns</code>（省 <code>0.755–0.840 µs</code>）拉长到 <strong><code>1,200 ns</code></strong>，会因人为推迟权重供应而回退到 <code>-0.425 µs</code>（在 <code>M = 32</code> 上错峰仅 <code>-0.247 µs</code>，落入副本噪声带故设为 <code>0 ns</code>）。</li>
-<li><strong>后归一化预取在 <code>M &gt; 32</code> 反输与无分支加载膨胀</strong>：在 <code>M &gt; 32</code>（<code>verify 16 / 32</code>）下，前序持久专家核占满全部 132 个 SM，后归一化核在 <code>ACQBULK</code> 前根本没有共驻重叠窗口，开启 <code>volatile</code> 预取反而<strong>变慢 <code>+0.45 µs</code></strong>（故严格门控在 <code>M ≤ 32</code>）；而在后归一化中若把 2 组流水加载改成宽幅无分支加载（<code>pnp</code>），每线程寄存器从 <code>64</code> 暴涨至 <code>128+</code> 掉驻留，在全部 6 个负载上反慢 <strong><code>+0.43..+0.90 µs</code></strong> 被否决。</li>
+<li><strong>后归一化预取在 <code>M &gt; 32</code> 反输与无分支加载膨胀</strong>：在 <code>M &gt; 32</code>（<code>verify 16 / 32</code>）下，前序持久专家核占满全部 132 个 SM，后归一化核在 <code>ACQBULK</code> 前根本没有共驻重叠窗口，开启 <code>volatile</code> 预取反而<strong>变慢 <code>+0.45 µs</code></strong>（故严格门控在 <code>M ≤ 32</code>）；而在后归一化中若把 2 组流水加载改成宽幅无分支加载，每线程寄存器从 <code>64</code> 暴涨至 <code>128+</code> 掉驻留，在全部 6 个负载上反慢 <strong><code>+0.43..+0.90 µs</code></strong> 被否决。</li>
 <li><strong>预填充 <code>T = 753</code> 尾声提前读 <code>sorted</code> 与块写出被拒</strong>：在 <code>T = 753</code> 的单核融合专家中，尝试将尾声的 <code>sorted</code> 索引读取和块写出提前（Hoist），但因 <code>sorted</code> 原本就命中 L1 缓存，且提前块写出迫使环槽释放等待块写出排空，实测在滑窗与全长算例上<strong>反而变慢</strong>被否决。</li>
 </ul>
 </li>
@@ -1970,7 +2074,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </tr>
 <tr>
 <td><strong>Prefill <code>T = 753</code> 8 字节 <code>LDG</code> 预取 1B <code>UE4M3</code> 缩放码</strong></td>
-<td><code>prefill T = 753</code>（<code>idx 0/1</code>）</td>
+<td><code>prefill T = 753</code>（滑窗与全长）</td>
 <td>消除缩放码的 <code>cp.async</code> 等待组与 <code>LDS</code>，收回 <code>-0.23%</code> 合规成本并净提速 <strong><code>+0.384%</code></strong>（10/10 全胜）</td>
 <td>每步开头用寄存器 <code>LDG</code> 读 8 字节缩放码并在步末展开</td>
 <td>若改用 <code>cp.async + LDS</code> 搬运展开（虽只多 9 条指令），在 <code>T = 753</code> 上比合规基线还慢（<code>0.9962×</code>）；在尾声提前读 <code>sorted</code> 与块写出因阻塞槽释放<strong>反慢被拒</strong></td>
@@ -1980,7 +2084,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <td><code>decode 1 / 16 / 32</code>, <code>verify 1</code>（<code>M ≤ 32</code>）</td>
 <td>2×4 流水加载省 <strong><code>0.75 µs</code></strong>；<code>volatile</code> 锁住 <code>ACQBULK</code> 前 6 条预取省 <strong><code>0.45 / 0.67 / 0.41 / 0.27 µs</code></strong>；空 <code>asm</code> 阻断 <code>321</code> 条 <code>FADD</code> 重物化（SASS <code>1,603 → 1,120</code>）省 <strong><code>0.208 / 0.300 / 0.304 µs</code></strong></td>
 <td><code>volatile</code> 放弃 <code>.nc</code> 提示；空 <code>asm</code> 常驻占 16 个 FP32 寄存器（<code>64 B</code>）</td>
-<td>在 <strong><code>M &gt; 32</code></strong> 下无重叠窗口，开 <code>volatile</code> 预取反慢 <strong><code>+0.45 µs</code></strong>；将流水加载改为宽幅无分支 <code>pnp</code> 使寄存器涨至 <code>128+</code> 掉驻留，全 6 格慢 <strong><code>+0.43..+0.90 µs</code></strong>；将 <code>pn</code> 强融进主核尾部慢 <strong><code>+1.18..+8.34 µs</code></strong>（见第 9 章第 4 节）</td>
+<td>在 <strong><code>M &gt; 32</code></strong> 下无重叠窗口，开 <code>volatile</code> 预取反慢 <strong><code>+0.45 µs</code></strong>；将流水加载改为宽幅无分支形态使寄存器涨至 <code>128+</code> 掉驻留，全 6 格慢 <strong><code>+0.43..+0.90 µs</code></strong>；将 <code>pn</code> 强融进主核尾部慢 <strong><code>+1.18..+8.34 µs</code></strong>（见第 9 章第 4 节）</td>
 </tr>
 </tbody>
 </table>
@@ -2011,8 +2115,8 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <li>
 <p><strong>取舍与什么时候变成亏本（反例）</strong>：</p>
 <ul>
-<li><strong><code>M = 128</code> 下 256 列宽块的 <code>2.66</code> 波次尾与轮询栅栏代价</strong>：在 <code>verify 16</code>（<code>M = 128</code>）上直接套用 256 列宽的 <code>M20-WGS</code> 时，22 个子任务 × 16 个分块 = <code>352</code> 个块，在 132 个 SM 上折合 <strong><code>2.66</code> 个波次</strong>，多出的 <code>+18 µs</code> 分数波次尾吃掉了单块收益（实测 <code>[-0.26, +4.35] µs</code> 打平）；若在 Phase B 每阶段加轮询栅栏（<code>PB_POLL = 1</code>），更会直接倒退 <strong><code>+5.8..+9.0 µs</code></strong>。</li>
-<li><strong>无门控开启尾部切半或块索引倾斜反输</strong>：尾部 K-halves 在尾波已满（不触发切分）的种子上会因分支与标志检查慢 <strong><code>+0.52..+0.75 µs</code></strong>，故必须严格门控在 <code>r ≤ 66</code>；同様に，Phase-B 的 <code>blockIdx ≥ 100</code> 二次倾斜若在<strong>不含重型双倍分块（<code>TT = 2</code>）</strong>的种子上无条件开启，会把过多工作推给前序 CTA，实测反慢 <strong><code>+0.42 / +0.49 µs</code></strong>；而在预填充 <code>T = 16,384</code>（32 个专家全满块）上开启 LPT 映射则因无短尾块可填而微退至 <code>0.9987×</code>。</li>
+<li><strong><code>M = 128</code> 下 256 列宽块的 <code>2.66</code> 波次尾与轮询栅栏代价</strong>：在 <code>verify 16</code>（<code>M = 128</code>）上直接套用 256 列宽的 <code>M20-WGS</code> 时，22 个子任务 × 16 个分块 = <code>352</code> 个块，在 132 个 SM 上折合 <strong><code>2.66</code> 个波次</strong>，多出的 <code>+18 µs</code> 分数波次尾吃掉了单块收益（实测 <code>[-0.26, +4.35] µs</code> 打平）；若在 Phase B 每阶段加轮询栅栏，更会直接倒退 <strong><code>+5.8..+9.0 µs</code></strong>。</li>
+<li><strong>无门控开启尾部切半或块索引倾斜反输</strong>：尾部 K-halves 在尾波已满（不触发切分）的种子上会因分支与标志检查慢 <strong><code>+0.52..+0.75 µs</code></strong>，故必须严格门控在 <code>r ≤ 66</code>；同理，Phase-B 的 <code>blockIdx ≥ 100</code> 二次倾斜若在<strong>不含重型双倍分块（<code>TT = 2</code>）</strong>的种子上无条件开启，会把过多工作推给前序 CTA，实测反慢 <strong><code>+0.42 / +0.49 µs</code></strong>；而在预填充 <code>T = 16,384</code>（32 个专家全满块）上开启 LPT 映射则因无短尾块可填而微退至 <code>0.9987×</code>。</li>
 </ul>
 </li>
 </ul>
@@ -2042,14 +2146,14 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <td>在全满块的 <code>prefill T = 3,012 / 16,384</code> 上无短尾块可填，收益归零（<code>1.0017× / 0.9987×</code>）</td>
 </tr>
 <tr>
-<td><strong>生产者 Warp 原子动态领活（<code>WGS_CLAIM</code>）</strong></td>
+<td><strong>生产者 Warp 原子动态领活</strong></td>
 <td><code>verify 16</code>（<code>T = 128</code>）</td>
 <td>消除静态 <code>108 CTA × 6 活 / 24 CTA × 5 活</code> 的尾部空转，滑窗提速 <strong><code>+1.67%</code></strong>（19/20 胜）、全长提速 <strong><code>+0.65%</code></strong></td>
 <td>每个约 <code>17 µs</code> 的子任务发 1 次原子加领活</td>
 <td>当单任务粒度过细（如第 7 章第 2 节注意力 <code>&lt; 1 µs</code> 瓦片偷取）时，同步与排空环开销使耗时暴跌 <strong><code>+18.9..+22.6 µs</code></strong></td>
 </tr>
 <tr>
-<td><strong>按 Phase-A 负载秩逆序分配 Phase-B（<code>WGS_RB</code>）</strong></td>
+<td><strong>按 Phase-A 负载秩逆序分配 Phase-B</strong></td>
 <td><code>verify 16 / 32</code>（<code>T = 128 / 256</code>）</td>
 <td>最轻 A 配最重 B，削平 <code>9–52 µs</code> 长尾：最慢 CTA 退出从 <code>189.4 / 215.0</code> 压至 <strong><code>176.3 / 195.0 µs</code></strong>，核末提前 <strong><code>2.6 / 13.1 / 20.0 µs</code></strong>，<code>verify 32</code> 滑窗/全长提速 <strong><code>+5.2% / +1.47%</code></strong></td>
 <td>需记录并按秩映射 Phase-A 负载序</td>
@@ -2073,10 +2177,10 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <li>
 <p><strong>机制与解剖</strong>：</p>
 <ol>
-<li><strong>延迟 <code>doneA</code> 刷新（<code>wglate</code>）与 <code>fence.proxy.async</code> 轻量交接</strong>：为什么消费者刚算完当前 Phase-A 子任务并写出中间激活 <code>h</code>，不能马上刷新 <code>doneA</code>？因为紧接着就要启动下一个子任务的首轮 <code>wgmma</code>，此时立刻执行全局栅栏会让矩阵管线断流空等。<code>m4b</code> 将上一个子任务的 <code>doneA</code> 刷新<strong>推迟到下一个子任务发出首轮 <code>wgmma</code> 并完成 <code>wg_wait&lt;0&gt;</code> 之后</strong>：此时上一个子任务写出的 <code>h</code> 早已在后台排空到 L2，刷新不再阻塞矩阵管线！在 <code>verify 32</code>（<code>M = 256</code>）上，仅延迟 <code>doneA</code> 一项就在首轮实测省下 <strong><code>20.50 µs</code></strong>，复测确认狂省 <strong><code>29.92 µs</code></strong>（置信区间 <code>[-31.5, -28.7] µs</code>，为 P2 单项最大收益；配合双指令蛇形初版比基线省 <code>18.32 µs</code>）。同时在激活收集（<code>x</code>-gather）与就绪释放中，用单条跨代理栅栏 <code>fence.proxy.async.global</code>（编译为 <code>FENCE.VIEW.ASYNC.G</code>）加单次 <code>red.release.gpu</code> 取代每存储线程 5 条指令的 <code>fence.acq_rel.gpu</code>（机制见第 2 章第 4 节；在整层验证中直接省去已由前序作业排空的每线程 GPU 栅栏使 <code>MEMBAR</code> 从 <code>68</code> 降至 <code>40</code> 条，提速 <code>+0.30%–0.86%</code>），在 <code>verify 16 / 32</code> 上再省 <strong><code>0.52 µs</code> 与 <code>0.70 µs</code></strong>（1,670 万次调用零竞态；并在 <code>x</code> 环上改由每 warp <code>lane 0</code> 独立向 <code>xempty</code> 报到避免等慢 warp，在 <code>W</code> 环上将 <code>wempty</code> 报到推迟到 <code>xfull</code> 等待之后以清零待决 <code>LDS</code> 的写后读竞态，见第 3 章第 4 节）。</li>
+<li><strong>延迟 <code>doneA</code> 刷新与 <code>fence.proxy.async</code> 轻量交接</strong>：为什么消费者刚算完当前 Phase-A 子任务并写出中间激活 <code>h</code>，不能马上刷新 <code>doneA</code>？因为紧接着就要启动下一个子任务的首轮 <code>wgmma</code>，此时立刻执行全局栅栏会让矩阵管线断流空等。<code>m4b</code> 将上一个子任务的 <code>doneA</code> 刷新<strong>推迟到下一个子任务发出首轮 <code>wgmma</code> 并完成 <code>wg_wait&lt;0&gt;</code> 之后</strong>：此时上一个子任务写出的 <code>h</code> 早已在后台排空到 L2，刷新不再阻塞矩阵管线！在 <code>verify 32</code>（<code>M = 256</code>）上，仅延迟 <code>doneA</code> 一项就在首轮实测省下 <strong><code>20.50 µs</code></strong>，复测确认狂省 <strong><code>29.92 µs</code></strong>（置信区间 <code>[-31.5, -28.7] µs</code>，为 P2 单项最大收益；配合双指令蛇形初版比基线省 <code>18.32 µs</code>）。同时在激活收集（<code>x</code>-gather）与就绪释放中，用单条跨代理栅栏 <code>fence.proxy.async.global</code>（编译为 <code>FENCE.VIEW.ASYNC.G</code>）加单次 <code>red.release.gpu</code> 取代每存储线程 5 条指令的 <code>fence.acq_rel.gpu</code>（机制见第 2 章第 4 节；在整层验证中直接省去已由前序作业排空的每线程 GPU 栅栏使 <code>MEMBAR</code> 从 <code>68</code> 降至 <code>40</code> 条，提速 <code>+0.30%–0.86%</code>），在 <code>verify 16 / 32</code> 上再省 <strong><code>0.52 µs</code> 与 <code>0.70 µs</code></strong>（1,670 万次调用零竞态；并在 <code>x</code> 环上改由每 warp <code>lane 0</code> 独立向 <code>xempty</code> 报到避免等慢 warp，在 <code>W</code> 环上将 <code>wempty</code> 报到推迟到 <code>xfull</code> 等待之后以清零待决 <code>LDS</code> 的写后读竞态，见第 3 章第 4 节）。</li>
 <li><strong>从消费者剥离 <code>MEMBAR.ALL.GPU</code>：移交独占的第 18 号释放 Warp（<code>576 → 608</code> 线程）</strong>：为了把子任务尾声残留的 <code>red.release.gpu</code>（<code>MEMBAR</code> 从 <code>25</code> 降至 <code>9</code> 处，整层 <code>BAR.SYNC</code> 从 <code>69</code> 降至 <code>13</code> 处）彻底移出 4 个消费者 warpgroup，消费者改为只对共享内存计数器做片上 <code>red.release.cta</code>（耗时仅几十周期），由单个专职释放线程轮询片上计数器并发起 <code>red.release.gpu</code>。这一步在 <code>verify 16 / 32</code> 上立省 <strong><code>1.49 µs</code> 与 <code>1.74 µs</code></strong>（在整层 P3 上提速 <code>+0.47%–1.11%</code>，在第五代预填充上将 <code>gemm1</code> <code>~687</code> 周期与 <code>gemm2</code> <code>~1,409</code> 周期的释放移交空闲收集/生产者通道同样提速 <code>+0.164%</code>）。但緊接着发现了一个第 3 级 SIMT 陷阱（机制见第 4 章第 3 节）：最初把该释放线程放在第 16 号权重生产者 warp 的 <code>lane 1</code>，由于<strong>同一个 warp 的 32 个线程共享唯一一条指令流</strong>，<code>lane 1</code> 的轮询与 <code>MEMBAR</code> 直接拖慢了同 warp <code>lane 0</code> 发射下一轮权重 TMA！为此 <code>m4b</code> 专门给每 CTA 多开 1 个 warp（从 <code>576</code> 扩至 <strong><code>608</code> 线程</strong>），把释放线程迁至<strong>独占的第 18 号 Warp（<code>lane 0</code>）</strong>，在 <code>verify 16 / 32</code> 上实测再省 <strong><code>0.77 µs</code> 与 <code>0.85 µs</code></strong>（对比在原位置直接删掉 <code>MEMBAR</code> 的微扰实验仅省 <code>0.44 / 0.15 µs</code>，证实有一半收益来自解除对 <code>lane 0</code> TMA 发射的同 warp 阻塞！）。</li>
 <li><strong>奇偶双账本免除核尾清零链</strong>：在 CUDA Graph 重放中，全局计数器 <code>doneA</code> 每轮都需清零。<code>m4b</code> 开辟偶账本 <code>doneA[0..1023]</code> 与奇账本 <code>doneA[1024..2047]</code>（共 <code>8 KiB</code>），每次启动由票据（<code>atom.inc mod 2G</code>）选用其中一本，由空闲生产者通道在后台顺带清零另一本，彻底删掉了核尾的退出重置链（<code>MEMBAR</code> 从 <code>29</code> 降至 <code>25</code>、<code>BAR.SYNC</code> 从 <code>16</code> 降至 <code>14</code>），在 <code>verify 16 / 32</code> 上实测省下 <strong><code>0.286 µs</code> 与 <code>0.331 µs</code></strong>（对应第 7 章图 7-7 模式 2 读数：<code>清零 kernel：每轮多 1 次 kernel 启动</code> / <code>作为双账本的对照基线</code> 与 <code>奇偶双账本：0 个额外 kernel 启动</code> / <code>后台 warp 清零 1,024 个字</code>）。</li>
-<li><strong>反量化指令精简与 SwiGLU 尾声线性缩放折叠</strong>：在主循环内，<code>m4b</code> 调用第 5 章第 1 节与第 6 章第 3–4 节的寄存器解码套件——将左移改写为走 FMA 管线的 <code>IMAD.SHL</code>（6 负载几何平均 <code>1.0271×</code>）、用 <code>__byte_perm</code> 成对解码缩放（<code>SCDP</code> 省 <code>1.04–2.40 µs</code>）、将常数 <code>0x60006000</code> 放进常量池配三输入 <code>LOP3</code>（<code>13 → 9</code> 条指令/16 字，省 <code>0.58–0.99 µs</code>）、以及预处理 GF(2) 异或重排实现 <strong>8 条整数指令解码 NVFP4</strong>（在 P2 组合包省 <code>0.55–2.94 µs</code>，在 P3 全算例几何平均提速 <code>0.58%</code>、<code>decode 32</code> 滑窗最高 <code>+1.01%</code>，在 P3 大批量核进一步启用 6 位无损缩放压缩省 <code>2.78%</code> 字节提速 <code>+0.38%–0.66%</code>）。而在子任务切换间隙（Phase A <code>1.26 µs</code> / Phase B <code>1.75 µs</code>，占全核 <code>6.1%</code>），时间戳与微扰删除实验证实：<strong>限制 Phase-A 尾声的是 SMSP 发射槽（<code>932</code> 周期发射 &gt; <code>768</code> 周期 MUFU），而非第 0 槽数据等待或 SFU 吞吐</strong>！<code>m4b</code> 利用 <code>SwiGLU(g, u) = silu(g) * u</code> 对上投影 <code>u</code> 的线性齐次性，将反量化缩放系数 <code>sc62</code> 折入指数参数 <code>arg = dg * (-sc62 * log2e)</code> 与分母 <code>FFMA(e, k, k)</code>（配合 <code>ld.shared.v4</code> 向量读作业描述符），把每元素尾声指令从 <code>9</code> 条压到 <strong><code>7</code> 条</strong>，在 <code>verify 16 / 32</code> 上实测省下 <strong><code>0.54 µs</code> 与 <code>0.60 µs</code></strong>（进一步将 <code>silu</code> 改写为 <code>0.5 * g * (1 + tanh(0.5 * g)) * u</code> 消掉 <code>80</code> 条指令、用 <code>ex2.approx.ftz</code> 省去 <code>-126</code> 下溢补救分支减 <code>48</code> 条指令/线程省 <code>0.28 / 0.48 µs</code>，以及把分块切分运行期除法改为编译期常数除数省 <code>88–96</code> 条指令）。</li>
+<li><strong>反量化指令精简与 SwiGLU 尾声线性缩放折叠</strong>：在主循环内，<code>m4b</code> 调用第 5 章第 1 节与第 6 章第 3–4 节的寄存器解码套件——将左移改写为走 FMA 管线的 <code>IMAD.SHL</code>（6 负载几何平均 <code>1.0271×</code>）、用 <code>__byte_perm</code> 成对解码块缩放（省 <code>1.04–2.40 µs</code>）、将常数 <code>0x60006000</code> 放进常量池配三输入 <code>LOP3</code>（<code>13 → 9</code> 条指令/16 字，省 <code>0.58–0.99 µs</code>）、以及预处理 GF(2) 异或重排实现 <strong>8 条整数指令解码 NVFP4</strong>（在 P2 组合包省 <code>0.55–2.94 µs</code>，在 P3 全算例几何平均提速 <code>0.58%</code>、<code>decode 32</code> 滑窗最高 <code>+1.01%</code>，在 P3 大批量核进一步启用 6 位无损缩放压缩省 <code>2.78%</code> 字节提速 <code>+0.38%–0.66%</code>）。而在子任务切换间隙（Phase A <code>1.26 µs</code> / Phase B <code>1.75 µs</code>，占全核 <code>6.1%</code>），时间戳与微扰删除实验证实：<strong>限制 Phase-A 尾声的是 SMSP 发射槽（<code>932</code> 周期发射 &gt; <code>768</code> 周期 MUFU），而非第 0 槽数据等待或 SFU 吞吐</strong>！<code>m4b</code> 利用 <code>SwiGLU(g, u) = silu(g) * u</code> 对上投影 <code>u</code> 的线性齐次性，将反量化缩放系数 <code>sc62</code> 折入指数参数 <code>arg = dg * (-sc62 * log2e)</code> 与分母 <code>FFMA(e, k, k)</code>（配合 <code>ld.shared.v4</code> 向量读作业描述符），把每元素尾声指令从 <code>9</code> 条压到 <strong><code>7</code> 条</strong>，在 <code>verify 16 / 32</code> 上实测省下 <strong><code>0.54 µs</code> 与 <code>0.60 µs</code></strong>（进一步将 <code>silu</code> 改写为 <code>0.5 * g * (1 + tanh(0.5 * g)) * u</code> 消掉 <code>80</code> 条指令、用 <code>ex2.approx.ftz</code> 省去 <code>-126</code> 下溢补救分支减 <code>48</code> 条指令/线程省 <code>0.28 / 0.48 µs</code>，以及把分块切分运行期除法改为编译期常数除数省 <code>88–96</code> 条指令）。</li>
 </ol>
 </li>
 <li>
@@ -2107,7 +2211,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <td>若退回 512 线程逐线程 <code>red.release</code>，L2 原子排队立即暴涨 <strong><code>+93.3 µs</code></strong>；W 环修复待决 <code>LDS</code> 竞态需付 <strong><code>+0.4..+1.6 µs</code>（P3 <code>-0.55%</code>）</strong> 真实代价（见第 3 章第 4 节）</td>
 </tr>
 <tr>
-<td><strong>延迟 <code>doneA</code> 至下一活 <code>wg_wait&lt;0&gt;</code> 后刷新（<code>wglate</code>）</strong></td>
+<td><strong>延迟 <code>doneA</code> 至下一活 <code>wg_wait&lt;0&gt;</code> 后刷新</strong></td>
 <td><code>verify 32</code>（<code>M = 256</code>）</td>
 <td>刷新不再卡停当前/下一活 <code>wgmma</code> 管线，首测省 <strong><code>20.50 µs</code></strong>、复测确认省 <strong><code>29.92 µs</code></strong> <code>[-31.5, -28.7]</code>（P2 最大单项收益；双指令蛇形初版省 <code>18.32 µs</code>）</td>
 <td><code>doneA</code> 可见时间推迟 1 个 <code>wgmma</code> 组</td>
@@ -2116,7 +2220,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <tr>
 <td><strong><code>fence.proxy.async</code> 轻量释放与去冗余 GPU 栅栏</strong></td>
 <td><code>verify 16 / 32</code>（P2/P3 <code>M = 128 / 256</code>）及 <code>prefill T = 753 / &gt;1,024</code></td>
-<td><code>x</code>-gather 用 <code>fence.proxy.async</code> + 单次 <code>red.release</code> 省 <strong><code>0.52 / 0.70 µs</code></strong>（<code>bs 300</code> 省 <code>1.05 µs</code>）；P3 去每线程 GPU 栅栏（<code>MEMBAR 68→40</code>）提速 <strong><code>+0.30%–0.86%</code></strong>；P5 <code>T=753</code> 后置 proxy fence + 4 槽环省 <code>8.3 µs</code>（<strong><code>+1.37%</code></strong>），<code>T&gt;1,024</code> 每步单屏障提速 <strong><code>+1.48%–1.70%</code></strong>（配 <code>FULL</code> 屏障合并包 <code>+0.63%</code>）</td>
+<td><code>x</code>-gather 用 <code>fence.proxy.async</code> + 单次 <code>red.release</code> 省 <strong><code>0.52 / 0.70 µs</code></strong>（<code>M = 300</code> 省 <code>1.05 µs</code>）；P3 去每线程 GPU 栅栏（<code>MEMBAR 68→40</code>）提速 <strong><code>+0.30%–0.86%</code></strong>；P5 <code>T=753</code> 后置 proxy fence + 4 槽环省 <code>8.3 µs</code>（<strong><code>+1.37%</code></strong>），<code>T&gt;1,024</code> 每步单屏障提速 <strong><code>+1.48%–1.70%</code></strong>（配 <code>FULL</code> 屏障合并包 <code>+0.63%</code>）</td>
 <td>依赖 <code>red.release.gpu</code> 的跨线程累积可见性</td>
 <td>在 <code>prefill T = 753</code> 将 <code>fence_async</code> 与 TMA 选举强提至 K 步最前，实测反慢 <strong><code>-0.150% / -0.319%</code></strong></td>
 </tr>
@@ -2153,7 +2257,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <li>
 <p><strong>机制与解剖</strong>：</p>
 <ol>
-<li><strong>只含本卡 32 专家的紧凑分桶表、跳过非本地槽（<code>pn6</code>）与 <code>a_cap</code> 网格上限（砍掉 77% 空退出 CTA）</strong>：
+<li><strong>只含本卡 32 专家的紧凑分桶表、跳过非本地槽与 <code>a_cap</code> 网格上限（砍掉 77% 空退出 CTA）</strong>：
 <ul>
 <li>在小批量下，后归一化核直接跳过非本地专家槽位（将中间平面 <code>y</code> 缩至 <code>本地命中对数 × 8,192 B</code>，即从 <code>M = 1</code> 的 <code>25 KB</code> 到 <code>M = 256</code> 的 <code>2.6 MB</code>，后归一化尾耗时仅 <code>1.94–3.31 µs</code>，占全核 <code>0.89%–2.32%</code>）。到了预填充下，专用路由对齐核直接输出<strong>只包含本卡 32 个本地专家（<code>0..31</code>）分块的紧凑重排表 <code>sorted</code> 与 <code>block_experts</code></strong>（彻底剔除 <code>-1</code> 非本地空块，并使用预分配的 CUDA Graph 安全工作区），紧接着启用第 1 节的 <strong>RAG 尾块裁剪</strong>（<code>T = 753 / 3,012 / 16,384</code> 提速 <code>+4.94% / +4.32% / +0.99%</code>）与第 3 节的 <strong>LPT 满块优先映射</strong>（<code>T = 753</code> 提速 <code>+1.33%</code>）。</li>
 <li><strong><code>a_cap</code> 网格上限</strong>：在 <code>T = 16,384</code> 下，若按最坏情况（所有词元的 8 条路由全落本卡，加 32 个专家的填充块）启动 <code>1,056</code> 个 <code>BM = 128</code> 分块 CTA，实测多达 <strong><code>77%</code></strong> 的 CTA 一进场发现无有效分块就空转退出！<code>m5</code> 将 <code>T &gt; 3,012</code> 的 <code>gemm1</code> 与 <code>gemm2</code> 主网格截断在 <code>a_cap = ⌈(2T + 32 × 127) / 128⌉</code>（<code>T = 16,384</code> 时为 <strong><code>288</code></strong> 个分块），另派每 SM 1 个持久溢出兜底 CTA（共 132 个，无溢出块时固定仅耗 <code>1.25 µs</code>）。这把 <code>T = 16,384</code> 的 <code>gemm1</code> 从 <code>2,905 µs</code> 压到 <strong><code>2,831 µs</code></strong>、<code>gemm2</code> 从 <code>1,406 µs</code> 压到 <strong><code>1,376 µs</code></strong>，首轮整层直接提速 <strong><code>+1.07%</code></strong>。</li>
@@ -2161,8 +2265,8 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </li>
 <li><strong>过渡区（<code>T ≤ 1,024</code>）vs 纯算力区（<code>T &gt; 1,024</code>）的双轨主循环与 <code>gemm2</code> 非持久网格恢复</strong>：
 <ul>
-<li>在 <strong><code>T = 753</code>（过渡区）</strong>：汇聚第 1–6 章机制，采用第 1 节的 <code>BM = 64</code> 消费者 TMA 权重环（<code>+3.87%</code>）、第 1 章第 1 节的单核票据融合 <code>gemm1 + SwiGLU + gemm2</code> 网格（省去核间启动空隙，合入旋转寄存器包几何平均提速 <code>+2.94%</code>）、第 5 章第 4 节的每权重字 1 组 <code>wgmma</code> 配 <code>wait_group&lt;1&gt;</code>（MMA 等待从 <code>36.8%</code> 降至 <code>17.8%</code>，提速 <code>+1.04%–1.40%</code>）、第 4 节的后置 <code>fence.proxy.async</code> + 4 槽环（<code>+1.37%</code>）、第 2 节的顶部 8 字节 <code>LDG</code> 读 <code>UE4M3</code> 缩放码（<code>+0.384%</code>）、第 5 章第 1 节的 <code>IMAD.SHL</code> 分流左移（ALU 占用 <code>55.6% → 48.9%</code>，<code>+1.02%</code>）、第 6 章第 3 节的异或重排解码（<code>13 → 12</code> 条指令，<code>+0.20%</code>）以及第 6 章第 1 节的 1:1 CUDA C++ 移植配循环携带槽计数器（每步指令 <code>341 → 328</code> 条，<code>idx 0</code> 从 <code>288.5</code> 压至 <code>281.75 µs</code>）。</li>
-<li>在 <strong><code>T = 3,012 / 16,384</code>（纯算力区）的 <code>gemm1</code> 与 <code>gemm2</code></strong>：因为 Hopper 的硬件 TMA 不支持按索引表 <code>sorted</code>（<code>pair // 8</code>）离散收集激活行（见第 3 章第 3 节），<code>BM = 128</code> 的 <code>gemm1</code> 划出 <strong>4 个专职收集 warp（40 寄存器）用 <code>cp.async</code> 收集离散激活行 <code>x</code>，同时用 TMA 搬运连续权重装填 3 套环形缓冲</strong>（把 <code>cp.async</code> 与代理栅栏移出消费者循环，在 <code>T = 3,012 / 16,384</code> 上提速 <strong><code>+1.21% / +2.03%</code></strong>，配每步单次 CTA 屏障再提速 <code>+1.48% / +1.70%</code>、4 套旋转寄存器 <code>wait_group&lt;2&gt;</code> 保持 2 组 <code>wgmma</code> 在途使首轮提速 <code>+4.98%</code>）。进一步将 <code>gemm1</code> 设为持久网格（<code>G = min(2 × SMs, A_CAP × 64)</code>），加入<strong>块完成 <code>mbarrier</code>（tile-done mbarrier）让收集 warp 在消费者执行当前分块 SwiGLU 尾声与 <code>STSM</code> 写出时提前预取下一分块的激活</strong>（<code>idx 2</code> 从 <code>942.75</code> 降至 <strong><code>916.75 µs</code></strong>，提速 <code>+0.71%–1.0%</code>）。而在下投影 <code>gemm2</code> 上，每个满块同样采用 <strong>1 个 TMA 生产者 warp + 4 个消费者 warp 的 2 槽 <code>mbarrier</code> 环线程束分工</strong>（<code>maxnreg 128</code>，消去主循环内的 <code>cp.async</code> 与步末等待，在 <code>T = 3,012 / 16,384</code> 上提速 <strong><code>+1.70% / +1.95%</code></strong>）。</li>
+<li>在 <strong><code>T = 753</code>（过渡区）</strong>：汇聚第 1–6 章机制，采用第 1 节的 <code>BM = 64</code> 消费者 TMA 权重环（<code>+3.87%</code>）、第 1 章第 1 节的单核票据融合 <code>gemm1 + SwiGLU + gemm2</code> 网格（省去核间启动空隙，合入旋转寄存器包几何平均提速 <code>+2.94%</code>）、第 5 章第 4 节的每权重字 1 组 <code>wgmma</code> 配 <code>wait_group&lt;1&gt;</code>（MMA 等待从 <code>36.8%</code> 降至 <code>17.8%</code>，提速 <code>+1.04%–1.40%</code>）、第 4 节的后置 <code>fence.proxy.async</code> + 4 槽环（<code>+1.37%</code>）、第 2 节的顶部 8 字节 <code>LDG</code> 读 <code>UE4M3</code> 缩放码（<code>+0.384%</code>）、第 5 章第 1 节的 <code>IMAD.SHL</code> 分流左移（ALU 占用 <code>55.6% → 48.9%</code>，<code>+1.02%</code>）、第 6 章第 3 节的异或重排解码（<code>13 → 12</code> 条指令，<code>+0.20%</code>）以及第 6 章第 1 节的 1:1 CUDA C++ 移植配循环携带槽计数器（每步指令 <code>341 → 328</code> 条，<code>T = 753</code> 滑窗从 <code>288.5</code> 压至 <code>281.75 µs</code>）。</li>
+<li>在 <strong><code>T = 3,012 / 16,384</code>（纯算力区）的 <code>gemm1</code> 与 <code>gemm2</code></strong>：因为 Hopper 的硬件 TMA 不支持按索引表 <code>sorted</code>（<code>pair // 8</code>）离散收集激活行（见第 3 章第 3 节），<code>BM = 128</code> 的 <code>gemm1</code> 划出 <strong>4 个专职收集 warp（40 寄存器）用 <code>cp.async</code> 收集离散激活行 <code>x</code>，同时用 TMA 搬运连续权重装填 3 套环形缓冲</strong>（把 <code>cp.async</code> 与代理栅栏移出消费者循环，在 <code>T = 3,012 / 16,384</code> 上提速 <strong><code>+1.21% / +2.03%</code></strong>，配每步单次 CTA 屏障再提速 <code>+1.48% / +1.70%</code>、4 套旋转寄存器 <code>wait_group&lt;2&gt;</code> 保持 2 组 <code>wgmma</code> 在途使首轮提速 <code>+4.98%</code>）。进一步将 <code>gemm1</code> 设为持久网格（<code>G = min(2 × SMs, A_CAP × 64)</code>），加入<strong>块完成 <code>mbarrier</code>（tile-done mbarrier）让收集 warp 在消费者执行当前分块 SwiGLU 尾声与 <code>STSM</code> 写出时提前预取下一分块的激活</strong>（<code>T = 3,012</code> 滑窗从 <code>942.75</code> 降至 <strong><code>916.75 µs</code></strong>，提速 <code>+0.71%–1.0%</code>）。而在下投影 <code>gemm2</code> 上，每个满块同样采用 <strong>1 个 TMA 生产者 warp + 4 个消费者 warp 的 2 槽 <code>mbarrier</code> 环线程束分工</strong>（<code>maxnreg 128</code>，消去主循环内的 <code>cp.async</code> 与步末等待，在 <code>T = 3,012 / 16,384</code> 上提速 <strong><code>+1.70% / +1.95%</code></strong>）。</li>
 <li><strong>为什么在 <code>T = 16,384</code> 的 <code>gemm2</code> 上，必须从 264-CTA 持久核退回 <code>9,216</code>-CTA 非持久网格？</strong> 此前曾将 <code>gemm2</code> 写成 <code>264</code> 个 CTA（<code>2 × 132</code>）的持久核，按固定步长（<code>idx += gridDim.x</code>）静态领分块；然而在 <code>T = 16,384</code> 下各专家分块完成时间与 RAG 长度不一，静态步长无法跨 SM 动态重平衡，导致 <code>gemm2</code> 核内 <strong>SM 空闲时间高达 <code>60.3 µs</code></strong>（SM 间有效周期极差达 <code>94.0 µs</code>，后继归一化核在 PDL 等待中空等 <code>117 µs</code>）！<code>m5</code> 果断恢复非持久的 <strong><code>9,216</code> 个 CTA 网格（<code>288 × 32</code>）</strong>，交由硬件块调度器把下一个分块动态派给最先空闲的 SM，一举将 <code>gemm2</code> 核内 SM 空闲时间从 <code>60.3 µs</code> 压到 <strong><code>18.6 µs</code></strong>（单核缩短 <code>25.8 µs</code>，配对几何平均 <code>1.0086×</code>）。</li>
 </ul>
 </li>
@@ -2188,36 +2292,36 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </thead>
 <tbody>
 <tr>
-<td><strong>紧凑 32 专家分桶表与后归一化跳过非本地槽（<code>pn6</code>）</strong></td>
+<td><strong>紧凑 32 专家分桶表与后归一化跳过非本地槽</strong></td>
 <td>全预填充 <code>T = 753..16,384</code> 及全解码/检验 <code>M = 1..256</code></td>
-<td>路由表只生成本地专家 <code>0..31</code> 的分块（零 <code>-1</code> 空块）；<code>pn6</code> 将 <code>y</code> 平面缩至 <code>25 KB..2.6 MB</code>（<code>pn</code> 尾仅 <code>1.94–3.31 µs</code>）</td>
+<td>路由表只生成本地专家 <code>0..31</code> 的分块（零 <code>-1</code> 空块）；跳过非本地槽将 <code>y</code> 平面缩至 <code>25 KB..2.6 MB</code>（<code>pn</code> 尾仅 <code>1.94–3.31 µs</code>）</td>
 <td>预分配图安全工作区；<code>pn</code> 仅占全核 <code>0.89%–2.32%</code>（Amdahl 上界封顶）</td>
 <td>无（纯省无效槽位与显存流量）</td>
 </tr>
 <tr>
 <td><strong>主网格上限 <code>a_cap</code> + 持久溢出兜底核</strong></td>
-<td><code>prefill T = 16,384</code>（<code>T &gt; 3,012</code>，<code>idx 4..7</code>）</td>
+<td><code>prefill T = 16,384</code>（<code>T &gt; 3,012</code> 首轮分块）</td>
 <td>砍掉 <code>1,056</code> 分块网格中 <strong><code>77%</code></strong> 的空退出 CTA（截断至 <code>a_cap = 288</code>），<code>gemm1</code> <code>2,905 → 2,831 µs</code>、<code>gemm2</code> <code>1,406 → 1,376 µs</code>，首轮整层提速 <strong><code>+1.07%</code></strong></td>
 <td>每次额外启动 1 个 132-CTA 持久溢出核（无溢出时固定耗 <strong><code>1.25 µs</code></strong>）</td>
 <td>在 <code>T ≤ 3,012</code> 下空块少，多出的 <code>1.25 µs</code> 溢出核启动不划算，故仅在 <code>T &gt; 3,012</code> 开启</td>
 </tr>
 <tr>
 <td><strong><code>BM128</code> 4-Warp <code>cp.async</code> 收集 + TMA 权重环 + 块完成 <code>mbarrier</code> 持久 <code>gemm1</code></strong></td>
-<td><code>prefill T = 3,012 / 16,384</code>（<code>T &gt; 1,024</code>，<code>idx 2..7</code>）</td>
-<td>4 收集 warp（40 寄存器）按 <code>pair // 8</code> 收集 <code>x</code>、TMA 填 3 环提速 <strong><code>+1.21% / +2.03%</code></strong>；加块完成 <code>mbarrier</code> 在尾声期预取下一块 + <code>STSM</code> 尾声使 <code>idx 2</code> 从 <code>942.75</code> 降至 <strong><code>916.75 µs</code></strong>（<code>turn 4</code> <code>+0.71%–0.93%</code>，首轮 <code>~+1.0%</code>）</td>
+<td><code>prefill T = 3,012 / 16,384</code>（<code>T &gt; 1,024</code> 滑窗与全长）</td>
+<td>4 收集 warp（40 寄存器）按 <code>pair // 8</code> 收集 <code>x</code>、TMA 填 3 环提速 <strong><code>+1.21% / +2.03%</code></strong>；加块完成 <code>mbarrier</code> 在尾声期预取下一块 + <code>STSM</code> 尾声使 <code>T = 3,012</code> 滑窗从 <code>942.75</code> 降至 <strong><code>916.75 µs</code></strong>（<code>T = 3,012</code> <code>+0.71%–0.93%</code>，首轮 <code>~+1.0%</code>）</td>
 <td>专职收集 warp 占 128 线程与额外 <code>mbarrier</code></td>
 <td>在 <code>T ≤ 1,024</code>（<code>T = 753</code>）下分块数少，不及 <code>BM = 64</code> 票据融合核；在 <code>T ≤ 3,012</code> 强做宽词元块核内 <code>xgather</code> 全线反慢（<code>T = 3,012</code> 跌至 <strong><code>0.8659×..0.9861×</code></strong>）</td>
 </tr>
 <tr>
 <td><strong><code>BM128 gemm2</code> 满块 1+4 Warp 分工与恢复 <code>9,216</code>-CTA 非持久网格</strong></td>
-<td><code>prefill T = 3,012 / 16,384</code>（<code>idx 2..7</code>）</td>
-<td><code>gemm2</code> 1 TMA 生产者 + 4 消费者 warp（2 槽环，<code>maxnreg 128</code>）提速 <strong><code>+1.70% / +1.95%</code></strong>；恢复 <code>9,216</code>-CTA（<code>288 × 32</code>）非持久网格交硬件动态调度，将 <code>idx 5</code> SM 空闲从 <code>60.3 µs</code> 压至 <strong><code>18.6 µs</code></strong>（单核省 <strong><code>25.8 µs</code></strong>，配对几何平均 <code>1.0086×</code>）</td>
+<td><code>prefill T = 3,012 / 16,384</code>（<code>T &gt; 1,024</code> 滑窗与全长）</td>
+<td><code>gemm2</code> 1 TMA 生产者 + 4 消费者 warp（2 槽环，<code>maxnreg 128</code>）提速 <strong><code>+1.70% / +1.95%</code></strong>；恢复 <code>9,216</code>-CTA（<code>288 × 32</code>）非持久网格交硬件动态调度，将 <code>T = 16,384</code> 滑窗 SM 空闲从 <code>60.3 µs</code> 压至 <strong><code>18.6 µs</code></strong>（单核省 <strong><code>25.8 µs</code></strong>，配对几何平均 <code>1.0086×</code>）</td>
 <td>非持久网格由硬件块调度器逐块派发</td>
 <td>若把 <code>T = 16,384</code> 的 <code>gemm2</code> 写成 <code>264</code>-CTA 静态步长持久核，各专家分块进度不一导致核内 SM 空闲暴涨至 <strong><code>60.3 µs</code></strong>（SM 极差 <code>94.0 µs</code>，后继 PDL 空等 <code>117 µs</code>）</td>
 </tr>
 <tr>
 <td><strong><code>gemm1</code> SwiGLU 尾声成对打包舍入 <code>F2FP</code></strong></td>
-<td><code>prefill T = 3,012 / 16,384</code>（<code>T &gt; 1,024</code>，<code>idx 2..7</code>）</td>
+<td><code>prefill T = 3,012 / 16,384</code>（<code>T &gt; 1,024</code> 滑窗与全长）</td>
 <td><code>cvt.rn.bf16x2.f32</code>（<code>F2FP</code> 走 ALU）替代标量 <code>F2F</code>（走 XU），<code>F2F</code> 从 <code>224</code> 降至 <strong><code>96</code> 条</strong>，XU 管线占用 <code>5.74% → 3.08%</code>，整层提速 <strong><code>+0.33%</code></strong>（10/10 全胜）</td>
 <td>需移位与按位与提取半字；尾声转为延迟受限</td>
 <td>移植到第 4 节的 P3 解码/检验专家核时，因尾声不在关键路径上实测为中性被拒</td>
@@ -2268,7 +2372,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <tr>
 <td><strong><code>m4a → m4b</code></strong>（第四代）</td>
 <td>区间 II/III 交界（<code>M = 128..256</code>）</td>
-<td><code>M20-WGS</code> 18-Warp 持久 <code>wgmma</code> + 33 字直方图 + LPT 原子领活 + <strong>按 Phase-A 秩逆序发 Phase-B</strong> + <strong>延迟 <code>doneA</code></strong> + <strong>独占 Warp 18 释放</strong> + 奇偶双账本 + 8 指令 <code>dq4</code> + SwiGLU 折叠</td>
+<td><code>M20-WGS</code> 18-Warp 持久 <code>wgmma</code> + 33 字直方图 + LPT 原子领活 + <strong>按 Phase-A 秩逆序发 Phase-B</strong> + <strong>延迟 <code>doneA</code></strong> + <strong>独占 Warp 18 释放</strong> + 奇偶双账本 + 8 指令异或反量化 + SwiGLU 折叠</td>
 <td>消除热门专家权重重读、削平 <code>52 µs</code> 同 CTA 重叠长尾、消除 <code>+93.3 µs</code> L2 原子风暴与消费者 <code>MEMBAR.ALL.GPU</code> 停顿</td>
 <td><code>verify 32</code> 从 <code>261.15</code> 压进 <strong><code>~238.6 µs</code></strong>（延迟 <code>doneA</code> 省 <code>29.92 µs</code>，按秩逆序提速 <code>+5.2%</code>，P2 终版几何平均 <strong><code>~6,033 µs</code></strong>，<strong><code>2.51×–2.55×</code></strong>）</td>
 </tr>
@@ -2286,7 +2390,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <p><strong>下一章要回答的问题：</strong> 当阶段 1（<code>qkv_gate</code>）、阶段 2（分页注意力 <code>a0 → a6</code>）与阶段 6（路由专家 <code>m0 → m5</code>）各自炼成极致内核之后，单层里剩余的特殊稠密投影（阶段 3 <code>o</code>、阶段 4 <code>router</code>、阶段 5 <code>pooler</code>、阶段 7 <code>unpooler</code>）有哪些独门机制，我们又该如何用跨阶段线性折入、旁路流与 11 核同流 PDL 把全部八个阶段焊成一条无缝的单层流水线？→ 进入 第 9 章 [Part II · 整层总装]：把阶段 1–8 焊成一条无缝单层流水线</p>
 </section><section id="ch09"><h1>第 9 章：把阶段 1–8 焊成一条无缝单层流水线——特殊稠密投影、跨阶段线性折入与全层 PDL / 旁路流编排</h1>
 <ul class="map"><li>第 0.0 章</li><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7 章 [阶段 2：分页注意力]</li><li>第 8 章 [阶段 6：路由专家]</li><li class="here">第 9 章：单层 1–8 阶段总装与特殊投影</li><li>第 10 章 [性能诊断法]</li></ul>
-<p>承接第 8 章末尾的问题（第二部分收官：单层总装）：第一部分打通了阶段 1（<code>qkv_gate</code>）从单请求 <code>gemv</code> 到多词 <code>qkv_gemm</code> 的双轨内核，第 7 章与第 8 章又分别走完了阶段 2（分页注意力 <code>a0 → a6</code>）与阶段 6（路由专家 <code>m0 → m5</code>）横跨三个 $T$ 物理区间的演化。当把视野拉回完整的一层模型时，剩余的阶段 4（<code>router</code>）、阶段 3（<code>o</code>）、阶段 5（<code>pooler</code>）与阶段 7（<code>unpooler</code>）各自有什么特殊契约，夹在算子之间的 4 处均方根归一化与 2 处门控残差怎样跨越内核边界，最终又如何把阶段 1–8 焊成一条从 <code>T = 1</code> 到 <code>T = 16,384</code> 的单层流水线（<code>l0 → l3</code>）？</p>
+<p>承接第 8 章末尾的问题（第二部分收官：单层总装）：前面八章已经分别打通了阶段 1（<code>qkv_gate</code>）、阶段 2（分页注意力 <code>a0 → a6</code>）与阶段 6（路由专家 <code>m0 → m5</code>）的核心内核。要把一整层模型真正跑起来，我们还得解决三个问题：剩下的阶段 4（<code>router</code>）、阶段 3（<code>o</code>）、阶段 5（<code>pooler</code>）与阶段 7（<code>unpooler</code>）有什么特殊之处？夹在算子之间的 4 处均方根归一化与 2 处门控残差怎么消掉显存往返？最后，怎样把全部八个阶段焊成一条从 <code>T = 1</code> 到 <code>T = 16,384</code> 的单层流水线（<code>l0 → l3</code>）？</p>
 <hr />
 <h2>1. 阶段 4（<code>router</code> 单精度投影与 Top-8 选择）：怎样在 BF16 Tensor Core 上保住 FP32 精度并把单波次与尾步压到极致？（<code>l0</code>）</h2>
 <p>数据流穿过阶段 3 的第一道残差边界后，预归一化激活 <code>h</code> 一分为二，其中一条支路进入阶段 4 的路由器（<code>router</code>）与 Top-8 专家挑选。它是全层五个稠密投影里唯一强制使用 32 位单精度（<code>FP32</code>）权重的阶段，因为微小的路由打分舍入误差就会翻转第 8 名与第 9 名专家的排序，直接改变阶段 6 激活哪几个专家。</p>
@@ -2301,15 +2405,15 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <ul>
 <li>矩阵乘路径：从 <code>T = 1</code> 的 8-warp 流式核，到 <code>T ≥ 8</code> 的 <code>hi + lo</code> BF16 残差对与 <code>T = 3,012</code> 的 <code>BT = 192</code> 单波次分块。
 <ol>
-<li>在区间 I（<code>T = 1</code> 单请求解码）下，算术强度仅 <code>0.5 FLOP/B</code>，直接将稠密投影族打磨好的 8-warp 单精度向量乘内核移植进整层流水线，替代通用基线内核，使单请求滑窗与全长解码整层实测分别提速 <strong>1.22% 与 1.01%</strong>（全项合入臂比单项臂多省约 <code>2.6 µs</code>）。</li>
-<li>进入区间 II 与区间 III（<code>T ≥ 8</code>）后，若因为 <code>W_router</code> 是 FP32 就留在 CUDA Core 或走低吞吐的 <code>TF32</code> 管线，矩阵乘立刻成为瓶颈。因为任意单精度权重都能拆成高、低两份 BF16 残差对 <code>W_fp32 ≈ W_hi + W_lo</code>（机制见第 5 章第 3 节），阶段 4 在预处理期将 <code>[256, 8192]</code> 的 FP32 权重拆成两份 BF16：在 <code>T = 8..256</code> 下每步 <code>K</code> 在 BF16 Tensor Core 上发 2 次 MMA 累加进同一个 FP32 累加器（单核启动省去 cuBLAS 拆分加归约核，在 <code>T = 128 / 256</code> 上将路由器核耗时从 <code>8.15 / 11.21 µs</code> 压到 <code>7.32 / 9.23 µs</code>）；在预填充下则直接堆叠为 <code>[512, 8192]</code> 的 BF16 矩阵一次算完，再在片上把高、低两半相加并融合 <code>sigmoid</code>、Top-8 与本地专家映射。</li>
-<li>当批量升至 <code>T = 3,012</code>（4 请求多轮追加预填充）时，输出专家维只有 <code>256</code> 行，阶段 4 先用交换左右矩阵（Swap-AB，把窄的专家维放上 <code>wgmma</code> 的 <code>M = 64</code> 维、把词元维放上 <code>N = 192</code> 维，机制见第 5 章第 3 节）配合 5 槽环将耗时从 <code>60.5 µs</code> 压到 <code>37.6 µs</code>。但此时按 <code>BT = 128</code> 切词元维会产生 <code>(4, 24, 2) = 192</code> 个 Split-K CTA，在 132 个 SM 上拖出半个第 2 波次。将词元分块扩至 <strong><code>BT = 192</code></strong> 后，网格缩为 <code>(4, 16, 2) =</code> <strong>128 个 CTA</strong>，恰好 1 个整波次装进 132 个 SM，消除了第 2 波次尾，在 <code>T = 3,012</code> 滑窗层上单此一项实测再省 <strong>15.0 µs</strong>（整层提速 <code>0.79%</code>，全长层提速 <code>0.44%</code>）。其代价是 5 槽 <code>192 × 128</code> 环形缓冲每 CTA 占用 <code>204,896 B</code>（约 <code>200 KiB</code>）共享内存，使每 SM 严格限驻 1 个 CTA。</li>
+<li>在区间 I（<code>T = 1</code> 单请求解码）下，算术强度只有 <code>0.5 FLOP/B</code>。我们直接把针对 <code>T = 1</code> 打磨的 8-warp 单精度向量乘内核移植进整层，替换通用基线，使单请求滑窗与全长解码整层分别提速 <strong>1.22% 与 1.01%</strong>（全项合入比单项测试多省约 <code>2.6 µs</code>）。</li>
+<li>一旦进入区间 II 与区间 III（<code>T ≥ 8</code>），如果因为权重是 FP32 就留在 CUDA Core 上算，矩阵乘立刻就会掉队。第 5 章第 3 节讲过，任意 FP32 权重都能无损拆成高、低两份 BF16 残差对 <code>W_fp32 ≈ W_hi + W_lo</code>。在 <code>T = 8..256</code> 下，每步 <code>K</code> 在 BF16 Tensor Core 上发 2 次 MMA 并累加进同一个 FP32 累加器，一次启动就省掉了 cuBLAS 的拆分与归约核，把 <code>T = 128 / 256</code> 的路由器耗时从 <code>8.15 / 11.21 µs</code> 压到 <code>7.32 / 9.23 µs</code>。在预填充下，高、低两份权重直接堆叠成 <code>[512, 8192]</code> 的 BF16 矩阵一次算完，随后在片上相加并顺手完成 <code>sigmoid</code>、Top-8 与本地专家映射。</li>
+<li>到了 <code>T = 3,012</code>（4 请求多轮预填充），输出专家维只有 <code>256</code> 行。阶段 4 先用交换左右矩阵（Swap-AB，把专家维放到 <code>wgmma</code> 的 <code>M = 64</code> 维、词元维放到 <code>N = 192</code> 维，见第 5 章第 3 节）配合 5 槽环，将耗时从 <code>60.5 µs</code> 压到 <code>37.6 µs</code>。但这时若按 <code>BT = 128</code> 切分词元维，会产生 <code>(4, 24, 2) = 192</code> 个 Split-K CTA，在 132 个 SM 上拖出半个第 2 波次。把词元分块扩到 <strong><code>BT = 192</code></strong> 后，网格缩减为 <code>(4, 16, 2) =</code> <strong>128 个 CTA</strong>，刚好一个波次塞进 132 个 SM，在 <code>T = 3,012</code> 滑窗层上再省 <strong>15.0 µs</strong>（整层提速 <code>0.79%</code>，全长层提速 <code>0.44%</code>）。代价是 5 槽 <code>192 × 128</code> 环形缓冲占了 <code>204,896 B</code>（约 <code>200 KiB</code>）共享内存，每个 SM 只能驻留 1 个 CTA。</li>
 </ol>
 </li>
 <li>Split-K 归约尾与 Top-8 选择的选定路径（回指第一部分硬件机制）。
 <ul>
-<li>在 <code>T = 8..256</code> 的路由器 Split-K 归约尾中，为砍掉最后到达者 <code>1.05–1.15 µs</code> 的重型同步与拷贝尾，选定“清零 CTA + 单调递增标志”方案（在 <code>T = 8 / 16 / 32</code> 上分别省下 <code>0.88 / 1.07 / 0.98 µs</code>，机制见第 2 章第 4 节）；在 <code>T = 128 / 256</code> 下因为每个 TMA CTA 占 <code>196,640 B</code> SMEM（每 SM 限驻 1 个 CTA），负责清零的 4 个 CTA 必须排在最靠前的 <code>program_id 0..3</code> 以免后发自旋 CTA 饿死死锁（省下 <code>1.22 / 1.72 µs</code>，机制见第 2 章第 2 节）；在 <code>T = 16 / 32</code> 下进一步把块线程数从 128 扩为 160，由第 5 个专职辅助 warp 在等数据期间并行取票并轮询标志、同时剥掉 20 条零字节死预取（省下 <code>0.57 / 0.50 µs</code>，而让 0 号消费者线程自己轮询会排在 40 条在途拷贝后面反慢 <code>+0.32 µs</code>，机制见第 4 章第 2 节）。</li>
-<li>紧随其后的 Top-8 选择全面淘汰了需要共享内存与块内屏障的多轮洗牌：在解码与投机检验全范围（<code>T = 1..256</code>）统一选定每词元 1 个 warp、每轮 2 条硬件归约指令 <code>redux.sync</code> 的寄存器内方案（warp 指令减少 <code>61%</code>，LSU 管线占用从 <code>12.8%</code> 降至 <code>0.6%</code>，在 <code>T = 1</code> 滑窗/全长整层提速 <code>1.29% / 2.81%</code>，在 <code>T = 256</code> 将 Top-8 核从 <code>4.96 µs</code> 压至 <code>3.65 µs</code>，机制见第 4 章第 4 节）；在预填充（<code>T = 3,012 / 16,384</code>）下则选定每行 8 个线程的无共享内存单 warp 归约（将 Top-8 耗时从 <code>35.5 / 44.0 µs</code> 压至 <code>22.0 / 23.6 µs</code>，整层提速 <code>0.36%–0.56%</code>，机制见第 4 章第 2 节）。</li>
+<li>在 <code>T = 8..256</code> 的路由器 Split-K 归约尾中，最后到达者的同步与拷贝尾原本要花 <code>1.05–1.15 µs</code>。我们选定第 2 章第 4 节的“清零 CTA + 单调递增标志”方案，在 <code>T = 8 / 16 / 32</code> 上分别省下 <code>0.88 / 1.07 / 0.98 µs</code>。到了 <code>T = 128 / 256</code>，每个 TMA CTA 占 <code>196,640 B</code> SMEM（每 SM 限驻 1 个 CTA），负责清零的 4 个 CTA 必须排在最靠前的 <code>program_id 0..3</code> 才不会死锁，实测省下 <code>1.22 / 1.72 µs</code>（见第 2 章第 2 节）。而在 <code>T = 16 / 32</code> 下，把块线程数从 128 扩为 160，由第 5 个辅助 warp 在等数据期间并行取票、轮询标志并剥掉 20 条零字节死预取，又能再省 <code>0.57 / 0.50 µs</code>（若让 0 号消费者线程自己轮询，反而会排在 40 条在途拷贝后面变慢 <code>+0.32 µs</code>，见第 4 章第 2 节）。</li>
+<li>紧随其后的 Top-8 选择彻底告别了共享内存与块内屏障。在解码与检验全范围（<code>T = 1..256</code>），每个词元由 1 个 warp 负责，每轮用 2 条 <code>redux.sync</code> 指令在寄存器内直接选出最大专家：warp 指令减少 <code>61%</code>，LSU 占用从 <code>12.8%</code> 降到 <code>0.6%</code>，使 <code>T = 1</code> 滑窗/全长整层提速 <code>1.29% / 2.81%</code>，并将 <code>T = 256</code> 的 Top-8 核从 <code>4.96 µs</code> 压到 <code>3.65 µs</code>（见第 4 章第 4 节）。在预填充（<code>T = 3,012 / 16,384</code>）下，则改用每行 8 个线程的单 warp 归约，将 Top-8 耗时从 <code>35.5 / 44.0 µs</code> 压到 <code>22.0 / 23.6 µs</code>（整层提速 <code>0.36%–0.56%</code>，见第 4 章第 2 节）。</li>
 </ul>
 </li>
 </ul>
@@ -2390,12 +2494,12 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </li>
 <li>区间 I 与区间 II（<code>T = 1..32</code>）的选定路径与 C12 逃逸回退梯：
 <ul>
-<li>在 <code>T = 8</code> 下，切片后的 <code>unpooler</code> 只有 <code>1,024</code> 行输出，基线 <code>64</code> 个 CTA（<code>16 × 1 × 4</code>）连 132 个 SM 的一半都填不满。整层方案将其换为 <code>128</code> 个 CTA 的 8 路 Split-K 12 位无损 C12 切片核（权重从 <code>8.4 MB</code> 压至 <code>6.3 MB</code>，由层尾边界核顺带归约 8 份单精度部分和，机制见第 2 章第 1 节与第 6 章第 4 节），使单请求滑窗与全长检验整层分别提速 <strong>1.29% 与 1.42%</strong>（<code>109.0 → 106.8 µs</code>、<code>119.0 → 118.0 µs</code>）。同理，在 <code>T = 8 / 16</code> 的 <code>qkv_gate</code> 上启用 3 路 Split-K 的 <code>108</code>-CTA 单波次 C12 内核（提速 <code>+0.65%..+1.58%</code>，见第 2 章第 1 节），在 <code>T = 1..32</code> 的 <code>pooler / unpooler</code> 上配合 C12 带宽布局与 L2 留存提示（7 格提速 <code>+0.21%..+1.45%</code>，<code>T = 8</code> <code>pooler</code> 关闭提示，全长 32 请求检验微退 <code>-0.16%</code>，见第 3 章第 2 节）、每 8 权重 9 条 ALU 解码（见第 6 章第 3 节）以及在最后一步 <code>K</code> 循环提前拼好逃逸修正操作数使 16 条 <code>wgmma</code> 共享单次提交与等待（省 <code>0.18–1.23 µs</code>，代价是寄存器从 <code>92–122</code> 涨至 <code>164–168</code> 并在 <code>unpooler</code> <code>T = 32</code> 上溢出 <code>8 B</code>，见第 3 章第 3 节）。</li>
+<li>在 <code>T = 8</code> 下，切片后的 <code>unpooler</code> 只有 <code>1,024</code> 行输出，基线只发 <code>64</code> 个 CTA（<code>16 × 1 × 4</code>），连 132 个 SM 的一半都填不满。整层方案把它换成 <code>128</code> 个 CTA 的 8 路 Split-K 12 位无损 C12 切片核（权重从 <code>8.4 MB</code> 压到 <code>6.3 MB</code>，8 份单精度部分和由层尾边界核顺手归约，见第 2 章第 1 节与第 6 章第 4 节），使单请求滑窗与全长检验整层分别提速 <strong>1.29% 与 1.42%</strong>（<code>109.0 → 106.8 µs</code>、<code>119.0 → 118.0 µs</code>）。同理，<code>T = 8 / 16</code> 的 <code>qkv_gate</code> 采用 3 路 Split-K 的 <code>108</code>-CTA 单波次 C12 核（提速 <code>+0.65%..+1.58%</code>，见第 2 章第 1 节）。在 <code>T = 1..32</code> 的 <code>pooler / unpooler</code> 上，则组合了三项第一部分机制：一是 C12 带宽布局配 L2 留存提示（7 个算例提速 <code>+0.21%..+1.45%</code>，<code>T = 8</code> <code>pooler</code> 关闭提示，32 请求全长检验微退 <code>-0.16%</code>，见第 3 章第 2 节）；二是每 8 个权重 9 条 ALU 指令解码（见第 6 章第 3 节）；三是在最后一步 <code>K</code> 循环提前拼好逃逸修正操作数，让 16 条 <code>wgmma</code> 共享一次提交与等待（省下 <code>0.18–1.23 µs</code>，代价是寄存器从 <code>92–122</code> 涨到 <code>164–168</code> 并在 <code>unpooler</code> <code>T = 32</code> 上溢出 <code>8 B</code>，见第 3 章第 3 节）。</li>
 <li>判官随机权重下的 C12 逃逸爆表与回退梯反例：为什么本地自测全过的 C12 打包到了评测器上会触发慢速回退？因为早期描述符将每步逃逸权重上限设为 <code>4</code>（仅按本地种子 <code>0..3</code> 标定），而判官用独立随机种子生成权重时，在 64 个随机种子中有 <code>6</code> 个 <code>qkv_gate</code>、<code>14</code> 个 <code>pooler</code> 与 <code>2</code> 个 <code>unpooler</code> 种子超出上限 4 返回空包！若直接回退到稠密 BF16，<code>qkv_gate</code> <code>T = 32</code> 耗时将从 <code>15.3 µs</code> 暴涨至 <code>37.2–39.6 µs</code>。修复方案是先按大样本普查将描述符逃逸上限从 <code>4</code> 扩至 <strong><code>8</code> 字/warp</strong>，再为超限空包建立多级回退梯（<code>qkv_gate</code> <code>T = 32</code> 回退至 <code>15.30–15.39 µs</code> 的流式核，预处理函数保留稠密 BF16 兜底路径而绝不抛异常）。这一合规修复保住了 100% 种子通过率，但付出了在正常种子上每步多扫一倍逃逸槽的真实代价，使 <code>unpooler</code> <code>T = 128</code> 与 <code>T = 256</code> 的短记分牌停顿增加 <code>45%</code>、耗时分别变慢 <strong><code>+0.32..+0.60 µs</code> 与 <code>+0.28 µs</code></strong>。</li>
 </ul>
 </li>
 </ul>
-<p>在图 9-2 中依次切换 <code>T = 1</code>、<code>T = 753</code>、<code>T = 3,012</code> 与 <code>T = 16,384</code> 四档负载，读数依次为：<code>T = 1：七个阶段强度 0.5–16 FLOP/B，都低于平衡点 206</code> / <code>赛题整层下界 44.2 µs（全长层）= 读 HBM 的时间</code>、<code>T = 753：每个专家平均 24 个词元（&lt; 58）· 稠密投影强度 147–590 FLOP/B</code> / <code>赛题整层下界 496.7 µs（全长层）= 按算力算，专家阶段还没到算力区</code>、<code>T = 3,012：每个专家平均 94 个词元（&gt; 58）· 稠密投影强度 208–1,432 FLOP/B</code> / <code>赛题整层下界 1,992.4 µs（全长层）= 按算力算</code>、以及 <code>T = 16,384：每个专家平均 512 个词元（&gt; 58）· 稠密投影强度 234–2,341 FLOP/B</code> / <code>赛题整层下界 9,847.7 µs（全长层）= 按算力算</code>。当四个 BF16 稠密投影在 <code>T ≥ 753</code> 全面跨入区间 III（算术强度 <code>412–2,341 FLOP/B</code>，总运算量从 <code>145 GFLOP</code> 升至 <code>3,161 GFLOP</code>）后，它们在早期预转置权重调库核基线（见本章第 1 节）之上，统一升级为每 SM 驻留 1 个持久 CTA 的线程束分工 <code>wgmma</code> 内核（比集群分块核快 <code>1.05–1.30 倍</code>，见第 3 章第 1 节；其中 <code>T = 753</code> 的 <code>pooler</code> 用 4 级 TMA 流水将单核从 <code>87.25 µs</code> 压至 <code>82.12 µs</code>，整层 <code>+0.89%</code>，见第 3 章第 4 节）。但持久网格按固定分块尺寸切分大矩阵时，最后一波残余分块无法被 132 整除，暴露出严重的尾波 SM 空闲，必须按 <code>T = 3,012</code> 与 <code>T = 16,384</code> 分别做尾波切平（推进至 <strong><code>l1</code></strong>）。</p>
+<p>在图 9-2 中依次切换 <code>T = 1</code>、<code>T = 753</code>、<code>T = 3,012</code> 与 <code>T = 16,384</code> 四档负载，读数依次为：<code>T = 1：七个阶段强度 0.5–16 FLOP/B，都低于平衡点 206</code> / <code>赛题整层下界 44.2 µs（全长层）= 读 HBM 的时间</code>、<code>T = 753：每个专家平均 24 个词元（&lt; 58）· 稠密投影强度 147–590 FLOP/B</code> / <code>赛题整层下界 496.7 µs（全长层）= 按算力算，专家阶段还没到算力区</code>、<code>T = 3,012：每个专家平均 94 个词元（&gt; 58）· 稠密投影强度 208–1,432 FLOP/B</code> / <code>赛题整层下界 1,992.4 µs（全长层）= 按算力算</code>、以及 <code>T = 16,384：每个专家平均 512 个词元（&gt; 58）· 稠密投影强度 234–2,341 FLOP/B</code> / <code>赛题整层下界 9,847.7 µs（全长层）= 按算力算</code>。到了 <code>T ≥ 753</code>，四个 BF16 稠密投影全部跨入区间 III（算术强度 <code>412–2,341 FLOP/B</code>，总运算量从 <code>145 GFLOP</code> 升至 <code>3,161 GFLOP</code>）。它们从早期的预转置库核基线（见本章第 1 节）统一升级为每 SM 驻留 1 个持久 CTA 的线程束分工 <code>wgmma</code> 内核，单核比旧集群分块核快 <code>1.05–1.30 倍</code>（见第 3 章第 1 节；其中 <code>T = 753</code> 的 <code>pooler</code> 采用 4 级 TMA 流水把耗时从 <code>87.25 µs</code> 压到 <code>82.12 µs</code>，整层提速 <code>+0.89%</code>，见第 3 章第 4 节）。不过，持久网格按固定尺寸切分大矩阵时，最后一波的分块数往往不能被 132 整除。为了不让几十个 SM 在尾波空转，我们在 <code>T = 3,012</code> 与 <code>T = 16,384</code> 下分别加入了尾波切平策略（推进至 <strong><code>l1</code></strong>）。</p>
 <ul>
 <li><code>T = 3,012</code> 滑窗层 <code>qkv_gate</code> 的两段式 <code>K</code> 锁步尾波切分（图 9-2 第 8 步）：
 <ul>
@@ -2479,8 +2583,8 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 <li>公式与数据流：阶段 3 边界核读入 <code>a = o_attn @ W_o.T</code>（<code>[T, 8192]</code>，BF16）与入口残差流 <code>stream_0 [T, 8192]</code>（FP32，每词 <code>32 KiB</code>），按可学习门控 <code>beta_1 = sigmoid(g_1 / 0.3)</code>、<code>alpha_1 = sqrt(max(sigmoid(-g_1 / 0.3) * (1 + beta_1), 1e-3))</code> 算出更新后的残差流 <code>stream_1 = alpha_1 * stream_0 + beta_1 * rmsnorm(a, 1e-8)</code>（FP32，写回 HBM 留给阶段 8）与分叉激活 <code>h = rmsnorm(stream_1, 1e-5) * (1 + w_pre_ffn)</code>（BF16，每词 <code>16 KiB</code>）。阶段 8 边界核以完全对称的公式读入阶段 7 输出 <code>f [T, 8192]</code>（BF16）与 <code>stream_1</code>，算出 <code>stream_2 = alpha_2 * stream_1 + beta_2 * rmsnorm(f * (1 + w_post_ffn), 1e-8)</code>（FP32）与下一层入口 <code>x_next = rmsnorm(stream_2, 1e-5) * (1 + w_next_pre_attn)</code>（BF16），每词合计读写 <code>96 KiB</code>。</li>
 <li>选定硬件改造路径：
 <ol>
-<li>在解码与投机检验（<code>T = 1..256</code>）的集群边界归一化核中，将三次触发全卡 <code>MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR</code>（占未发射周期 <code>36%–46%</code>）的 <code>barrier.cluster.arrive.release</code> 替换为 <code>st.async</code> 加本地 <code>mbarrier</code> 交换部分平方和，每次调用省下 <strong>0.86–0.99 µs</strong>，整层几何平均提速 <strong>0.46%</strong>（机制见第 7 章第 6 节）；但必须为每次行归约分配独立的共享内存缓冲区（在 <code>T = 256</code> 边界核上多出 <code>8 B</code> 栈溢出），因为首版共用单个 <code>warp_part</code> 缓冲区在 <code>compute-sanitizer racecheck</code> 下触发了 8 处写后读（WAR）竞态（见第 3 章第 4 节）。</li>
-<li>在预填充（<code>T = 753..16,384</code>）下，首先将全部 6 个残差/归一化行内核与专家后归一化从 Triton 改写为原生 CUDA C++（消除编译器指令与寄存器开销，在首轮 <code>T = 16,384</code> 上提速 <code>+0.54%–0.73%</code>，在 <code>T = 3,012</code> 上微退 <code>-0.11%..-0.28%</code>，见第 6 章第 1 节）；接着按批量分档控制驻留与在途加载：在 <code>T ≤ 1,024</code> 下对流式激活行加载加 <code>evict_first</code>、对复用权重加 <code>evict_last</code>（见第 2 章第 3 节），在 <code>T &lt; 4,096</code> 用 16 个 warp、在 <code>T ≥ 4,096</code> 用 8 个 warp，并在 <code>T &gt; 1,024</code> 下将两处残差边界核的寄存器上限压至 <code>64</code> 个使每 SM 驻留从 3 个升至 4 个 CTA（配合路由 <code>CHUNK = 16,384</code> 提速 <code>+0.23% / +0.30%</code>，代价是在阶段 8 边界核产生 <code>8 B</code> 局部内存溢出，见第 3 章第 1 节）；而在 <code>1,024 &lt; T ≤ 3,012</code> 区间则将边界核扩为每行 <code>512</code> 个线程（每 SM 驻留 2 个 CTA），在第一次归约前把 <code>x</code> 与 <code>s_in</code> 的全部 16 字节 <code>LDG.128</code> 提前并发发出，掩盖长记分牌等待使 <code>T = 3,012</code> 整层再提速 <strong>0.20%</strong>（见第 4 章第 2 节）。</li>
+<li>在解码与投机检验（<code>T = 1..256</code>）的集群边界归一化核中，原本的三次 <code>barrier.cluster.arrive.release</code> 会编译出全卡 <code>MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR</code>（占未发射周期 <code>36%–46%</code>）。改用 <code>st.async</code> 加本地 <code>mbarrier</code> 交换部分平方和后，每次调用省下 <strong>0.86–0.99 µs</strong>，整层几何平均提速 <strong>0.46%</strong>（见第 7 章第 6 节）。需要注意的是，每次行归约必须分配独立的共享内存缓冲区（在 <code>T = 256</code> 边界核上多出 <code>8 B</code> 栈溢出），因为首版共用单个 <code>warp_part</code> 缓冲区在 <code>compute-sanitizer racecheck</code> 下抓出了 8 处写后读（WAR）竞态（见第 3 章第 4 节）。</li>
+<li>在预填充（<code>T = 753..16,384</code>）下，首先把全部 6 个残差/归一化行内核与专家后归一化从 Triton 改写为原生 CUDA C++，在首轮 <code>T = 16,384</code> 上提速 <code>+0.54%–0.73%</code>（在 <code>T = 3,012</code> 上微退 <code>-0.11%..-0.28%</code>，见第 6 章第 1 节）。接着按批量分档调优驻留与访存：在 <code>T ≤ 1,024</code> 下对流式激活行加 <code>evict_first</code>、对复用权重加 <code>evict_last</code>（见第 2 章第 3 节）；在 <code>T &lt; 4,096</code> 用 16 个 warp、在 <code>T ≥ 4,096</code> 用 8 个 warp；在 <code>T &gt; 1,024</code> 下把两处残差边界核压到 <code>64</code> 个寄存器，使每 SM 驻留从 3 个升至 4 个 CTA（配合路由 <code>CHUNK = 16,384</code> 提速 <code>+0.23% / +0.30%</code>，代价是在阶段 8 边界核产生 <code>8 B</code> 溢出，见第 3 章第 1 节）。而在 <code>1,024 &lt; T ≤ 3,012</code> 区间，则把边界核扩为每行 <code>512</code> 个线程（每 SM 驻留 2 个 CTA），在第一次归约前把 <code>x</code> 与 <code>s_in</code> 的全部 16 字节 <code>LDG.128</code> 一口气并发发出，掩盖长记分牌等待使 <code>T = 3,012</code> 整层再提速 <strong>0.20%</strong>（见第 4 章第 2 节）。</li>
 </ol>
 </li>
 </ul>
@@ -2669,7 +2773,7 @@ uint32_t hb = (rt &amp; 0x87878787u) + EXP_BASE; // 再经异或补丁与 prmt(l
 </tbody>
 </table>
 <hr />
-<p><strong>带走一句话：</strong> 单层阶段 1–8 的总装不是把所有阶段硬塞进一个持久大核（实测慢 <code>1.05 ms</code>、理论空隙上限仅 <code>0.05%–1.9%</code>），而是顺着每个阶段在当前 $T$ 区间的真实 SM 占用与代数性质做精准拼接——在阶段 4 用 <code>hi + lo</code> 残差对与 <code>BT = 192</code> 单波次保住 FP32 精度，在阶段 1/5/7 用两段 <code>K</code> 锁步与 Stream-K 抹平持久尾波，在阶段 5 → 6 用矩阵乘行线性性质白省一次启动与 <code>48.96 MB</code> 净流量，最后用主循环后触发的 11 核同流 PDL、空闲 SM 旁路流与专家抢跑把整层焊成无缝流水线。</p>
+<p><strong>带走一句话：</strong> 单层阶段 1–8 的总装绝不是把所有阶段硬塞进一个持久大核（实测反慢 <code>1.05 ms</code>，核间空隙上限仅 <code>0.05%–1.9%</code>），而是顺着各阶段在当前 $T$ 区间的 SM 余量与代数性质做拼接：阶段 4 用 <code>hi + lo</code> 残差对与 <code>BT = 192</code> 单波次保住 FP32 精度，阶段 1/5/7 用两段 <code>K</code> 锁步与 Stream-K 抹平持久尾波，阶段 5 → 6 利用矩阵乘行线性性质消掉独立归一化与 <code>48.96 MB</code> 净流量，最后用主循环后触发的 11 核同流 PDL、旁路流与空闲 SM 专家抢跑把整层焊成无缝流水线。</p>
 <p><strong>下一章要回答的问题：</strong> 完整走通了从第 0 级到第 5 级的硬件放大（第一部分）和单层八个阶段横跨三区间的总装实战（第二部分）之后，如果明天交给你一个全新的慢算子或新模型层，你该如何不靠猜、用一套抗噪测量协议、六级硬件计数器决策树与“保持代码大小不变”的微扰删除实验，在 10 分钟内锁定它的唯一真瓶颈？→ 进入 第 10 章（第三部分 性能诊断法）：给你一个慢 Kernel，怎样用六级计数器与微扰删除实验锁定真瓶颈？</p>
 </section><section id="appA"><h1>附录 A：从 Hopper（<code>H200 sm_90a</code>）到 Blackwell（<code>B200 sm_100a</code>）变了什么？</h1>
 <ul class="map"><li>前言</li><li>第 0.0 章</li><li>第 0 章</li><li>第 0.5 章</li><li>第 1–6 章 [第 0 级</li><li>第 5 级]</li><li>第 7–10 章</li><li class="here">附录 A：Hopper 到 Blackwell 跨代演进</li><li>附录 B</li></ul>

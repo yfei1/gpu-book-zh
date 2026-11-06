@@ -117,7 +117,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .f6 .lab2{font-size:11.5px;fill:var(--anatomy-text)}.f6 .tn{font-size:10.5px;fill:var(--anatomy-text)}
 .f6 .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}.f6 .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
 .f6 .ln{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:.6}.f6 .ar{fill:none;stroke-width:1.2;opacity:.8}
-.f6 .rr{fill:none;stroke:var(--anatomy-red);stroke-width:2}.f6 .rb{fill:var(--anatomy-red)}.f6 .rn{font-size:10.5px;font-weight:700;fill:#fff;text-anchor:middle}.f6 .cur{stroke:var(--anatomy-strong);stroke-width:1.3}.f6 .acc{fill:var(--anatomy-red)}
+.f6 .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}.f6 .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}.f6 .cur{stroke:var(--anatomy-strong);stroke-width:1.3}.f6 .acc{fill:var(--anatomy-red)}
 .f6 .on{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-hi:#111;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a}
 .f6 .nar{margin:14px 8px 8px;min-height:15em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.f6 .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
 .ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
@@ -182,8 +182,9 @@ function drawTree(lv,num){ let h="";
     h+='<text class="tn" x="'+(TX0-4)+'" y="'+(y+11)+'" text-anchor="end">SMEM</text>';
     if(lv>=2){ const n=Math.min(127,curI); const x=TX0+(n%32)*LW+LW/2, yy=y+Math.floor(n/32)*18+7; h+='<circle class="acc" cx="'+x+'" cy="'+(yy)+'" r="4"/>';
       h+='<text class="tn" x="'+TX0+'" y="'+(y+4*18+24)+'">红点：线程 0 正在加的那一个；已经加过的变淡。只有线程 0 在干活</text>'; } }
-  if(mode===2 && lv>=1){ const o=lv<=5?[16,8,4,2,1][lv-1]:1, L=lv<=5?lv:5, bx=TX0-2, by=TY+L*LH-2;
-    h+='<rect class="rr" x="'+bx+'" y="'+by+'" width="'+(o*LW+2)+'" height="18" rx="3"/><circle class="rb" cx="'+bx+'" cy="'+by+'" r="8.5"/><text class="rn" x="'+bx+'" y="'+(by+3.6)+'">'+num+'</text>'; }
+  const FR=(x,y,n,r)=>'<circle class="fr" cx="'+x+'" cy="'+y+'" r="'+r+'"/><text class="fn" x="'+x+'" y="'+(y+4)+'">'+n+'</text>';
+  if(mode===2 && lv>=1){ const o=lv<=5?[16,8,4,2,1][lv-1]:1, L=lv<=5?lv:5; h+=FR(TX0+o*LW/2-1,TY+L*LH+7,num,8); }
+  else if(mode===1 && lv>=0){ if(lv<2) h+=FR(TX0+16*LW-1,TY+34,num,9); else if(curI<128){ const n=Math.min(127,curI); const cx=TX0+(n%32)*LW+LW/2-1, cy=TY+Math.floor(n/32)*18+7; h+='<circle class="fr" cx="'+cx+'" cy="'+cy+'" r="7"/><text class="fn" x="'+cx+'" y="'+(cy-10)+'">'+(n+1)+'</text>'; } }
   $("tr").innerHTML=h; }
 let curI=0;
 function setMode(md){ mode=md; EV=plan(md); $("tIn").max=String(end); t=Math.min(t,end);

@@ -25,11 +25,12 @@ addEventListener("DOMContentLoaded",()=>{
   let map=null, mapKey="";
   const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
   const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const stripBoxes=()=>{ const out=[]; document.querySelectorAll("#algO *, .ao, .sb.on, text.st.on").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width&&r.height) out.push([r.left,r.top,r.right,r.bottom]); }); return out; };
   const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
     const probe=t=>{ setT(t); return stepOf(); };
     for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
       if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
-        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers()}); } prevK=k; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers(),a:stripBoxes()}); } prevK=k; }
       prevT=t; }
     if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
     setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
@@ -44,9 +45,12 @@ addEventListener("DOMContentLoaded",()=>{
   const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
   const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
     const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
-  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; let bd=Infinity; const near=[];
-    m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-e.clientX,y-e.clientY); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
-    const cand=[...new Set(near)].sort((a,b)=>a-b); if(!cand.length) return false;
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const X=e.clientX, Y=e.clientY;
+    let cand=[...new Set(m.filter(([k,v])=>(v.a||[]).some(b=>X>=b[0]&&X<=b[2]&&Y>=b[1]&&Y<=b[3])).map(x=>x[0]))];
+    if(!cand.length){ let bd=Infinity; const near=[];
+      m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-X,y-Y); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
+      cand=[...new Set(near)]; }
+    cand.sort((a,b)=>a-b); if(!cand.length) return false;
     const k0=stepOf(), i0=cand.indexOf(k0); const k= i0<0 ? cand[0] : cand[(i0+1)%cand.length]; goStep(k); return true; };
   const tl=cur?cur.ownerSVGElement:null;
   document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
