@@ -29,6 +29,18 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 .fig iframe{display:block;width:100%;height:900px;border:0}
 @media(max-width:860px){.fig{margin:22px 0}.tbl{margin:14px 0}main{padding:0 14px}}
 @media(max-width:600px){.fig iframe{min-width:640px}pre{font-size:11.5px}table{font-size:12.5px}td,th{min-width:8em}}
+
+.chart{margin:22px 0;padding:14px 16px 10px;background:#fbfbfa;border:1px solid #ddd;border-radius:8px}
+.chart-title{font-weight:600;line-height:1.5}
+.chart-sub{font-size:13px;color:#8c8c90;margin-left:8px;font-weight:400}
+.chart-legend{display:flex;flex-wrap:wrap;gap:2px 14px;margin:4px 0 0;font-size:13px;color:#5b5b63}
+.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.chart-legend i.dash{width:16px;height:0;border-radius:0;border-top:1.5px dashed #5b5b63;vertical-align:3px}
+.chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chart svg{display:block;width:100%;min-width:520px;height:auto;font-variant-numeric:tabular-nums}
+.chart-notes{margin:6px 0 0;padding-left:1.2em;font-size:13px;line-height:1.6;color:#5b5b63}
+.chart-notes li{margin:1px 0}
+.chart-note{margin:6px 0 0;font-size:13px;line-height:1.6;color:#5b5b63}
 </style>
 <script>addEventListener("message",e=>{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";});});</script></head>
 <body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>

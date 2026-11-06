@@ -256,7 +256,7 @@ def main():
     if errors:
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
-    (DOCS / "index.html").write_text(substitute(TMPL.format(css=CSS, toc="".join(toc), secs="".join(secs)), items))
+    (DOCS / "index.html").write_text(substitute(TMPL.format(css=CSS + charts.CSS, toc="".join(toc), secs="".join(secs)), items))
     write_readme(chapters, built, (DOCS / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
