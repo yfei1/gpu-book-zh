@@ -161,7 +161,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="40" step="0.001" value="0"></label></div><div class="lg"><span><i class="kd"></i>一块数据，数字 = 阶段号（颜色同算法带和时间线）</span><span><i class="kw"></i>在等 / 交接边</span><span><i class="kb"></i>读到旧编号，结果错</span><span>深色 SM = 正在算；蓝色 SM = 已进场</span></div>
 <p class="cap">选一种做法，播放或拖动时间，看每个阶段的输入输出怎样交给下一个 kernel。对比做法 2 与 3，看专家 kernel 读 topk_ids 的时刻。</p></main><script type="module">const HW={"stack":[[278.5,59.6],[226.7,88.6],[174.9,117.6],[465.1,164],[413.3,192.9],[361.5,221.9]],"l2":[320,150.4],"top":[351.1,133],"bot":[284.8,170.1]};
 
-const G0=["P3 单层（T = 1，滑窗层）"];
+const G0=["整层 decode / verify 单层（T = 1，滑窗层）"];
 const G1=[["整层走一遍：11 个 kernel，同流 PDL","早期专家启动，top-8 在入口触发（会出错）","早期专家启动，top-8 在出口触发（已修复）"]];
 const hsl=(h,s,l)=>"hsl("+h+" "+s+"% "+l+"%)";
 const C=[null,hsl(212,62,44),hsl(168,55,38),hsl(30,85,46),hsl(330,55,46),hsl(262,50,52),hsl(140,48,36),hsl(190,60,38),hsl(45,70,36)];
@@ -221,17 +221,17 @@ function sceneRace(fixed){ const T=fixed?12.6:12;
    stp(PRE[0]+0.3,"专家按旧编号预载 W 单元","TMA 预载旧编号对应专家的 <code>w13[e]</code> 首个 W 单元",W13+"；e 来自旧编号","旧编号对应专家的 W 单元进入 SMEM 环","停在等待点，等 pooler 完成","1.4 µs 路由预处理 + 1.8 µs 首个 W 单元（共 3.2 µs）都按旧编号做，结果无效",HW.stack[5],6,"预载错的 W"),
    stp(WR+0.1,"top-8 现在才写出本轮的 topk_ids，晚了","<code>topk_ids ← top8(s + bias)</code>","<code>s</code> FP32 <code>[1, 256]</code>","本轮的 "+IDX+"，写到 HBM / L2","没有人再读它：专家已经读完旧值","这次写入救不了专家",HW.top,4,"写得太晚"),
    stp(CP[0]+0.1,"pooler 完成，专家放行，用旧编号算完整个 MoE","<code>h13 = x₂ · W13ᵀ</code>；<code>y = inter · W2ᵀ</code>；<code>m = Σ wₑ · norm(yₑ)</code>（e 来自旧编号）","<code>x₂</code> BF16 <code>[1, 4096]</code>；旧编号对应专家的 W","<code>m</code> BF16 <code>[1, 4096]</code>（值是错的）","阶段 7 的 unpooler 读到错的 <code>m</code>，错误传到层输出","按错误的专家读权重并计算，浪费整个专家阶段",HW.bot,6,"算错"),
-   stp(T-0.05,"结果：图模式下重复运行失败，eager 模式却全部通过","—","—","—","—","总代价：层输出错。STACK12 在 CUDA Graph 下的重复运行失败，残差相对 L2 为 0.7–1.09；okc 判官失败，相对 L2 9.248e-01；eager 模式全部通过。每次输入相同时看不出来，因为旧值恰好等于新值",HW.bot,"错")];
+   stp(T-0.05,"结果：图模式下重复运行失败，eager 模式却全部通过","—","—","—","—","总代价：层输出错。整层测试在 CUDA Graph 下的重复运行失败，残差相对 L2 为 0.7–1.09；另一项整层校验也失败，相对 L2 9.248e-01；eager 模式全部通过。每次输入相同时看不出来，因为旧值恰好等于新值",HW.bot,"错")];
    sc.ro="早期专家 + top-8 入口触发：专家读到上一轮的 topk_ids\n图模式重复运行失败：残差相对 L2 0.7–1.09；eager 全部通过"; }
   else { sc.steps=[
    stp(0.05,"起点同上：上一轮的 topk_ids 还在内存里，pooler 进场并在入口触发","pooler 入口：<code>launch_dependents</code>","<code>h</code> BF16 <code>[1, 8192]</code>；<code>W_pooler</code> BF16 <code>[4096, 8192]</code> = 67,108,864 B；内存里的 "+IDX+" 是上一轮的值","pooler 64 个 CTA 占 64 个 SM","pooler 的触发让专家 kernel 可以提前启动","读 67.1 MB 权重（下界 14.0 µs）；这一条边没有问题，不用改",HW.top,5,"pooler 64 SM"),
    stp(TP[0]+0.05,"top-8 进场：入口只等待，不触发","top-8 入口：<code>griddepcontrol.wait</code>（<code>FLAGS = 1</code>：等待，不触发）","<code>s</code> FP32 <code>[1, 256]</code> = 1,024 B","没有触发信号发出","专家 kernel 的这条入边还没放行","改动只有 5 行；专家不能在 top-8 算完前进场",HW.top,4,"只等待，不触发"),
    stp(WR+0.1,"top-8 写出本轮的 topk_ids","<code>topk_ids ← top8(s + bias)</code>","<code>s</code> FP32 <code>[1, 256]</code>","本轮的 "+IDX+"，写到 HBM / L2","top-8 退出时自动触发，专家那条边才放行","写在触发之前，顺序有保证",HW.top,4,"先写"),
-   stp(LA+0.05,"top-8 退出后触发，专家 CTA 在 68 个 SM 上进场，读到本轮的 topk_ids","<code>routing 预处理</code>读 <code>topk_ids</code>，在 <code>griddepcontrol.wait</code> 之前","内存里的 "+IDX+"：本轮的值（新）","专家按新编号做路由预处理","按新编号取 W 单元","读 32 B，内容是新的；进场时刻比入口触发晚了 top-8 运行的这一段，这段延迟没有单独测量（UNKNOWN）",IDS,6,"读到新编号"),
+   stp(LA+0.05,"top-8 退出后触发，专家 CTA 在 68 个 SM 上进场，读到本轮的 topk_ids","<code>routing 预处理</code>读 <code>topk_ids</code>，在 <code>griddepcontrol.wait</code> 之前","内存里的 "+IDX+"：本轮的值（新）","专家按新编号做路由预处理","按新编号取 W 单元","读 32 B，内容是新的；进场时刻比入口触发晚了 top-8 运行的这一段，这段延迟没有单独测量",IDS,6,"读到新编号"),
    stp(PRE[0]+0.6,"专家按新编号预载 W 单元，与 pooler 的后半段重叠","TMA 预载新编号对应专家的 <code>w13[e]</code> 首个 W 单元",W13+"；e 来自新编号","新编号对应专家的 W 单元进入 SMEM 环","停在等待点，等 pooler 完成","路由预处理 1.4 µs + 首个 W 单元 1.8 µs（共 3.2 µs）仍与 pooler 重叠",HW.stack[5],6,"预载对的 W"),
    stp(CP[0]+0.1,"pooler 完成，专家放行，按新编号算完整个 MoE","<code>h13 = x₂ · W13ᵀ</code>；<code>y = inter · W2ᵀ</code>；<code>m = Σ wₑ · norm(yₑ)</code>","<code>x₂</code> BF16 <code>[1, 4096]</code>；新编号对应专家的 W","<code>m</code> BF16 <code>[1, 4096]</code>","阶段 7 的 unpooler 读 <code>m</code>","读约 53 MB（约 1.87 个专家），下界 11.0 µs",HW.bot,6,"算对"),
-   stp(T-0.05,"结果：图模式与 eager 模式都通过","—","—","—","—","总代价：5 行改动，专家进场推迟到 top-8 退出。判官式复现（图模式 + eager，idx 0–11）失败 0/240 次，okc 检查通过；早期专家启动使 T = 1 / 8 / 16 整层提速 1.46%–1.96%",HW.bot,"对")];
-   sc.ro="早期专家 + top-8 出口触发：专家读到本轮的 topk_ids\n判官式复现 0/240 次失败；T = 1 / 8 / 16 整层提速 1.46%–1.96%"; }
+   stp(T-0.05,"结果：图模式与 eager 模式都通过","—","—","—","—","总代价：5 行改动，专家进场推迟到 top-8 退出。整层复现测试（图模式 + eager，输入 0–11）失败 0/240 次，另一项整层校验通过；早期专家启动使 T = 1 / 8 / 16 整层提速 1.46%–1.96%",HW.bot,"对")];
+   sc.ro="早期专家 + top-8 出口触发：专家读到本轮的 topk_ids\n整层复现测试 0/240 次失败；T = 1 / 8 / 16 整层提速 1.46%–1.96%"; }
   return sc; }
 
 const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");

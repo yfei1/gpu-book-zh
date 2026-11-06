@@ -367,7 +367,7 @@ function mk(md){ BL=[]; SL=[]; OP=[]; const E=[]; const B8=(i)=>(i+1);
       f:"2 × 64 × 64 × 64 = 524,288 FLOP；"+(fp8?"8,192":"16,384")+" B 操作数",
       i:"x、W 的 K = 64 片，"+dt+"，共 "+(fp8?"8,192":"16,384")+" B（SMEM）",
       o:"D 64 × 64 FP32 = 16,384 B（寄存器）",
-      x:fp8?"和 BF16 比：同样 524,288 FLOP，指令少一半、字节少一半。两种指令都在我们的 SASS 里（P1 split 注意力的同一个 kernel.sass）；PTX 说 FP8 的 f32 累加精度高于半精度、低于单精度":"和 FP8 比：同样 524,288 FLOP，要 4 条指令和 16,384 B。P4 qkv_gate 的内核每个 K 步正是这样发 HGMMA.64x64x16（2 个 m64 片共 8 条）"});
+      x:fp8?"和 BF16 比：同样 524,288 FLOP，指令少一半、字节少一半。两种指令都在我们编译出的 SASS 里；PTX 说 FP8 的 f32 累加精度高于半精度、低于单精度":"和 FP8 比：同样 524,288 FLOP，要 4 条指令和 16,384 B。稠密投影 qkv_gate 的内核每个 K 步正是这样发 HGMMA.64x64x16（2 个 m64 片共 8 条）"});
   }
   E.forEach(e=>{ const c=splitCost(e.s); e.h=c.t; e.c=c.c; });
   return E;

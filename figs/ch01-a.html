@@ -219,7 +219,7 @@ function events(md){ const B=PL[md], E=[], n=B.length, f=B[0], l=B[n-1], nm=(i)=
   } else {
     E.push({t:0,at:"cpu",n:0,s:"层间小操作已并进相邻 kernel，17 个减为 11 个。CPU 仍只调 1 次 cudaGraphLaunch，图边带 PDL 属性。代价：1 次 CPU 调用，少 6 次启动",c:{f:"fuse(17 → 11) ;  cudaGraphLaunch(graphExec，边带 PDL 属性)", i:["graphExec：11 个融合 kernel 的节点 + 编程依赖边"], o:["1 条图启动命令 · 交给硬件派发器"], n:"派发器启动 k₁（第 2 步）"}});
     E.push({t:B[0].t0,at:"die",n:1,s:"第 1 个 kernel（"+sn(0)+" 阶段）在 132 个 SM 上运行。代价：中间向量不再写回 HBM，少 1 次 HBM 往返和 1 次切换空隙",c:SCARD(B[0].s,"融合后层内小操作的中间向量留在片上（kernel 与阶段的对应是示意）")});
-    E.push({t:B[1].trig,at:"hbm",n:2,s:"第 1 个 kernel 的 CTA 触发后陆续退出；第 2 个 kernel 的 CTA 进场占住空出的 SM，先从 HBM 预读权重 W。代价：0 次额外启动，预读与前序收尾重叠",c:{f:"prefetch( W₂ )   （在 cudaGridDependencySynchronize 之前）", i:["k₂ 的权重 W · HBM（kernel 与阶段的对应是示意）"], o:["W 的前几块 · 进场 SM 的片上存储（SMEM 或 L2，来源未说明）"], n:"预读的 W → 第 4 步放行后与激活一起计算"}});
+    E.push({t:B[1].trig,at:"hbm",n:2,s:"第 1 个 kernel 的 CTA 触发后陆续退出；第 2 个 kernel 的 CTA 进场占住空出的 SM，先从 HBM 预读权重 W。代价：0 次额外启动，预读与前序收尾重叠",c:{f:"prefetch( W₂ )   （在 cudaGridDependencySynchronize 之前）", i:["k₂ 的权重 W · HBM（kernel 与阶段的对应是示意）"], o:["W 的前几块 · 进场 SM 的片上存储（SMEM 或 L2，具体位置未知）"], n:"预读的 W → 第 4 步放行后与激活一起计算"}});
     E.push({t:B[0].t1+EDGE*0.5,at:"die",n:2,s:"前序全部完成，第 2 个 kernel 调 cudaGridDependencySynchronize 放行，开始读激活并计算。代价：1 条 PDL 串行边，约 0.64 µs，比图节点切换约 1.0 µs 短",c:SCARD(B[1].s,"k₁ 写出的激活 · HBM；W 已在片上（kernel 与阶段的对应是示意）")});
     E.push({t:B[3].trig,at:"hbm",n:"dyn",s:"第 3 到第 11 个 kernel 重复同样的交接：触发、预读权重、等待、计算。代价：每条边约 0.64 µs",c:{f:"for i = 3 … 11:  触发 → kᵢ 进场预读 W → 等待 → 计算", i:["kᵢ 的权重 W · HBM（预读）","kᵢ₋₁ 写出的激活 · HBM"], o:["kᵢ 的结果 · 写入 HBM"], n:"kᵢ 的结果 → kᵢ₊₁ 的输入"}});
     E.push({t:l.t1,at:"die",n:11,s:"11 个 kernel 跑完。总代价：1 次 CPU 调用，11 次启动，11 × 0.64 ≈ 7 µs 的串行边（量级）；权重预读与前序收尾重叠",c:LAYER});

@@ -271,11 +271,11 @@ function events(){ const E=[];
   E.push({t:p.hi,b:131,at:"tile",s:"131 号块到达第一个 B 单元，距最后一个 A 结束 "+f1(p.hi)+" µs，比编号小于 100 的块晚 "+p.gap+" µs。代价：晚的时间约等于 "+(+p.gap/1.05).toFixed(1)+" 个 B 单元周期（"+p.gap+" ÷ 1.05）",
     f:"y[tok, n] = Σₖ inter[tok, k] · W2[e][n, k]（同上，只是 131 号块更晚开始）",
     i:"inter [M_e, 4096]，全局内存；W2[e] 的本块部分，在 HBM",o:"y 里 131 号块负责的部分",x:"与其他块的 y 一起交给 post-norm"});
-  E.push({t:p.hi+0.5,b:131,at:"tile",s:"总代价：等量分配 B 单元时，131 号块比编号小于 100 的块晚 "+p.gap+" µs 起步，在 "+p.pct+"% 的种子里是最慢的 B CTA。V449 让编号 ≥ 100 的块少分 B 单元，平均 "+p.gain,
+  E.push({t:p.hi+0.5,b:131,at:"tile",s:"总代价：等量分配 B 单元时，131 号块比编号小于 100 的块晚 "+p.gap+" µs 起步，在 "+p.pct+"% 的随机样本里是最慢的 B CTA。新的分配让编号 ≥ 100 的块少分 B 单元，平均 "+p.gain,
     f:"T_B = 最慢 B CTA 的结束时刻",i:"132 个 B CTA 各自写出的 y 部分",o:"y [M_e, 4096] 全部写完",x:"post-norm：逐专家 RMSNorm，再按 topk_weights 求和，得 out BF16 [M, 4096]"});
   return E; }
 function setMode(m){ mode=m; p=M[m]; end=p.hi+0.6;
-  readout.textContent=p.n+"：编号小于 100 的块 "+f1(p.lo)+" µs 到第一个 B 单元，131 号块 "+f1(p.hi)+" µs，晚 "+p.gap+" µs\n131 号块是最慢 B CTA 的种子占 "+p.pct+"%；V449 让编号大的块少分，平均 "+p.gain;
+  readout.textContent=p.n+"：编号小于 100 的块 "+f1(p.lo)+" µs 到第一个 B 单元，131 号块 "+f1(p.hi)+" µs，晚 "+p.gap+" µs\n131 号块是最慢 B CTA 的随机样本占 "+p.pct+"%；新的分配让编号大的块少分，平均 "+p.gain;
   let h=""; const ty=(b)=>TY0+b*LP;
   for(let b=0;b<132;b++){ const g=grp(b), e=entry(b), f=first(b);
     h+='<rect x="'+TX(TMIN).toFixed(1)+'" y="'+ty(b).toFixed(2)+'" width="'+(TX(e)-TX(TMIN)).toFixed(1)+'" height="'+(LP*0.9).toFixed(2)+'" fill="#2a2a2e" fill-opacity=".8"/>';

@@ -236,11 +236,11 @@ const M1=()=>{ const bl=[],bars=[],lights=[],steps=[],cells=[]; const W=20, B0=5
    st(37,PT.tc,3,"转置完才发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：转成 FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价（原来）：17 条指令（1 LDSM + 8 PRMT + 8 STS）全部露在 Q·K^T 之后"),
    st(B0,PT.tc,2,"改后：发出 Q·K^T（块 2）并 commit_group，不等它，Tensor Core 在后台算。","<code>S = Q·Kᵀ</code>（wgmma，异步）","同上","S：fp32 累加器，在寄存器","S → softmax 得 P","1 条 wgmma 加 1 次 commit_group；warp 不被占住"),
    st(B0+1,PT.alu,1,"在 commit_group 与 wait_group<0> 之间，用 LSU 和 ALU 转置当前分块的 V（块 1）。","<code>V' = Vᵀ</code>：LDSM + 8 × PRMT + 8 × STS","V 分块：FP8 E4M3，在 SMEM","V'：FP8 E4M3，行主序，在 SMEM","V' → 第 8 步 P·V","同样 17 条指令，但与 Q·K^T 重叠"),
-   st(B0+W,PT.tc,3,"wait_group<0> 返回时 V 已转置好，直接发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价：17 条指令全藏进 Q·K^T 的运行期；verify 32 请求全长只开这一项（QKS），省 1.79 µs；P·V 改用 FP8 QGMMA：双 warpgroup 全长内核（vw2）省 8.77 µs（verify 32 请求全长）和 3.04 µs（verify 16 请求全长），滑窗内核（vws）省 0.74–0.77 µs（verify 32 请求滑窗）"));
+   st(B0+W,PT.tc,3,"wait_group<0> 返回时 V 已转置好，直接发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价：17 条指令全藏进 Q·K^T 的运行期；verify 32 请求全长只开这一项（把 V 转置藏进 Q·K^T 的异步窗口），省 1.79 µs；P·V 改用 FP8 QGMMA：双 warpgroup 全长内核省 8.77 µs（verify 32 请求全长）和 3.04 µs（verify 16 请求全长），滑窗内核省 0.74–0.77 µs（verify 32 请求滑窗）"));
   return {end:B0+W+12,speed:3.3,shot:B0+8,
-   ro:"V 转置（QKS）：1 条 LDSM + 8 条 PRMT + 8 条 STS，插在 commit_group 与 wait_group<0> 之间\nverify 32 全长（仅 QKS）省 1.79 µs；FP8 QGMMA P·V：vw2 省 8.77 / 3.04 µs（verify 32 / 16 全长），vws 省 0.74–0.77 µs（verify 32 滑窗）",
+   ro:"V 转置（藏进 Q·K^T 的异步窗口）：1 条 LDSM + 8 条 PRMT + 8 条 STS，插在 commit_group 与 wait_group<0> 之间\nverify 32 全长（仅这一项）省 1.79 µs；FP8 QGMMA P·V：双头核省 8.77 / 3.04 µs（verify 32 / 16 全长），单头滑窗核省 0.74–0.77 µs（verify 32 滑窗）",
    axis:"时间（只表示先后；Q·K^T 的宽度是示意，17 条指令各画 1 格）",
-   strip:{title:"算法：P1 一个 KV 分块的三步：Q·K^T → 转置 V → P·V（FP8 wgmma 要求 V 按行主序）",cells:[{a:"2",b:["Q·K^T","wgmma，异步"],c:BL,t0:0,t1:20},{a:"1",b:["V 分块转置","17 条指令"],c:MA,t0:20,t1:B0},{a:"3",b:["P·V","FP8 QGMMA"],c:TE,t0:37,t1:B0+W+12}]},
+   strip:{title:"算法：独立注意力一个 KV 分块的三步：Q·K^T → 转置 V → P·V（FP8 wgmma 要求 V 按行主序）",cells:[{a:"2",b:["Q·K^T","wgmma，异步"],c:BL,t0:0,t1:20},{a:"1",b:["V 分块转置","17 条指令"],c:MA,t0:20,t1:B0},{a:"3",b:["P·V","FP8 QGMMA"],c:TE,t0:37,t1:B0+W+12}]},
    blocks:bl,lights,cells,links:[vroute],rows:["Tensor Core","ALU：PRMT ×8","LSU：LDSM、STS"],bars,steps,divs:[B0-3]}; };
 // ---- mode 2: PV stays in flight across the next Q.K^T (wait_group<1>)
 const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=30; const Q1=[262,50,50];
@@ -255,15 +255,15 @@ const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=30; const Q1=[26
   steps.push(
    st(A.q1,PT.tc,2,"原来：发出 Q·K^T（块 2），Tensor Core 开始算。","<code>S = Q·Kᵀ</code>","Q、K 分块：同图 7-9 模式 1","S：fp32 累加器，在寄存器","S → softmax 得 P","1 条 wgmma"),
    st(A.p1,PT.tc,3,"算出 P 后发 P·V（块 3，FP8 QGMMA），并 commit_group。","<code>O += P · V'</code>","P：FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一轮","1 条 QGMMA 加 1 次 commit_group"),
-   st(A.p1+4,PT.sch,null,"wait_group<0>：warp 等 P·V 也算完，才发下一轮的 Q·K^T。","<code>wgmma.wait_group 0</code>：等所有未完成的组","未完成的组：P·V（i）","返回时 0 个组在途","→ 下一轮 Q·K^T","Tensor Core 在两轮之间空等一段（宽度只表示先后，文档未给出周期）"),
+   st(A.p1+4,PT.sch,null,"wait_group<0>：warp 等 P·V 也算完，才发下一轮的 Q·K^T。","<code>wgmma.wait_group 0</code>：等所有未完成的组","未完成的组：P·V（i）","返回时 0 个组在途","→ 下一轮 Q·K^T","Tensor Core 在两轮之间空等一段（宽度只表示先后，具体周期未知）"),
    st(A.q2,PT.tc,4,"下一轮的 Q·K^T（块 4）这才发出。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<0>）：每轮 P·V 与下一轮 Q·K^T 之间有 1 段空档"),
    st(Bq.p1,PT.tc,3,"改后：P·V（块 3）发出并 commit_group，下一步不等它。","<code>O += P · V'</code>","P、V'：同上","O：fp32 累加器","O → 下一轮","1 条 QGMMA 加 1 次 commit_group"),
    st(Bq.p1+0.5,PT.sch,null,"wait_group<1>：允许最近的 1 组（P·V）继续在途，立刻发下一轮的 Q·K^T。","<code>wgmma.wait_group 1</code>：最多 1 个组未完成","未完成的组：P·V（i），允许在途","返回时 ≤ 1 个组在途","→ 下一轮 Q·K^T","warp 不再等 P·V；Tensor Core 里 P·V 与 Q·K^T 首尾相接"),
-   st(Bq.qi,PT.tc,4,"下一轮的 Q·K^T（块 4）在 P·V（i）还在算时就发出，排在它后面。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<1>，PVW1）：两轮之间的空档消失；PVW1 只在 verify 16 请求全长启用，与模式 1 的 QKS 合计省 1.71 µs（verify 32 请求全长溢出 20 B，不启用 PVW1）"));
+   st(Bq.qi,PT.tc,4,"下一轮的 Q·K^T（块 4）在 P·V（i）还在算时就发出，排在它后面。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<1>，让 P·V 跨进下一轮）：两轮之间的空档消失；这一版只在 verify 16 请求全长启用，与模式 1 合计省 1.71 µs（verify 32 请求全长溢出 20 B，不启用）"));
   return {end:B0+22,speed:3.2,shot:B0+11,
-   ro:"wait_group<1>（PVW1）：P·V 跨入下一轮，与下一轮的 Q·K^T 在途重叠\n只用于 verify 16 请求全长：QKS + PVW1 合计省 1.71 µs（空档宽度不按比例）",
+   ro:"wait_group<1>：P·V 跨入下一轮，与下一轮的 Q·K^T 在途重叠\n只用于 verify 16 请求全长：模式 1 + 本模式合计省 1.71 µs（空档宽度不按比例）",
    axis:"时间（只表示先后；空档的宽度是示意）",
-   strip:{title:"算法：P1 相邻两轮的 Q·K^T 与 P·V",cells:[{a:"2",b:["Q·K^T（i）","wgmma"],c:BL,t0:0,t1:B0},{a:"3",b:["P·V（i）","FP8 QGMMA"],c:TE,t0:0,t1:B0},{a:"4",b:["Q·K^T（i+1）","下一轮"],c:Q1,t0:0,t1:B0+22}]},
+   strip:{title:"算法：独立注意力相邻两轮的 Q·K^T 与 P·V",cells:[{a:"2",b:["Q·K^T（i）","wgmma"],c:BL,t0:0,t1:B0},{a:"3",b:["P·V（i）","FP8 QGMMA"],c:TE,t0:0,t1:B0},{a:"4",b:["Q·K^T（i+1）","下一轮"],c:Q1,t0:0,t1:B0+22}]},
    blocks:bl,lights,cells:[{i:16,t:0,c:BL},{i:8,t:0,c:TE},{i:17,t:0,c:Q1}],links:[],rows:["Tensor Core","warp：等待 wait_group","warp 发出 wgmma"],bars,steps,divs:[B0-3]}; };
 const MODES={1:M1,2:M2};
 

@@ -172,11 +172,11 @@ const M1=()=>{ const A0=0,B0=21,bl=[],bars=[],lights=[],cells=[],steps=[],sc=[];
    st(B0,PT.tc,1,"惰性重缩放：块 1 进 Tensor Core，基准留出 2^T 的余量（T = 4..8）。","<code>S = Q·Kᵀ</code>；<code>m_ref = max(S 每行)</code>","Q、K 分块：同上","S：fp32 累加器；m_ref：每行 1 个 fp32，在寄存器","S、m_ref → 第 6 步比较","同样一轮 Tensor Core；SFU 不动（单精度指数上限达 2^127，留出几十倍余量不会溢出）"),
    st(B0+3,PT.sfu,"2,4,5","块 2、4、5 的最大值没有超过基准加 T，跳过重缩放。","若 <code>m_tile ≤ m_ref + T</code>：不做 exp2f，不乘 O","m_tile、m_ref：每行 1 个 fp32；O：fp32 累加器，在寄存器","O 保持不变","O → 继续累加 P·V","0 次 SFU，0 次 FMA 修正",11),
    st(B0+18,PT.sfu,"末","循环结束，补做一次重缩放（块「末」）。","<code>O ← O · exp2f(m_ref − m_final)</code>","O：fp32 累加器；m_ref、m_final：每行 1 个 fp32","O 已按最终最大值缩放","O → 除以 l 后写出","1 次 SFU 加 1 次 FMA 修正"),
-   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 SFU 重缩放 0 次，结尾 1 次（标准做法 3 次，本例为示意）；P1 实测：双 warpgroup 全长内核（vw2）把 T 从 4 放宽到 6，verify 32 / 16 请求全长省 1.42 / 0.46 µs；单 warpgroup 滑窗内核（vws）取 T = 8，verify 32 / 16 请求滑窗省 0.83 / 0.14 µs；vw 内核用 __any_sync 投票，verify 1 请求全长省 0.38 µs（FMUL 0.50 M → 0.17 M）"));
+   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 SFU 重缩放 0 次，结尾 1 次（标准做法 3 次，本例为示意）；独立注意力实测：双 warpgroup 全长内核把 T 从 4 放宽到 6，verify 32 / 16 请求全长省 1.42 / 0.46 µs；单 warpgroup 滑窗内核取 T = 8，verify 32 / 16 请求滑窗省 0.83 / 0.14 µs；单头核用 __any_sync 投票，verify 1 请求全长省 0.38 µs（FMUL 0.50 M → 0.17 M）"));
   return {end:B0+21,speed:2.4,shot:B0+9,
-   ro:"惰性重缩放：SFU 不再逢新最大值就调 exp2f\nvw2 T = 4 → 6 省 1.42 / 0.46 µs（verify 32 / 16 全长）；vws T = 8 省 0.83 / 0.14 µs（verify 32 / 16 滑窗）；vw 投票省 0.38 µs（verify 1 全长）",
+   ro:"惰性重缩放：SFU 不再逢新最大值就调 exp2f\n双头核 T = 4 → 6 省 1.42 / 0.46 µs（verify 32 / 16 全长）；单头滑窗核 T = 8 省 0.83 / 0.14 µs（verify 32 / 16 滑窗）；单头核投票省 0.38 µs（verify 1 全长）",
    axis:"时间（只表示先后；分块数和哪几块抬高最大值是示意）",
-   strip:{title:"算法：P1 在线 Softmax 依次读入 6 个 KV 分块（示意），每块有局部最大值 m_tile",cells:TC6.map((c,i)=>({a:String(i+1),b:["分块 "+(i+1),(raiseA[i]?"m_tile > m_old":"未超过")],c,t0:i*3,t1:i*3+3})).concat([])},
+   strip:{title:"算法：独立注意力在线 Softmax 依次读入 6 个 KV 分块（示意），每块有局部最大值 m_tile",cells:TC6.map((c,i)=>({a:String(i+1),b:["分块 "+(i+1),(raiseA[i]?"m_tile > m_old":"未超过")],c,t0:i*3,t1:i*3+3})).concat([])},
    blocks:bl,lights,cells,links:[[PT.sch,PT.sfu,PT.fma]],rows:["Tensor Core：Q·K^T","SFU：exp2f 重缩放","FMA：乘法修正","warp 发出"],bars,steps,divs:[B0-1]}; };
 // ---- mode 2: row sum by wgmma
 const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=46;
@@ -194,11 +194,11 @@ const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=46;
    st(42,PT.reg,3,"行和 l_tile（块 3）算出，更新分母 l。","<code>l ← l + l_tile</code>","l_tile：64 个 fp32 = 256 B（64 × 4，推出），在寄存器","l：64 个 fp32，在寄存器","l → 循环结束后做归一化","42 条指令占着发射槽，Tensor Core 一直空闲（每个 64-key 分块循环 288 条指令，Softmax 占 58%）"),
    st(B0,PT.tc,2,"改后：SMEM 里放全 1.0 常数矩阵（块 2），发 4 条 wgmma 算 P × 1。","<code>l_tile = P · 𝟙</code>（<code>wgmma.m64n8k16</code> × 4）","P：64 × 64，在寄存器；𝟙：全 1.0 常数矩阵，在 SMEM（每条 wgmma 算 16 列，4 条覆盖 64 列；k16 × n8 块 = 16 × 8 × 2 B = 256 B，按 16 位输入推出）","累加器 [64, 8] fp32 = 2,048 B（64 × 8 × 4，推出），8 列相同，在寄存器","取第 0 列 → 第 5 步更新 l","4 条 wgmma，各占 1 个发射槽"),
    st(B0+5.5,PT.reg,3,"Tensor Core 把 64 行的行和写回寄存器（块 3）。","<code>l ← l + 累加器[:, 0]</code>","累加器 [64, 8] fp32，在寄存器","l：64 个 fp32，在寄存器","l → 循环结束后做归一化","用的是本来空闲的 Tensor Core；SMEM 里多放一块常数矩阵"),
-   st(B0+8,PT.tc,3,"行求和完成。","（无计算）","l 在寄存器","l 在寄存器","l → 归一化","总代价：42 条算术和洗牌指令换成 4 条 wgmma，净省 38 条（42 减 4）；P3 的 verify 16 请求 / 32 请求全长算例实测缩短 3.9 µs / 3.4 µs；P1 的 Tensor Core 受限内核 vw / vws 中，删掉行求和反而省 0.25–0.26 µs（verify 32 请求滑窗）和 0.13 µs（verify 1 请求全长）；P1 发射槽受限的 vw2 中，重新加入 QGMMA 行求和使指令减少 13%，verify 16 / 32 请求全长缩短 1.6%–2.6%"));
+   st(B0+8,PT.tc,3,"行求和完成。","（无计算）","l 在寄存器","l 在寄存器","l → 归一化","总代价：42 条算术和洗牌指令换成 4 条 wgmma，净省 38 条（42 减 4）；整层 decode / verify 的 verify 16 请求 / 32 请求全长算例实测缩短 3.9 µs / 3.4 µs；独立注意力的 Tensor Core 受限的单头核 / 单头滑窗核中，删掉行求和反而省 0.25–0.26 µs（verify 32 请求滑窗）和 0.13 µs（verify 1 请求全长）；独立注意力发射槽受限的双头核中，重新加入 QGMMA 行求和使指令减少 13%，verify 16 / 32 请求全长缩短 1.6%–2.6%"));
   return {end:B0+9,speed:3,shot:B0+3,
-   ro:"行求和：38 条 FADD + 4 条 SHFL → 4 条 wgmma；P3 verify 16 / 32 请求全长缩短 3.9 / 3.4 µs\nP1：Tensor Core 受限的 vw / vws 删掉它反省 0.25–0.26 / 0.13 µs；发射槽受限的 vw2 补回它，指令 -13%，缩短 1.6%–2.6%",
+   ro:"行求和：38 条 FADD + 4 条 SHFL → 4 条 wgmma；整层 decode / verify verify 16 / 32 请求全长缩短 3.9 / 3.4 µs\n独立注意力：Tensor Core 受限的单头核 / 单头滑窗核删掉它反省 0.25–0.26 / 0.13 µs；发射槽受限的双头核补回它，指令 -13%，缩短 1.6%–2.6%",
    axis:"发射槽（每条指令画 1 格；Tensor Core 的运行时间宽度是示意）",
-   strip:{title:"算法：P3 在线 Softmax 每轮对权重矩阵 P 的 64 行求和，更新分母 l",cells:[{a:"1",b:["P：64 × 64","在寄存器里"],c:BL,t0:0,t1:46},{a:"2",b:["全 1.0 矩阵","放在 SMEM"],c:OR,t0:46,t1:60},{a:"3",b:["行和 l","64 个值"],c:GN,t0:42,t1:60}]},
+   strip:{title:"算法：整层 decode / verify 在线 Softmax 每轮对权重矩阵 P 的 64 行求和，更新分母 l",cells:[{a:"1",b:["P：64 × 64","在寄存器里"],c:BL,t0:0,t1:46},{a:"2",b:["全 1.0 矩阵","放在 SMEM"],c:OR,t0:46,t1:60},{a:"3",b:["行和 l","64 个值"],c:GN,t0:42,t1:60}]},
    blocks:bl,lights,cells:[{i:10,t:B0-1,c:OR}],links:[[PT.reg,PT.fma],[DST[10],PT.tc]],rows:["算术管线：FADD","洗牌：SHFL","发射：wgmma","Tensor Core"],bars,steps,divs:[B0-2]}; };
 const MODES={1:M1,2:M2};
 

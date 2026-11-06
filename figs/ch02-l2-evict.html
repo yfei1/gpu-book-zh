@@ -230,7 +230,7 @@ const MODES={
     {t:24,alg:5,n:"x",focus:FOC(10),h:"后面的 CTA 单元再读 x_2 与 inter：行已不在 L2，只能回 HBM 取。",
      f:"x_2 / inter 重读（每个 W 单元一次）",i:"x_2、inter：BF16 [1, 4096]，各 8,192 B；已不在 L2，在 HBM",o:"x_2、inter 重新进入 L2 与各 SM",x:"读回后才能继续乘 W 单元",c:"每次重读多一次 HBM 往返：0.334 µs 对 0.182 µs，差 0.152 µs（派生）；微基准 32 MB 重读 4.19 TB/s。"},
     {t:30,alg:null,n:"",focus:null,h:"总代价：W 流 54.7 MB 全部有用，复用数据被冲出 L2 后每次重读都回 HBM。",
-     f:"阶段 A 耗时 = 有提示耗时 + 2.44 µs",i:"W 流 54.7 MB（HBM）；复用数据各 8 KiB",o:"同样的 y，慢 2.44 µs（H200 实测，去掉 evict_first）",x:"本核内的 L2 命中率未测（UNKNOWN）；格子状态按微基准示意",c:"额外指令 0；多出 2.44 µs。"} ] },
+     f:"阶段 A 耗时 = 有提示耗时 + 2.44 µs",i:"W 流 54.7 MB（HBM）；复用数据各 8 KiB",o:"同样的 y，慢 2.44 µs（H200 实测，去掉 evict_first）",x:"本核内的 L2 命中率未测；格子状态按微基准示意",c:"额外指令 0；多出 2.44 µs。"} ] },
  2:{ ro:"加提示：W 标 evict_first，x_2 标 evict_last；复用数据留在 L2，重读命中约 0.182 µs\n微基准：留存 98.8%–100% · 32 MB 重读 7.33 TB/s（无提示 4.19）· 阶段 A 比无提示快 2.44 µs",
    end:33, still:30, tlTitle:"横轴只表示顺序，不是时间", axis:[[0,"x_2 读入"],[15,"W 流"],[26,"重读"]],
    rows:["W 流 HBM→L2","x_2 在 L2 里","x_2 重读","与无提示相比"],
@@ -249,7 +249,7 @@ const MODES={
     {t:24,alg:5,n:"x",focus:FOC(10),h:"后面的 CTA 单元再读 x_2 与 inter：行还在 L2，直接命中。",
      f:"x_2 / inter 重读（每个 W 单元一次）",i:"x_2、inter：BF16 [1, 4096]，各 8,192 B；在 L2",o:"x_2、inter 进入各 SM",x:"读到后继续乘 W 单元",c:"命中 L2 约 0.182 µs（327.8 个周期）；微基准 32 MB 重读 7.33 TB/s，留存 98.8%–100%。"},
     {t:30,alg:null,n:"",focus:null,h:"总代价：W 流 54.7 MB 不变，换来复用数据全程留在 L2。",
-     f:"阶段 A 耗时 = 无提示耗时 − 2.44 µs",i:"W 流 54.7 MB（HBM）；复用数据各 8 KiB",o:"同样的 y，快 2.44 µs（H200 实测，保留 evict_first）",x:"本核内的 L2 命中率未测（UNKNOWN）；格子状态按微基准示意",c:"每条加载路径多 2 个寄存器，多 1 条 createpolicy（或用常量）。"} ] } };
+     f:"阶段 A 耗时 = 无提示耗时 − 2.44 µs",i:"W 流 54.7 MB（HBM）；复用数据各 8 KiB",o:"同样的 y，快 2.44 µs（H200 实测，保留 evict_first）",x:"本核内的 L2 命中率未测；格子状态按微基准示意",c:"每条加载路径多 2 个寄存器，多 1 条 createpolicy（或用常量）。"} ] } };
 
 
 const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");

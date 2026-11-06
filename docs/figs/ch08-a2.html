@@ -234,13 +234,13 @@ const M1=()=>{ // serial 256 steps vs 8-warp ballot
     bars.push({r:w+1,a:a,b:a+0.4,k:"tick"},{r:w+1,a:a+0.4,b:a+3,k:"blk",c:WC[w],s:"读标志"},{r:w+1,a:B0+4,b:B0+4.6,k:"blk",c:WC[w],s:"vote"},{r:w+1,a:B0+4.6,b:B0+5.4,k:"blk",c:WC[w],s:"popc"},{r:w+1,a:B0+5.6+w*0.15,b:B0+6.3+w*0.15,k:"blk",c:WC[w]});
     strip.push({a:"warp "+w,b:["token "+32*w+"–"+(32*w+31)],c:WC[w],t0:B0,t1:B0+7.2}); }
   steps.push(
-   st(0,HP[0],1,"原来：1 个线程把路由结果读进来，逐个 token 扫描。","<code>for t in 0..255: if (命中[t]) list[n++] = t</code>","路由结果：256 项，位宽文档未给出，不标；在 HBM / L2","list：命中 token 的编号，写进 SMEM；n：命中数","list → 本专家的矩阵乘按编号取行","256 步串行循环，每步 1 次比较和分支；其余 31 个线程被掩码空等（第 0.5 章 if (tid == 0)）"),
+   st(0,HP[0],1,"原来：1 个线程把路由结果读进来，逐个 token 扫描。","<code>for t in 0..255: if (命中[t]) list[n++] = t</code>","路由结果：256 项，位宽未知，不标；在 HBM / L2","list：命中 token 的编号，写进 SMEM；n：命中数","list → 本专家的矩阵乘按编号取行","256 步串行循环，每步 1 次比较和分支；其余 31 个线程被掩码空等（第 0.5 章 if (tid == 0)）"),
    st(12,DST[6],1,"扫描进行到一半，命中的 token 一个个写进 SMEM 列表。","<code>list[n++] = t</code>","同上","list 逐项增长（灰色格；格数是示意）","list → 本专家的矩阵乘","每个命中 token 1 次写 + 1 次分支，扫描不能提前结束"),
    st(25.6,DST[10],1,"256 步走完。","（无计算）","list 在 SMEM","list 在 SMEM","list → 本专家的矩阵乘","总代价（串行）：256 步循环，31 个线程一直空等"),
-   st(B0,HP[0],"0–7","改后：8 个 warp 各读 32 个 token 的命中标志，块 0–7 出发。","<code>hit = 路由结果[token] 命中本地专家</code>","路由结果：每个线程读自己 token 的 1 项（每个 warp 32 个，8 个 warp 共 256 个）；位宽文档未给出，不标；在 HBM / L2","hit：每个线程 1 个谓词，在寄存器","hit → 第 5 步 ballot","每个 warp 1 条读指令，共 8 条；一轮覆盖 256 个 token",11),
+   st(B0,HP[0],"0–7","改后：8 个 warp 各读 32 个 token 的命中标志，块 0–7 出发。","<code>hit = 路由结果[token] 命中本地专家</code>","路由结果：每个线程读自己 token 的 1 项（每个 warp 32 个，8 个 warp 共 256 个）；位宽未知，不标；在 HBM / L2","hit：每个线程 1 个谓词，在寄存器","hit → 第 5 步 ballot","每个 warp 1 条读指令，共 8 条；一轮覆盖 256 个 token",11),
    st(B0+4,SCH[1],"0–7","每个 warp 执行 __ballot_sync，把 32 个标志合成一个位图。","<code>mask = __ballot_sync(0xffffffff, hit)</code>","hit：32 个线程各 1 个，在寄存器","mask：uint32，4 B / warp，在寄存器；第 i 位 = 线程 i 的 hit","mask → 第 6 步","1 条投票指令；ballot + popc + bfind 三条依赖指令实测约 40.1 周期",11),
    st(B0+4.6,SCH[1],"0–7","每个 warp 用 __popc 数出位图里的 1，得到每个命中线程的连续写入偏移。","<code>偏移 = __popc(mask 中本线程之前的位)</code>（写法为示意）","mask：uint32，在寄存器","偏移：每个命中线程 1 个，在寄存器","偏移 → 第 7 步写 SMEM","1 条位计数指令，不逐个 token 比较",11),
-   st(B0+5.6,DST[off[2]],2,"命中的 token 按偏移写进 SMEM 列表，各 warp 用各自的颜色。","<code>list[偏移] = token 编号</code>","偏移与 token 编号，在寄存器","命中 token 的编号列表，写进 SMEM（宽度文档未给出；格数是示意）","列表 → 本专家的矩阵乘按编号取行","每个命中 token 1 次 SMEM 写"),
+   st(B0+5.6,DST[off[2]],2,"命中的 token 按偏移写进 SMEM 列表，各 warp 用各自的颜色。","<code>list[偏移] = token 编号</code>","偏移与 token 编号，在寄存器","命中 token 的编号列表，写进 SMEM（宽度未知；格数是示意）","列表 → 本专家的矩阵乘按编号取行","每个命中 token 1 次 SMEM 写"),
    st(B0+7,DST[off[7]],7,"筛选完成。","（无计算）","列表在 SMEM","列表在 SMEM","列表 → 本专家的矩阵乘","总代价（并行）：8 个 warp 并行，每个 1 次读、1 次投票、1 次位计数；单 token 与 8-token 算例合计实测省 0.62 µs 与 2.46 µs（配合首轮 TMA 错峰预发）"));
   return {end:B0+8,speed:2.4,shot:B0+5,
    ro:"串行 256 步 → 8 个 warp 并行：每个 warp 1 次读 + 1 次 ballot + 1 次 popc\nballot+popc+bfind 约 40 周期；单 token 与 8-token 算例合计省 0.62 µs 与 2.46 µs",
@@ -267,7 +267,7 @@ const M2=()=>{ // UR
   return {end:B0+NB+30,speed:95,shot:B0+120,
    ro:"UR：不上抬路径每分块指令 304 → 284 条（预估目标约 269）\n与归一化融合同轮合并：比上一步提速 0.60%，比更早的统一注意力版本提速 1.35%",
    axis:"时间（只表示先后）；条长 = 静态指令数，斜线 = 重建变量约 51 条",
-   strip:{title:"算法：P5 全长注意力消费者循环，每分块要推进 3 个全 warp 相同的变量",cells:[{a:"1",b:["环槽号","ring slot"],c:B1,t0:0,t1:B0+NB+30},{a:"2",b:["相位位","phase"],c:B2,t0:0,t1:B0+NB+30},{a:"3",b:["矩阵描述符","descriptor"],c:B3,t0:0,t1:B0+NB+30}]},
+   strip:{title:"算法：整层 prefill 全长注意力消费者循环，每分块要推进 3 个全 warp 相同的变量",cells:[{a:"1",b:["环槽号","ring slot"],c:B1,t0:0,t1:B0+NB+30},{a:"2",b:["相位位","phase"],c:B2,t0:0,t1:B0+NB+30},{a:"3",b:["矩阵描述符","descriptor"],c:B3,t0:0,t1:B0+NB+30}]},
    blocks:bl,lights,cells:[],tags:[{p:[480,60],s:"UR：每个 warp 1 份",t0:B0,t1:B0+NB+30}],links:[],rows:["改前：每分块指令","改后：每分块指令","UR 更新"],bars,steps,divs:[B0-20],labels:["指令","输入","输出","交给下一步","代价"]}; };
 const MODES={1:M1,2:M2};
 

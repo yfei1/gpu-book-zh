@@ -164,10 +164,10 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 </svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 204" role="img" aria-label="一个分块的时间线">
 <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs>
 <text class="lab2" x="150" y="16">时间线：只表示先后，长短不是测量值</text>
-<text class="rl" x="142" y="39">路由对齐 · 网格启动</text><rect class="row" x="150" y="26" width="470" height="18"/><text class="rl" x="142" y="63">收集 warp：取 x 行块</text><rect class="row" x="150" y="50" width="470" height="18"/><text class="rl" x="142" y="87">TMA：取 W 码块</text><rect class="row" x="150" y="74" width="470" height="18"/><text class="rl" x="142" y="111">消费者：解码 A 缓冲</text><rect class="row" x="150" y="98" width="470" height="18"/><text class="rl" x="142" y="135">消费者：wgmma 组</text><rect class="row" x="150" y="122" width="470" height="18"/><text class="rl" x="142" y="159">在途 wgmma 组数</text><rect class="row" x="150" y="146" width="470" height="18"/><text class="rl" x="142" y="183">尾声 · 释放 done1</text><rect class="row" x="150" y="170" width="470" height="18"/>
+<text class="rl" x="142" y="39">路由对齐 · 网格启动</text><rect class="row" x="150" y="26" width="470" height="18"/><text class="rl" x="142" y="63">收集 warp：取 x 行块</text><rect class="row" x="150" y="50" width="470" height="18"/><text class="rl" x="142" y="87">TMA：取 W 码块</text><rect class="row" x="150" y="74" width="470" height="18"/><text class="rl" x="142" y="111">消费者：解码 A 缓冲</text><rect class="row" x="150" y="98" width="470" height="18"/><text class="rl" x="142" y="135">消费者：wgmma 组</text><rect class="row" x="150" y="122" width="470" height="18"/><text class="rl" x="142" y="159">在途 wgmma 组数</text><rect class="row" x="150" y="146" width="470" height="18"/><text class="rl" x="142" y="183">尾声 · 释放完成标志</text><rect class="row" x="150" y="170" width="470" height="18"/>
 <clipPath id="clipT"><rect id="clipR" x="150" y="22" width="0" height="176"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. T = 3,012（每个专家平均 94 个词元）</label><label><input type="radio" name="mode" value="2">2. T = 16,384（每个专家平均 512 个词元）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="13" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>第 1–8 个 K 步（颜色与编号固定）</span><span><i class="k2"></i>圆点：x 行块</span><span><i class="k3"></i>方点：W 码块</span><span><i class="k4"></i>kernel 或 wgmma 组运行</span><span><i class="k5"></i>填充行 / 空退出 CTA</span><span><i class="k6"></i>正在工作的部件</span><span><i class="k7"></i>红圈：本步说到的块（数字是 K 步）或部件（数字是第几步）</span></div>
-<p class="cap">在两个批量之间切换，看每个专家的填充行和网格截断怎么变。拖动时间，沿一个分块读完四处改动：RAG 与 a_cap、两组 wgmma 在途、F2FP、单通道释放 done1。</p></main><script type="module">
+<p class="cap">在两个批量之间切换，看每个专家的填充行和网格截断怎么变。拖动时间，沿一个分块读完四处改动：RAG 与 tile_cap、两组 wgmma 在途、F2FP、单通道释放完成标志。</p></main><script type="module">
 const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 function splitCost(s){ const m=s.match(/(总代价|代价)：/); if(!m) return {t:s,c:"—"}; const h=s.slice(0,m.index).replace(/[。；;，\s]+$/,""); return {t:h||"总代价", c:(h?s.slice(m.index):s.slice(m.index+m[0].length)).replace(/^代价：/,"")}; }
 function card(a,b){ const c=Object.assign({},a,b||{}); document.getElementById("stepT").textContent=c.t||"";
@@ -187,25 +187,25 @@ const EPI=E(N)+G, DONE=EPI+1.0, END=DONE+0.4;
 const D1=true;
 const MODES={
  1:{ro:"T = 3,012：每个专家平均 94 个词元 · 每个有效对 MMA 行数 1.27 → 1.08\nF2F 224 → 96 条 · XU 管线占用 5.74% → 3.08%", T:"3,012", per:94, rows:[1.27,1.08], rx:"[3012, 4096]"},
- 2:{ro:"T = 16,384：每个专家平均 512 个词元 · 每个有效对 MMA 行数 1.06 → 1.02\nF2F 224 → 96 条 · 77% 空退出 CTA 被 a_cap 砍掉", T:"16,384", per:512, rows:[1.06,1.02], rx:"[16384, 4096]"}
+ 2:{ro:"T = 16,384：每个专家平均 512 个词元 · 每个有效对 MMA 行数 1.06 → 1.02\nF2F 224 → 96 条 · 77% 空退出 CTA 被 tile_cap 砍掉", T:"16,384", per:512, rows:[1.06,1.02], rx:"[16384, 4096]"}
 };
 function events(md){ const m=MODES[md], Ev=[], p=(s)=>(s-1)%3+1;
  const t3=md===1;
  Ev.push({tm:0,ring:{pt:"int32"},s:"路由对齐核把本卡命中的 (词元, 专家) 对按 32 个本地专家分桶，每个专家补齐到 128 的整数倍；末块从第 RAG 行起全是填充时，改发窄行 MMA。代价：每个有效对发射的 MMA 行数 "+m.rows[0]+" → "+m.rows[1]+"（T = "+m.T+"）；"+(t3?"T = 3,012 整层提速 4.32%":"首轮整层提速 0.99%"),
   f:"sorted = 按专家 e 稳定分桶(topk_ids)；block_experts[b] = e；每个专家补齐到 BM = 128 的整数倍",i:"topk_ids int32 ["+m.T.replace(",","")+", 8]；topk_weights FP32 ["+m.T.replace(",","")+", 8]（HBM）；只保留本卡 e = 0…31；平均每个本地专家 "+m.per+" 个词元（T / 32）",o:"sorted（重排索引表，int32）、block_experts（每个分块的专家编号），写到 HBM",x:"sorted → 收集 warp 按行号取 x；block_experts → 每个 CTA 查自己的专家",alg:"rows"});
- Ev.push({tm:1.0,ring:{pt:"sched"},s:(t3?"T = 3,012 的 gemm1 网格不截断，a_cap 只用于 T > 3,012。代价：这一步在本模式没有改动，切到 T = 16,384 看网格截断":"gemm1 原按最坏情况启动 1,056 个分块 CTA，约 77% 一进场就空退出；P5 把网格截到 a_cap = 288 块，另派每 SM 1 个持久溢出 CTA。代价：gemm1 2,905 → 2,831 µs，gemm2 1,406 → 1,376 µs；溢出 CTA 在评测里找不到块，仅耗 1.25 µs；首轮整层提速 1.07%"),
-  f:t3?"网格 = 本卡的分块数，不设上限":"a_cap = ⌈(2T + 32 × 127) / 128⌉ = ⌈(32768 + 4064) / 128⌉ = 288；if (block_experts[b] 无效) return",i:t3?"block_experts（HBM）":"block_experts（HBM）；最坏网格 1,056 块 = 8 × 16,384 / 128 + 32",o:t3?"每个 CTA 取到自己的分块":"主网格 288 块；溢出 CTA 兜底；其余 CTA 不再空退出",x:"取到分块的 CTA → 按 K 步循环取数",alg:"grid"});
+ Ev.push({tm:1.0,ring:{pt:"sched"},s:(t3?"T = 3,012 的 gemm1 网格不截断，tile_cap 只用于 T > 3,012。代价：这一步在本模式没有改动，切到 T = 16,384 看网格截断":"gemm1 原按最坏情况启动 1,056 个分块 CTA，约 77% 一进场就空退出；整层 prefill 把网格截到 tile_cap = 288 块，另派每 SM 1 个持久溢出 CTA。代价：gemm1 2,905 → 2,831 µs，gemm2 1,406 → 1,376 µs；溢出 CTA 在测试里找不到块，仅耗 1.25 µs；首轮整层提速 1.07%"),
+  f:t3?"网格 = 本卡的分块数，不设上限":"tile_cap = ⌈(2T + 32 × 127) / 128⌉ = ⌈(32768 + 4064) / 128⌉ = 288；if (block_experts[b] 无效) return",i:t3?"block_experts（HBM）":"block_experts（HBM）；最坏网格 1,056 块 = 8 × 16,384 / 128 + 32",o:t3?"每个 CTA 取到自己的分块":"主网格 288 块；溢出 CTA 兜底；其余 CTA 不再空退出",x:"取到分块的 CTA → 按 K 步循环取数",alg:"grid"});
  for(let s=1;s<=N;s++){ const k0=p(s);
   Ev.push({tm:DEP(s),ring:{dot:s},s:"收集 warp 用 cp.async 取 x 行块 "+s+"，TMA 取 W 码块 "+s+"，都送进环槽 "+k0+"。代价："+(s===1?"4 个收集 warp 各占 40 个寄存器；":"")+(s>3?"槽 "+k0+" 等第 "+(s-3)+" 步的 wgmma 组完成后才空出；":"")+"槽 "+k0+" 从现在起占到第 "+s+" 步的 wgmma 组完成",
    f:"slot["+(k0-1)+"] ← { x[sorted[r] // 8, 步 "+s+" 的 K 列]，W13[e][步 "+s+" 的 K 列] }",i:"x BF16 "+m.rx+"（HBM → SMEM，收集 warp 用 cp.async 按行号取）；W13[e] uint8 [8192, 2048]（E2M1 × 2，HBM → SMEM，TMA）",o:"环槽 "+k0+"：x 行块 "+s+" 和 W 码块 "+s+"（SMEM）",x:"槽 "+k0+" → 消费者第 "+s+" 步",alg:"step",ks:s});
   Ev.push({tm:ISS(s),ring:{slot:k0-1},s:"消费者把 W 码块 "+s+" 解码进第 "+((s-1)%4+1)+" 套寄存器，发出第 "+s+" 组 wgmma。代价：每步 8 条 m64n128k16；"+(s>=2?"此时 2 组在途（改造前只有 1 组）":"此时 1 组在途")+(s>=3?"；wait_group<2> 等第 "+(s-2)+" 组完成，放出槽 "+((s-3)%3+1):"")+"；"+(t3?"turn 4 整层提速 1.82% / 1.76%（与超前 2 步合并测得）":"首轮分块提速 4.98%–5.02%"),
    f:"A["+((s-1)%4)+"] ← 解码(W 码块 "+s+")；acc += A["+((s-1)%4)+"] · x 行块 "+s,i:"W 码块 "+s+"、x 行块 "+s+"（SMEM 槽 "+k0+"）",o:"acc FP32（128 行 × gate | up 列，寄存器）；第 "+s+" 组 wgmma 在途",x:"acc → 第 "+(s+1)+" 步继续累加；槽 "+k0+" 等第 "+s+" 组完成后释放",alg:"step",ks:s}); }
  Ev.push({tm:EPI,ring:{pt:"fp32"},s:"gemm1 尾声把门控与上投影结果做 SwiGLU，再两两打包舍入成 BF16。代价：走 XU 管线的 F2F 从 224 条降到 96 条，XU 管线占用 5.74% → 3.08%（SM 周期 −0.6%）；整层提速 0.33%",
-  f:"inter = silu(h_gate) ⊙ h_up；inter_bf16x2 = cvt.rn.bf16x2.f32(inter_a, inter_b)  // 编译成 F2FP",i:"acc FP32（寄存器，已乘 r_m）",o:"inter BF16 [n_e, 4096]（n_e = 专家 e 的 (词元, 专家) 对数），写出",x:"inter → 下投影 gemm2；分块完成 → 释放 done1"});
- Ev.push({tm:DONE,ring:{pt:"lsu3"},s:"消费者只做片上 mbarrier.arrive；收集 warp 3 的 lane 0 等到该 mbarrier 后，用 red.release.gpu 发布 done1。代价：改造前消费者 warp 0 的 atom.acq_rel.gpu 编译成 MEMBAR.ALL.GPU + ERRBAR + ATOMG + CCTL，约 687 周期，整个消费者 warpgroup 在下一个 wgmma 前停住；整层提速 0.16%（含 gemm2 的 done2 约 1,409 周期移到 TMA 生产者通道）",
-  f:"mbarrier.arrive.cta（消费者）；red.release.gpu done1[block] += 1（收集 warp 3，lane 0）",i:"inter 的 SMEM 写入（消费者已完成）",o:"done1[block]（全局内存计数器）",x:"done1 → gemm2 的 CTA 开始读这个分块的 inter"});
- Ev.push({tm:END-0.01,ring:null,s:"总代价：T = "+m.T+" 时，MMA 行数 "+m.rows[0]+" → "+m.rows[1]+" 行 / 有效对；"+(t3?"":"网格 1,056 → 288 块，gemm1 2,905 → 2,831 µs；")+"在途 wgmma 组 1 → 2；F2F 224 → 96 条；done1 不再让消费者停约 687 周期。各项单独的整层提速不相加",
-  f:"（无新公式：以上四处改动的合计账本）",i:"topk_ids、x、W13[e]",o:"inter、done1",x:"inter → gemm2"});
+  f:"inter = silu(h_gate) ⊙ h_up；inter_bf16x2 = cvt.rn.bf16x2.f32(inter_a, inter_b)  // 编译成 F2FP",i:"acc FP32（寄存器，已乘 r_m）",o:"inter BF16 [n_e, 4096]（n_e = 专家 e 的 (词元, 专家) 对数），写出",x:"inter → 下投影 gemm2；分块完成 → 释放完成标志"});
+ Ev.push({tm:DONE,ring:{pt:"lsu3"},s:"消费者只做片上 mbarrier.arrive；收集 warp 3 的 lane 0 等到该 mbarrier 后，用 red.release.gpu 发布完成标志。代价：改造前消费者 warp 0 的 atom.acq_rel.gpu 编译成 MEMBAR.ALL.GPU + ERRBAR + ATOMG + CCTL，约 687 周期，整个消费者 warpgroup 在下一个 wgmma 前停住；整层提速 0.16%（含 gemm2 的 done2 约 1,409 周期移到 TMA 生产者通道）",
+  f:"mbarrier.arrive.cta（消费者）；red.release.gpu done_cnt[block] += 1（收集 warp 3，lane 0）",i:"inter 的 SMEM 写入（消费者已完成）",o:"done_cnt[block]（全局内存计数器）",x:"完成标志 → gemm2 的 CTA 开始读这个分块的 inter"});
+ Ev.push({tm:END-0.01,ring:null,s:"总代价：T = "+m.T+" 时，MMA 行数 "+m.rows[0]+" → "+m.rows[1]+" 行 / 有效对；"+(t3?"":"网格 1,056 → 288 块，gemm1 2,905 → 2,831 µs；")+"在途 wgmma 组 1 → 2；F2F 224 → 96 条；完成标志不再让消费者停约 687 周期。各项单独的整层提速不相加",
+  f:"（无新公式：以上四处改动的合计账本）",i:"topk_ids、x、W13[e]",o:"inter、完成标志",x:"inter → gemm2"});
  return Ev; }
 let mode=1, Tr=[], EV=[], end=END, t=0;
 const pd=(pts)=>"M"+pts.map(p=>p[0]+" "+p[1]).join("L");
@@ -217,8 +217,8 @@ function algStatic(md){ const m=MODES[md]; let h="";
   h+='<text class="tn" x="'+(bx+44)+'" y="'+(y0+58)+'">蓝：有效行　斜线：多发的填充行</text>';
   $("algRows").innerHTML=h;
   let g="";
-  if(md===2){ const gx0=498, gw=130, y=44; g+='<text class="lab2" x="'+gx0+'" y="30">gemm1 网格（T = 16,384）</text><rect class="bv" x="'+gx0+'" y="'+y+'" width="'+(gw*0.23).toFixed(1)+'" height="16"/><rect class="bw" x="'+(gx0+gw*0.23).toFixed(1)+'" y="'+y+'" width="'+(gw*0.77).toFixed(1)+'" height="16"/><text class="tn" x="'+gx0+'" y="'+(y+30)+'">1,056 块，77% 空退出</text><path class="ao" style="stroke-width:1.4" d="M'+gx0+' '+(y+40)+'H'+(gx0+gw*288/1056).toFixed(1)+'"/><text class="tn" x="'+gx0+'" y="'+(y+54)+'">a_cap = 288 块</text>'; }
-  else g+='<text class="lab2" x="498" y="30">gemm1 网格（T = 3,012）</text><text class="tn" x="498" y="50">不截断；</text><text class="tn" x="498" y="64">a_cap 只用于 T &gt; 3,012</text>';
+  if(md===2){ const gx0=498, gw=130, y=44; g+='<text class="lab2" x="'+gx0+'" y="30">gemm1 网格（T = 16,384）</text><rect class="bv" x="'+gx0+'" y="'+y+'" width="'+(gw*0.23).toFixed(1)+'" height="16"/><rect class="bw" x="'+(gx0+gw*0.23).toFixed(1)+'" y="'+y+'" width="'+(gw*0.77).toFixed(1)+'" height="16"/><text class="tn" x="'+gx0+'" y="'+(y+30)+'">1,056 块，77% 空退出</text><path class="ao" style="stroke-width:1.4" d="M'+gx0+' '+(y+40)+'H'+(gx0+gw*288/1056).toFixed(1)+'"/><text class="tn" x="'+gx0+'" y="'+(y+54)+'">tile_cap = 288 块</text>'; }
+  else g+='<text class="lab2" x="498" y="30">gemm1 网格（T = 3,012）</text><text class="tn" x="498" y="50">不截断；</text><text class="tn" x="498" y="64">tile_cap 只用于 T &gt; 3,012</text>';
   $("algGrid").innerHTML=g; }
 function setMode(md){
   mode=md; const d=MODES[md]; Tr=[]; EV=events(md); end=END;
@@ -261,7 +261,7 @@ function show(){
     gx[s-1].classList.toggle("gone", t>=DEP(s)); gw[s-1].classList.toggle("gone", t>=DEP(s));
     if(t>=E(s)&&t<E(s)+G) on.tc=true; if(t>=ISS(s)-DEC&&t<ISS(s)) on.regs=true; }
   gs.forEach((g,i)=>{ g.classList.toggle("have",slotOf[i]>=0); if(slotOf[i]>=0) g.setAttribute("data-slot",String(slotOf[i])); else g.setAttribute("data-slot",String(i)); });
-  if(t<1.0){ on.int32=true; on.lsu=true; tag="SM 正在跑：路由对齐核"; } else if(t<OFF){ on.sched=true; tag="gemm1 网格启动"; } else if(t<EPI){ tag="SM 正在跑：gemm1 主循环"; } else if(t<DONE){ on.fp32=true; on.regs=true; tag="SM 正在跑：gemm1 尾声"; } else { on.lsu3=true; tag="收集 warp 3 发布 done1"; }
+  if(t<1.0){ on.int32=true; on.lsu=true; tag="SM 正在跑：路由对齐核"; } else if(t<OFF){ on.sched=true; tag="gemm1 网格启动"; } else if(t<EPI){ tag="SM 正在跑：gemm1 主循环"; } else if(t<DONE){ on.fp32=true; on.regs=true; tag="SM 正在跑：gemm1 尾声"; } else { on.lsu3=true; tag="收集 warp 3 发布完成标志"; }
   for(const key in PARTS) PARTS[key].forEach((g,i)=>g&&g.classList.toggle("busy",!!on[key]||(key==="lsu"&&i===3&&!!on.lsu3)));
   $("smTag").textContent=tag; $("dots").innerHTML=dots;
   $("clipR").setAttribute("width",(TX(Math.min(t,end))-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(Math.min(t,end)).toFixed(1)+" "+(TY0-4)+"V"+(TY0+7*24)); $("tIn").value=String(t); narrate();

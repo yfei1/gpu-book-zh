@@ -175,7 +175,7 @@ const HUE=[212,168,262,30,330,140,190]; const col=(i,l)=>"hsl("+HUE[i]+" 58% "+(
 const RIDGE=206, BW_TB=4.8, PEAK=989;
 // stage table: name, P tag, then per mode {I: FLOP/B, mb: MB moved, us: floor in us, by: m (HBM) / c (matrix unit), txt: extra}
 const ST=[
- {n:"qkv_gate",p:"P4 第 1 阶段"},{n:"attention",p:"P1"},{n:"o",p:"P4 第 3 阶段"},{n:"router",p:"P4 第 4 阶段"},{n:"pooler",p:"P4 第 5 阶段"},{n:"MoE 专家",p:"P2"},{n:"unpooler",p:"P4 第 7 阶段"}];
+ {n:"qkv_gate",p:"稠密投影"},{n:"attention",p:"独立注意力"},{n:"o",p:"稠密投影"},{n:"router",p:"稠密投影"},{n:"pooler",p:"稠密投影"},{n:"MoE 专家",p:"本地专家"},{n:"unpooler",p:"稠密投影"}];
 const MD={
  1:{lab:"decode：T = 1",rows:[
   {I:1,mb:37.7,us:7.9,by:"m"},{I:16,mb:0.5,us:0.1,by:"m",x:"滑窗层的 KV cache"},{I:1,mb:16.8,us:3.5,by:"m"},{I:0.5,mb:8.4,us:1.8,by:"m"},{I:1,mb:67.1,us:14.0,by:"m"},{I:3.6,mb:53,us:11.0,by:"m"},{I:1,mb:8.4,us:1.8,by:"m"}],

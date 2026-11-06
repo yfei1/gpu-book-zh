@@ -212,25 +212,25 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs><text class="lab2" x="8" y="14" id="tTitle"></text>
 <clipPath id="clipT"><rect id="clipR" x="0" y="0" width="640" height="0"/></clipPath><g id="frame"></g><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">v9：16 位 BF16 权重</label><label><input type="radio" name="mode" value="2">v10：12 位 C12 权重</label><label><input type="radio" name="mode" value="3">全程 v0 → v10 的实测耗时</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="11" step="0.02" value="0"></label></div><div class="lg"><span><i class="k1"></i>每种颜色是同一个权重（模式 1、2）或同一个版本（模式 3）</span><span>高 / 低：BF16 的高字节 / 低字节；半：半字节</span><span><i class="k2"></i>窗口外的权重，走旁路表</span><span>模式 1、2 的时间轴只表示先后；模式 3 的长度是实测 µs</span></div>
-<p class="cap">选 v9 或 v10，看每个权重读多少位、寄存器里要做哪几步解码。选第 3 项，看 15.49 µs 是怎样一步步从 675.71 µs 降下来的。</p></main><script type="module">
+<p class="cap">选 v9 或 v10，看每个权重读多少位、寄存器里要做哪几步解码。选第 3 项，看 15.09 µs 是怎样一步步从 674.58 µs 降下来的。</p></main><script type="module">
 const REGC=[345,96.9], ALUC=[234,93.8], FMAC=[308.2,121.5], HBMIN=[202.9,56];
 const HUE=(j)=>(212+j*47)%360; const L0=100,L1=540,TY0=26,SX=100;
 const MODE0=2; let mode=2, t=0, end=1, EV=[];
 const VER=[ // name, us, GB/s, %floor, KiB in flight per SM, lever, chips label
- ["v0",675.71,56,1.2,0.2,"-"],["v1",58.88,642,13.4,4.0,"a"],["v3",48.26,783,16.3,4.0,"c"],["v4",43.94,860,17.9,4.0,"假象"],["v5",17.76,2127,44.3,32.0,"a"],["v6",21.86,1728,36.0,8.7,"c"],
- ["v7",15.68,2409,50.2,69.8,"a"],["v8",15.62,2419,50.4,61.1,"c"],["v9",15.58,2424,50.5,61.1,"c"],["v10c",20.00,1889,39.3,34.9,"-"],["v10",15.49,1834,50.8,26.2,"b"]];
+ ["v0",674.58,56,1.2,0.2,"-"],["v1",54.08,699,14.6,4.0,"a"],["v3",43.34,872,18.2,4.0,"c"],["v4",44.29,853,17.8,4.0,"假象"],["v5",17.49,2160,45.0,32.0,"a"],["v6",21.63,1747,36.4,8.7,"c"],
+ ["v7",15.15,2494,52.0,69.8,"a"],["v8",14.74,2563,53.4,61.1,"c"],["v9",14.83,2548,53.1,61.1,"c"],["v10c",19.33,1954,40.7,34.9,"-"],["v10",15.09,1882,52.2,26.2,"b"]];
 const VHUE=(i)=>(212+i*30)%360;
 const M={
- 1:{ro:"v9：BF16，16 位 / 权重，主权重 37.7 MB\n实测 15.58 µs · 每 SM 在途 61.1 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
- 2:{ro:"v10：C12，12 位 / 权重，主权重 28.3 MB\n实测 15.49 µs · 每 SM 在途 26.2 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
- 3:{ro:"v0 → v10：675.71 → 15.49 µs（约 44 倍）\n实测，冷 L2 中位数（写 512 MiB 清 L2），同一块 H200 · v4 一步是测法的假象",tt:"每个版本的实测耗时（µs，对数轴），一次加一个版本"}};
+ 1:{ro:"v9：BF16，16 位 / 权重，主权重 37.7 MB\n实测 14.83 µs · 每 SM 在途 61.1 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
+ 2:{ro:"v10：C12，12 位 / 权重，主权重 28.3 MB\n实测 15.09 µs（含尾声）· 每 SM 在途 26.2 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
+ 3:{ro:"v0 → v10：674.58 → 15.09 µs（约 45 倍）\n实测，冷 L2 中位数（读 512 MiB 清 L2），同一块 H200 · v4 一步是测法的假象",tt:"每个版本的实测耗时（µs，对数轴），一次加一个版本"}};
 const stillT=()=>mode===3?end*0.85:end*0.55;
 function ev1(){ const E=[];
  E.push({s:"每个线程发 7 条 LDG.128，各读 16 B（8 个 BF16），共 112 B 在途。代价：7 条指令；全 SM 的 W 在途字节为 61.1 KiB（RESIDENCY）",p:HBMIN,part:"ld"});
  E.push({s:"数据落进寄存器：每个 32 位寄存器装 2 个 BF16，16 B 占 4 个寄存器。代价：每个权重读 2 B，整行 8192 个权重共 16 KiB",p:REGC,part:"reg"});
  E.push({s:"ALU 用移位和按位与把每个 BF16 升成 FP32（低半移位，高半按位与），W 和 x 都要拆（x 没有被提到循环外）。代价：每个权重 2 条整数指令（W、x 各 1 条；实测 512 条 / 256 个权重），多数占 ALU 2 clk，约 48% 的移位由 FMA 管线上的 IMAD.U32 做",p:ALUC,part:"alu"});
  E.push({s:"FMA 把 FP32 权重乘上 x 并累加，共 8 条互相独立的链。代价：每个权重 1 条 FFMA",p:FMAC,part:"fma"});
- E.push({s:"总代价：每个权重读 2 B、2 条解包指令（W、x）、1 条 FFMA；主权重共 37.7 MB。实测 v9 为 15.58 µs，下界 7.86 µs 的 50.5%",p:null,part:null});
+ E.push({s:"总代价：每个权重读 2 B、2 条解包指令（W、x）、1 条 FFMA；主权重共 37.7 MB。实测 v9 为 14.83 µs，下界 7.86 µs 的 53.1%",p:null,part:null});
  return E; }
 function ev2(){ const E=[];
  E.push({s:"预处理（加载权重前做一次）：每个 BF16 拆成低字节（最低 1 位指数 + 7 位尾数）和 12 位里的其余 4 位：符号 + 3 位偏移 d = 指数高 7 位 − base。base 是每个矩阵里权重最密的 8 值窗口的起点。窗口外的权重（图中权重 6，示意）d 记 0，真实位记入旁路表。代价：离线一次；每个权重变成 12 位，主权重 37.7 MB 变成 28.3 MB，旁路表约 0.1 MB",p:null,part:null,algStage:1});
@@ -238,22 +238,22 @@ function ev2(){ const E=[];
  E.push({s:"rot = CD 循环右移 4 位（SHF），让权重 4–7 的半字节落到权重 0–3 的位置。代价：每个 8 权重的字 1 条 SHF，2 clk；多占 1 个临时寄存器",p:ALUC,part:"alu",algStage:2});
  E.push({s:"两次按位与 0x87878787（CD 一次、rot 一次）：0x87 = 1000 0111b，每个字节只留位 7（符号）和位 2 … 0（3 位偏移），清掉位 6 … 3。代价：每个 8 权重的字 2 条 LOP3，各 2 clk",p:ALUC,part:"alu",algStage:3});
  E.push({s:"两次整数加 EXP_BASE = base × 0x01010101（窗口起点，指数右移 1 位后的 7 位值，4 个字节各一份）：符号 | (base + 偏移) 就是 BF16 的高字节；base + 7 ≤ 127，不会进位到符号位。代价：每个 8 权重的字 2 条 IADD，各 2 clk",p:ALUC,part:"alu",algStage:4});
- E.push({s:"XOR 补丁：窗口外的权重解码出 d = 0，高字节不对；用 XOR 把真实高字节补回（异或值取自每个 CTA 的表项，没有窗口外权重时 warp 投票后跳过）。代价：多读旁路表；XOR 的条数资料里没有给全",p:ALUC,part:"alu",algStage:5});
+ E.push({s:"XOR 补丁：窗口外的权重解码出 d = 0，高字节不对；用 XOR 把真实高字节补回（异或值取自每个 CTA 的表项，没有窗口外权重时 warp 投票后跳过）。代价：多读旁路表；XOR 的条数不全",p:ALUC,part:"alu",algStage:5});
  E.push({s:"PRMT 把低字节和高字节交错成 BF16 对：0x5140 取 (低0, 高0, 低1, 高1)，0x7362 取权重 2、3，对 rot 一侧同样各 1 条。4 条 PRMT 得 4 个 BF16x2 = 8 个权重，再升成 FP32 交给 FMA。代价：每个权重读 1.5 B；每 8 个权重 1 SHF + 2 LOP3 + 2 IADD + 4 PRMT = 9 条 ALU 指令 18 clk（不含 XOR）",p:FMAC,part:"fma",algStage:6});
- E.push({s:"总代价：每个权重 12 位，整行 12 KiB，主权重 28.3 MB；多出一串整数指令，藏在显存等待里。实测 15.49 µs，比同形状的 v10c（BF16，20.00 µs）快 1.29 倍，比 v9 只快 1.01 倍：每 SM 在途只剩 26.2 KiB",p:null,part:null,algStage:6});
+ E.push({s:"总代价：每个权重 12 位，整行 12 KiB，主权重 28.3 MB；多出一串整数指令，藏在显存等待里。实测 15.09 µs（含尾声），比同形状的 v10c（BF16，19.33 µs）快 1.28 倍；与 v9 比，带尾声的 v10 慢 0.26 µs（尾声约 1.0–1.2 µs），同输出且都不带尾声时快 1.07 倍（13.92 对 14.91 µs）：每 SM 在途只剩 26.2 KiB",p:null,part:null,algStage:6});
  return E; }
 const TXT3=[
- "最朴素：每线程算一行，标量读；网格只有 18 个 CTA，所以只有 18 个 SM 有活。代价：675.71 µs，读到 56 GB/s，占 4.8 TB/s 的 1.2%",
- "一行一个 CTA（128 线程），网格 2304 个 CTA，132 个 SM 都有活。代价：58.88 µs，642 GB/s（13.4%）",
- "尾部 192 行拆成两半，由两个 CTA 合并（第 2 章）。代价：48.26 µs，783 GB/s（16.3%）",
- "L2 缓存提示：W 用 evict_first，x 用 evict_last（第 2 章）。冷缓存测法的假象：干净清空后不再变快（H200 实测：读 512 MiB 清 L2，v3 42.88 µs，v4 43.49 µs；NCU 下 41.25 / 42.59 µs）。代价：43.94 µs，860 GB/s（17.9%）；这 1.10 倍来自写 512 MiB 清 L2 留下的脏行（推断：W 的 evict_first 避免脏行写回挤占读带宽），不是 L2 命中率，也不是在途字节",
- "合并的 16 B 读（第 3 章）：每条 warp 指令读 16 个扇区。代价：17.76 µs，2127 GB/s（44.3%）",
- "32 线程一行，一轮跑完，没有尾部；但每 SM 在途字节从 32 KiB 降到 8.7 KiB。代价：21.86 µs，1728 GB/s（36.0%），比 v5 慢",
- "每条通道先发 8 条独立的 16 B 读（第 4 章）。代价：15.68 µs，2409 GB/s（50.2%）；每 SM 在途 69.8 KiB",
- "warp shuffle 归约，去掉 SMEM 和串行求和（第 4 章）。代价：15.62 µs，几乎没变（1.00 倍），因为瓶颈是 HBM",
- "BF16 用移位和按位与解包，8 条独立 FMA 链（第 5 章）。代价：15.58 µs，2424 GB/s（50.5%）",
- "对照：提交版的形状（4 个 warp 一个 CTA，每线程 4 条在途读），仍是 BF16。代价：20.00 µs（0.78 倍）；每 SM 在途掉到 34.9 KiB，低于图 2-6 的拐点",
- "C12：12 位无损打包加寄存器解码，主权重 37.7 MB 变 28.3 MB。总代价：从 v0 的 675.71 µs 降到 15.49 µs，约 44 倍，快于 cuBLAS torch.mv 的 21.12 µs；占 7.86 µs 下界的 50.8%，占 5.92 µs 的 C12 下界的 38.2%"];
+ "最朴素：每线程算一行，标量读；网格只有 18 个 CTA，所以只有 18 个 SM 有活。代价：674.58 µs，读到 56 GB/s，占 4.8 TB/s 的 1.2%",
+ "一行一个 CTA（128 线程），网格 2304 个 CTA，132 个 SM 都有活。代价：54.08 µs，699 GB/s（14.6%）",
+ "尾部 192 行拆成两半，由两个 CTA 合并（第 2 章）。代价：43.34 µs，872 GB/s（18.2%）",
+ "L2 缓存提示：W 用 evict_first，x 用 evict_last（第 2 章）。冷缓存测法的假象：读 512 MiB 清 L2 后不再变快（H200 实测：v3 43.34 µs，v4 44.29 µs，慢 0.95 µs）。代价：44.29 µs，853 GB/s（17.8%）；旧的写 512 MiB 清 L2 口径下看到的 1.10 倍（v3 48.26 µs，v4 43.94 µs）来自写 512 MiB 清 L2 留下的脏行（可能的原因：W 的 evict_first 避免脏行写回挤占读带宽），不是 L2 命中率，也不是在途字节",
+ "合并的 16 B 读（第 3 章）：每条 warp 指令读 16 个扇区。代价：17.49 µs，2160 GB/s（45.0%）",
+ "32 线程一行，一轮跑完，没有尾部；但每 SM 在途字节从 32 KiB 降到 8.7 KiB。代价：21.63 µs，1747 GB/s（36.4%），比 v5 慢",
+ "每条通道先发 8 条独立的 16 B 读（第 4 章）。代价：15.15 µs，2494 GB/s（52.0%）；每 SM 在途 69.8 KiB",
+ "warp shuffle 归约，去掉 SMEM 和串行求和（第 4 章）。代价：14.74 µs，只快了一点（1.03 倍，约 0.4 µs），因为瓶颈是 HBM",
+ "BF16 用移位和按位与解包，8 条独立 FMA 链（第 5 章）。代价：14.83 µs，2548 GB/s（53.1%）；比 v8 慢 0.09 µs（0.99 倍）",
+ "对照：最终版的形状（4 个 warp 一个 CTA，每线程 4 条在途读），仍是 BF16。代价：19.33 µs（0.77 倍）；每 SM 在途掉到 34.9 KiB，低于图 2-6 的拐点",
+ "C12：12 位无损打包加寄存器解码，主权重 37.7 MB 变 28.3 MB。总代价：从 v0 的 674.58 µs 降到 15.09 µs，约 45 倍，快于 cuBLAS torch.mv 的 19.20 µs；占 7.86 µs 下界的 52.2%，占 5.92 µs 的 C12 下界的 39.2%"];
 function ev3(){ return VER.map((v,i)=>({s:TXT3[i],p:null,part:null,ver:i})); }
 const WT="<code>W</code> BF16 [2304, 8192] · 37.7 MB · HBM", XT="<code>x</code> BF16 [8192] · 16 KiB", YF="<code>y</code> FP32 [2304] · HBM";
 const CARDS=[[
@@ -270,7 +270,7 @@ const CARDS=[[
  {f:"<code>ha += EXP_BASE</code>；<code>hb += EXP_BASE</code>；<code>EXP_BASE = base × 0x01010101</code>", i:"<code>ha</code>、<code>hb</code> · 寄存器；<code>EXP_BASE</code>：4 个字节都是 base（≤ 120）· 立即数或寄存器", o:"<code>ha</code>、<code>hb</code>：每字节 = 符号 ≪ 7 | (base + 偏移) = BF16 高字节：位 15 符号，位 14…8 指数 ≫ 1（窗口内权重正确）· 寄存器", h:"→ 窗口外权重要 XOR 补丁"},
  {f:"<code>ha ← ha ⊕ x</code>，只对窗口外权重所在字（<code>@r xor.b32</code>）", i:"每个 CTA 的表项（窗口外权重的真实高字节与解码值之差）；先 warp 投票，没有窗口外权重就跳过", o:"<code>ha</code>（及 <code>hb</code>）补正：窗口外权重的高字节也正确 · 寄存器", h:"→ PRMT 与低字节拼成 BF16"},
  {f:"<code>o0 = prmt(la, ha, 0x5140)</code> → (w0, w1)；<code>o1 = prmt(la, ha, 0x7362)</code> → (w2, w3)；<code>o2/o3 = prmt(lb, hb, …)</code> → (w4…w7)", i:"<code>la</code>、<code>lb</code>：各 4 个低字节；<code>ha</code>、<code>hb</code>：各 4 个高字节 · 寄存器", o:"4 个 BF16x2 寄存器 = 8 个 BF16（小端：低字节在前）；升 FP32 后进 FMA", h:"→ FMA 累加，与 v9 相同"},
- {f:"<code>y[r] = Σₖ W[r,k] · x[k]</code>，W 以 C12 读（12 位 / 权重）", i:"C12 28.3 MB + 旁路表 ≈ 0.1 MB · HBM；第 r 行 8192 × 1.5 B = 12 KiB；"+XT, o:"<code>y</code> BF16 [2304] · HBM（v10 写 BF16）", h:"→ 本图终点；对照 v10c（BF16，20.00 µs）与 v9"}
+ {f:"<code>y[r] = Σₖ W[r,k] · x[k]</code>，W 以 C12 读（12 位 / 权重）", i:"C12 28.3 MB + 旁路表 ≈ 0.1 MB · HBM；第 r 行 8192 × 1.5 B = 12 KiB；"+XT, o:"<code>y</code> BF16 [2304] · HBM（v10 写 BF16）", h:"→ 本图终点；对照 v10c（BF16，19.33 µs）与 v9"}
 ],[
  {f:"<code>y[r] = Σₖ W[r,k]·x[k]</code>；1 线程 1 行，标量读", i:WT+"：每次读 1 个 BF16（2 B）；"+XT+" · HBM / L2<br>网格 18 CTA × 128 线程 = 2304 线程 = 2304 行", o:YF, h:"→ v1：一行交给一个 CTA（128 线程）"},
  {f:"<code>part[t] = Σ_{k∈线程 t} W[r,k]·x[k]</code>；<code>y[r] = Σₜ part[t]</code>，t < 128", i:"<code>W</code> 第 r 行 · HBM，由 128 线程分担；<code>part</code> FP32 × 128 = 512 B · SMEM", o:"<code>y[r]</code>：tid 0 串行加完写出 · HBM", h:"→ v3：尾部 192 行拆成两半"},
@@ -280,9 +280,9 @@ const CARDS=[[
  {f:"一行 = 1 个 warp：每 lane 读 K / 32 = 256 个权重", i:"grid 2304 CTA × 32 线程；每 SM 17.45 个 warp（2304 / 132）· HBM → 寄存器", o:"<code>y[r]</code> FP32 · HBM；在途降到 8.7 KiB / SM", h:"→ v7：每 lane 同时多发几条读"},
  {f:"<code>w[0…7][uint4] ← W</code>：先发 8 条读，再用", i:"<code>W</code> · HBM：每 lane 8 × 16 B = 128 B 在途；83 个寄存器 / 线程", o:"寄存器堆里 8 组 uint4；在途 69.8 KiB / SM", h:"→ v8：换归约方式"},
  {f:"<code>y[r] = shfl_reduce(part[0…31])</code>", i:"<code>part</code> FP32 × 32 个 lane · 寄存器（不再经 SMEM）", o:"<code>y[r]</code> FP32 · HBM", h:"→ v9：解包与累加"},
- {f:"<code>fp32(w) = bf16 ≪ 16</code> 或 <code>∧ 0xFFFF0000</code>；<code>acc_c += w · x</code>，c = 0…7", i:"<code>R</code> BF16x2 32 位 · 寄存器", o:"8 条独立 FMA 链 <code>acc_c</code> FP32 · 寄存器", h:"→ v10c：换成提交版的 CTA 形状"},
+ {f:"<code>fp32(w) = bf16 ≪ 16</code> 或 <code>∧ 0xFFFF0000</code>；<code>acc_c += w · x</code>，c = 0…7", i:"<code>R</code> BF16x2 32 位 · 寄存器", o:"8 条独立 FMA 链 <code>acc_c</code> FP32 · 寄存器", h:"→ v10c：换成最终版的 CTA 形状"},
  {f:"公式同 v9；每 warp 1 行，每 CTA 4 行", i:"4 个 warp / CTA，grid 576 CTA；每线程 4 × 16 B = 64 B 在途；<code>W</code> 仍是 BF16 37.7 MB", o:"<code>y</code> FP32 · HBM；在途 34.9 KiB / SM，低于 64 KiB 拐点", h:"→ v10：只换权重格式"},
- {f:"公式同上；权重由 C12 在寄存器里还原", i:"C12 28.3 MB + 旁路表 ≈ 0.1 MB · HBM；每线程 3 × 16 B = 48 B 在途", o:"<code>y</code> BF16 [2304] · HBM（v10 写 BF16）；在途 26.2 KiB / SM", h:"→ 终点：快过 cuBLAS torch.mv（21.12 µs）"}
+ {f:"公式同上；权重由 C12 在寄存器里还原", i:"C12 28.3 MB + 旁路表 ≈ 0.1 MB · HBM；每线程 3 × 16 B = 48 B 在途", o:"<code>y</code> BF16 [2304] · HBM（v10 写 BF16）；在途 26.2 KiB / SM", h:"→ 终点：快过 cuBLAS torch.mv（19.20 µs）"}
 ]];
 const LX0=100, LX1=520, LR=15, LY0=34, AMIN=Math.log10(5), AMAX=Math.log10(1000);
 const lx=(us)=>LX0+(LX1-LX0)*(Math.log10(us)-AMIN)/(AMAX-AMIN);

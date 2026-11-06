@@ -153,7 +153,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 </svg><div class="nar"><b id="stepN"></b><span id="stepT"></span></div><dl class="card" id="card"></dl><svg class="flat" id="tlsvg" viewBox="0 0 640 176" role="img" aria-label="同一过程的时间线">
 <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs><text class="lab2" id="tlH" x="150" y="16"></text><g id="tlRows"></g>
 <clipPath id="clipT"><rect id="clipR" x="150" y="22" width="0" height="140"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. ptxas 默认：预取被下沉、1 + norm_w 被重算</label><label><input type="radio" name="mode" value="2">2. asm volatile 预取：6 条加载留在 ACQBULK 之前</label><label><input type="radio" name="mode" value="3">3. 再加空 asm：nw 只算一次</label><label><input type="radio" name="mode" value="4">4. 移植为同构 sm_90a CUDA C++</label></div>
-<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="37" step="0.05" value="0"></label></div><div class="lg"><span><i class="k1"></i>每种颜色是一块数据（1–6 序言预取，7 是 y，8 是输出）</span><span><i class="k2"></i>warp 停在 ACQBULK 等 m20</span><span><i class="k3"></i>warp 可以继续往下发</span><span><i class="k4"></i>循环里重算 1 + norm_w 的 FADD</span><span><i class="k5"></i>前一个核（m20）在跑</span></div>
+<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="37" step="0.05" value="0"></label></div><div class="lg"><span><i class="k1"></i>每种颜色是一块数据（1–6 序言预取，7 是 y，8 是输出）</span><span><i class="k2"></i>warp 停在 ACQBULK 等 小批量专家核</span><span><i class="k3"></i>warp 可以继续往下发</span><span><i class="k4"></i>循环里重算 1 + norm_w 的 FADD</span><span><i class="k5"></i>前一个核（小批量专家核）在跑</span></div>
 <p class="cap">选一种写法，看 6 条预取在 ACQBULK 之前还是之后发出、循环里 FADD 有没有重算；模式 4 逐格看移植的账。红圈和编号标出当前这一步说的那个块或部件。</p></main><script type="module">
 const SRC=[[168.7,58.9],[178.5,65.7],[188.3,72.6],[198.1,79.5],[155.3,65.5],[165.1,72.3],[174.9,79.2],[184.7,86.1]], L2C=[214.3,135.1], PT={"sch":[389,258.3],"regs":[377,263.5],"lsu":[313.7,260.2],"fp32":[359.1,268.9],"int32":[336.7,252.4],"sfu":[324.1,251.8],"tc":[368.4,291.6],"icache":[431.9,187.7]};
 const TL0=150,TL1=624,TY0=26;
@@ -162,10 +162,10 @@ const BL=(n)=>hsl(HUE[n-1],55,46);
 const MODE0=1; let mode=1,t=0,end=37,D=null,EV=[],CH={};
 const E=(t,head,cost,c,ring,chip,tot)=>({t,s:head+"。"+(tot?"总代价：":"代价：")+cost,c:Object.assign({k:cost},c),p:ring&&ring.p,n:ring&&ring.n,r:ring&&ring.r,chip});
 const rSRC1={p:SRC[0],n:"1–6",r:7}, rSCH={p:PT.sch,r:9}, rREG={p:PT.regs,n:"1–6",r:9}, rY={p:SRC[6],n:7,r:7}, rFP={p:PT.fp32,n:"321",r:9}, rSFU={p:PT.sfu,r:9}, rOUT={p:SRC[7],n:8,r:7}, rNW={p:PT.regs,n:"16",r:9};
-const PRE_IN="<code>norm_w</code> BF16 [4096]（8 KiB）· <code>topk_weights</code> FP32 [M, 8] · <code>topk_ids</code> int32 [M, 8] · 在 HBM（评测每次先刷新 L2，所以是冷数据）";
+const PRE_IN="<code>norm_w</code> BF16 [4096]（8 KiB）· <code>topk_weights</code> FP32 [M, 8] · <code>topk_ids</code> int32 [M, 8] · 在 HBM（测试每次先刷新 L2，所以是冷数据）";
 const TOT_IN="同上各步的输出：寄存器里的 <code>norm_w</code> 片段、<code>y</code> 片段、<code>topk_weights</code>";
-const Y_STEP=(t_,tail)=>E(t_,"warp 发出 y 的加载，块 7 进入寄存器","LDG.E.128，与序言加载同时在飞"+(tail||""),{f:"<code>reg ← y[行, 本线程的列]</code>（分 2 组、每组 4 路流水加载）",i:"<code>y</code> BF16 [本地命中对数, 4096]，每行 8,192 B · m20 核写出 · 在 L2 或 HBM（UNKNOWN）",o:"<code>y</code> 的 BF16 片段 → 寄存器",h:"→ 与序言数据到齐后开始乘（循环步）"},rY,"yl");
-const RMS_STEP=(t_)=>E(t_,"一行 4096 个元素的平方和跨线程规约，再乘 rsqrt","整个核静态 SHFL 9、BAR 1、MUFU 8 条，与重物化无关（A1_pn_gates.md:10）",{f:"<code>y ← y · rsqrt(Σy² / 4096 + 1e-8)</code>",i:"<code>y·(1+w)</code> FP32：一行 4096 个元素分在多个线程的寄存器里",o:"<code>y_norm</code> FP32 · 寄存器",h:"→ 下一步：乘路由权重并写出"},rSFU,"rms");
+const Y_STEP=(t_,tail)=>E(t_,"warp 发出 y 的加载，块 7 进入寄存器","LDG.E.128，与序言加载同时在飞"+(tail||""),{f:"<code>reg ← y[行, 本线程的列]</code>（分 2 组、每组 4 路流水加载）",i:"<code>y</code> BF16 [本地命中对数, 4096]，每行 8,192 B · 小批量专家核写出 · 在 L2 或 HBM（具体位置未知）",o:"<code>y</code> 的 BF16 片段 → 寄存器",h:"→ 与序言数据到齐后开始乘（循环步）"},rY,"yl");
+const RMS_STEP=(t_)=>E(t_,"一行 4096 个元素的平方和跨线程规约，再乘 rsqrt","整个核静态 SHFL 9、BAR 1、MUFU 8 条，与重物化无关",{f:"<code>y ← y · rsqrt(Σy² / 4096 + 1e-8)</code>",i:"<code>y·(1+w)</code> FP32：一行 4096 个元素分在多个线程的寄存器里",o:"<code>y_norm</code> FP32 · 寄存器",h:"→ 下一步：乘路由权重并写出"},rSFU,"rms");
 const OUT_STEP=(t_)=>E(t_,"乘路由权重并写出，块 8 回到 HBM","STG 静态 4 条；每词元写出 4096 × 2 B = 8,192 B",{f:"<code>out[tok] = bf16(Σ_slot y_norm · topk_weights[tok, slot])</code>",i:"<code>y_norm</code> FP32 · 寄存器；<code>topk_weights</code> FP32 [M, 8]（序言已取）",o:"<code>out</code> BF16 [M, 4096]，写进 HBM",h:"→ 交给下一层（第 8 章）"},rOUT,"out");
 const SASSL={1:["静态 SASS（PN）共 1,603 条 · LDG 22 · STG 4 · LDS 16 · SHFL 9 · BAR 1 · MUFU 8 · ACQBULK 1","其中 FADD 321 条是逐槽重算 1 + norm_w"],
  2:["静态 SASS（PN_PRE，volatile 预取）共 1,615 条 · ACQBULK 前有 6 条 LDG.E.128","1 + norm_w 仍在循环内重算"],
@@ -176,26 +176,26 @@ const CHIPS={1:[["acq","ACQBULK","第 5 条 SASS",[]],["pre","6 × LDG.E.128","�
 const TT={1:{end:37,w:[3,16],pre:16.6,pa:22.6,y:[17.2,21.6],nw:null,loop:[22.8,31.2],rms:[31.2,33.4],out:[33.4,35.4]},
  2:{end:36,w:[3.6,16],pre:2.7,pa:9,y:[16.6,21.2],nw:null,loop:[21.5,29.6],rms:[29.6,31.8],out:[31.8,33.8]},
  3:{end:36,w:[3.6,16],pre:2.7,pa:9,y:[16.6,21.2],nw:[21.4,22.6],loop:[22.6,29.0],rms:[29.0,31.0],out:[31.2,33.2]}};
-const RO={1:"ptxas 默认：ACQBULK 前 0 条预取 · 后归一化 PN 静态 SASS 1,603 条\n预取在放行后才发，冷 DRAM 往返排在 m20 尾部 · 1 + norm_w 重算 321 次 FADD",
+const RO={1:"ptxas 默认：ACQBULK 前 0 条预取 · 后归一化 PN 静态 SASS 1,603 条\n预取在放行后才发，冷 DRAM 往返排在 小批量专家核 尾部 · 1 + norm_w 重算 321 次 FADD",
  2:"asm volatile 预取：ACQBULK 前 6 条 LDG.E.128 · M ≤ 32 省 0.27–0.67 µs\nM > 32 没有重叠窗口，慢 +0.45 µs · PN_PRE 静态 SASS 1,615 条",
  3:"空 asm 固定 nw：PN 1,603 → 1,120 条（PN_PRE 1,615 → 1,133 条）\n运行期不生成指令 · 常驻 16 个 FP32 寄存器（64 B）· 省 0.21–0.30 µs",
- 4:"同构 sm_90a CUDA C++ 移植：P1 12 格 703.7 → 681.3 µs（省 22.4 µs）\nP5 专家核每 K 步指令 341 → 328 条 · 代价：手写 C++ 维护成本更高"};
+ 4:"同构 sm_90a CUDA C++ 移植：注意力 12 格 703.7 → 681.3 µs（省 22.4 µs）\n预填充专家核每 K 步指令 341 → 328 条 · 代价：手写 C++ 维护成本更高"};
 function build(md){
   if(md===4) return build4();
   const Tm=TT[md], ev=[], vol=md>=2;
   const preH=md===1?"ptxas 编译 pn 核：源码里写在 griddepcontrol.wait 之前的 6 条 ld.global.nc，被排到 ACQBULK 之后":"源码把 6 条序言加载改成 asm volatile 的普通加载，ptxas 不能再把它们排到 ACQBULK 之后";
   if(md===1){
-    ev.push(E(0.5,preH,"编译期 0 条额外指令；失去的是 m20 运行期间可以完成的 6 次预读",{f:"<code>ld.global.nc</code> × 6 → 排在 <code>ACQBULK</code> 之后",i:"源码顺序：6 条 16 B 加载（norm_w、topk_weights、topk_ids），再 griddepcontrol.wait；.nc 是只读加载，ptxas 可以改序",o:"SASS：<code>ACQBULK</code> 是第 5 条指令，6 条 <code>LDG.E.128</code> 都在它后面（它前面 0 条）",h:"→ 第 2 步：warp 执行到 ACQBULK 就停下"},rSRC1,"pre"));
-    ev.push(E(3,"m20 核还在跑。pn 的 CTA 经 PDL 提前进驻这个 SM，执行到 ACQBULK 就停下","1 条 ACQBULK；warp 和它的寄存器、warp 槽被占着等 m20；此时 0 个预取在飞",{f:"<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>",i:"m20 核的输出 <code>y</code>：还没写完（HBM / L2）",o:"无数据产出；warp 阻塞在第 5 条指令",h:"→ 第 3 步：m20 全部完成并刷新后放行"},rSCH,"acq"));
-    ev.push(E(16,"m20 核完成并刷新，ACQBULK 放行，pn 的 warp 继续发指令","1 次放行；放行点之后才开始访存，关键路径上多出一次冷 DRAM 往返",{f:"m20 的 grid 完成 → <code>ACQBULK</code> 返回",i:"<code>y</code> 已全部写出，对本核可见",o:"warp 往下执行 ACQBULK 之后的指令",h:"→ 第 4 步：现在才发 6 条序言加载"},rSCH,"acq"));
-    ev.push(E(16.6,"warp 发出 6 条序言加载，块 1–6 从 HBM 经 L2 进入寄存器","6 条 LDG.E.128 · 每线程 6 × 16 B = 96 B · 占 6 × 4 = 24 个寄存器；冷 HBM 往返空载约 0.33 µs，落在 m20 之后的尾部",{f:"<code>reg[q] ← *(uint4*)(源 + 偏移)</code>，q = 0…5（每条 16 B）",i:PRE_IN,o:"6 个 16 B 片段 → 每线程 24 个 32 位寄存器（6 × 4，推导）",h:"→ 与 y 一起到齐后才能开始算（第 6 步）"},rSRC1,"pre"));
+    ev.push(E(0.5,preH,"编译期 0 条额外指令；失去的是 小批量专家核运行期间可以完成的 6 次预读",{f:"<code>ld.global.nc</code> × 6 → 排在 <code>ACQBULK</code> 之后",i:"源码顺序：6 条 16 B 加载（norm_w、topk_weights、topk_ids），再 griddepcontrol.wait；.nc 是只读加载，ptxas 可以改序",o:"SASS：<code>ACQBULK</code> 是第 5 条指令，6 条 <code>LDG.E.128</code> 都在它后面（它前面 0 条）",h:"→ 第 2 步：warp 执行到 ACQBULK 就停下"},rSRC1,"pre"));
+    ev.push(E(3,"小批量专家核还在跑。pn 的 CTA 经 PDL 提前进驻这个 SM，执行到 ACQBULK 就停下","1 条 ACQBULK；warp 和它的寄存器、warp 槽被占着等 小批量专家核；此时 0 个预取在飞",{f:"<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>",i:"小批量专家核的输出 <code>y</code>：还没写完（HBM / L2）",o:"无数据产出；warp 阻塞在第 5 条指令",h:"→ 第 3 步：小批量专家核 全部完成并刷新后放行"},rSCH,"acq"));
+    ev.push(E(16,"小批量专家核完成并刷新，ACQBULK 放行，pn 的 warp 继续发指令","1 次放行；放行点之后才开始访存，关键路径上多出一次冷 DRAM 往返",{f:"小批量专家核的 grid 完成 → <code>ACQBULK</code> 返回",i:"<code>y</code> 已全部写出，对本核可见",o:"warp 往下执行 ACQBULK 之后的指令",h:"→ 第 4 步：现在才发 6 条序言加载"},rSCH,"acq"));
+    ev.push(E(16.6,"warp 发出 6 条序言加载，块 1–6 从 HBM 经 L2 进入寄存器","6 条 LDG.E.128 · 每线程 6 × 16 B = 96 B · 占 6 × 4 = 24 个寄存器；冷 HBM 往返空载约 0.33 µs，落在 小批量专家核 之后的尾部",{f:"<code>reg[q] ← *(uint4*)(源 + 偏移)</code>，q = 0…5（每条 16 B）",i:PRE_IN,o:"6 个 16 B 片段 → 每线程 24 个 32 位寄存器（6 × 4，推导）",h:"→ 与 y 一起到齐后才能开始算（第 6 步）"},rSRC1,"pre"));
     ev.push(Y_STEP(17.2));
   } else {
     ev.push(E(0.5,preH,"加载形式变了：放弃 .nc 提示；静态 SASS 为 1,615 条（PN_PRE），PN 为 1,603 条",{f:"<code>asm volatile(&quot;ld.global.v4.u32 {…}, [addr];&quot; ::: &quot;memory&quot;)</code> × 6",i:"源码顺序同模式 1；加载改为 volatile 普通 <code>ld.global</code>",o:"SASS：6 条 <code>LDG.E.128</code> 排在 <code>ACQBULK</code> 之前",h:"→ 第 2 步：warp 一开始就发这 6 条"},rSRC1,"pre"));
-    ev.push(E(2.7,"pn 的 CTA 经 PDL 提前进驻，先发 6 条序言加载，块 1–6 在 m20 运行时就出发","6 条 LDG.E.128，在 ACQBULK 之前发出，不等 m20 · 每线程 96 B · 占 24 个寄存器直到用完",{f:"<code>reg[q] ← *(uint4*)(源 + 偏移)</code>，q = 0…5（每条 16 B）",i:PRE_IN,o:"6 个 16 B 片段 → 每线程 24 个 32 位寄存器（6 × 4，推导）",h:"→ 在等待期间到达寄存器"},rSRC1,"pre"));
-    ev.push(E(3.6,"warp 执行到 ACQBULK 停下，6 次预读在等待期间继续在飞","1 条 ACQBULK；等待时间被预读盖住，不再是空等",{f:"<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>",i:"m20 核的输出 <code>y</code>：还没写完",o:"无数据产出；warp 阻塞，6 条加载在途",h:"→ 第 4 步：预读数据到达"},rSCH,"acq"));
-    ev.push(E(9.5,"块 1–6 在 m20 还在跑时到达寄存器","冷 DRAM 往返被 m20 的运行时间盖住；24 个寄存器被占到用完为止",{f:"<code>reg[0…5]</code> 已就绪",i:"6 × 16 B 来自 HBM（冷往返已完成）",o:"每线程 24 个寄存器的值就绪",h:"→ 放行后直接使用，不再等内存"},rREG,"pre"));
-    ev.push(E(16,"m20 核完成并刷新，ACQBULK 放行","1 次放行；放行时 norm_w、topk 已在寄存器里",{f:"m20 的 grid 完成 → <code>ACQBULK</code> 返回",i:"<code>y</code> 已全部写出，对本核可见",o:"warp 往下发 y 的加载",h:"→ 下一步：y 加载"},rSCH,"acq"));
+    ev.push(E(2.7,"pn 的 CTA 经 PDL 提前进驻，先发 6 条序言加载，块 1–6 在 小批量专家核运行时就出发","6 条 LDG.E.128，在 ACQBULK 之前发出，不等 小批量专家核 · 每线程 96 B · 占 24 个寄存器直到用完",{f:"<code>reg[q] ← *(uint4*)(源 + 偏移)</code>，q = 0…5（每条 16 B）",i:PRE_IN,o:"6 个 16 B 片段 → 每线程 24 个 32 位寄存器（6 × 4，推导）",h:"→ 在等待期间到达寄存器"},rSRC1,"pre"));
+    ev.push(E(3.6,"warp 执行到 ACQBULK 停下，6 次预读在等待期间继续在飞","1 条 ACQBULK；等待时间被预读盖住，不再是空等",{f:"<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>",i:"小批量专家核的输出 <code>y</code>：还没写完",o:"无数据产出；warp 阻塞，6 条加载在途",h:"→ 第 4 步：预读数据到达"},rSCH,"acq"));
+    ev.push(E(9.5,"块 1–6 在 小批量专家核 还在跑时到达寄存器","冷 DRAM 往返被 小批量专家核的运行时间盖住；24 个寄存器被占到用完为止",{f:"<code>reg[0…5]</code> 已就绪",i:"6 × 16 B 来自 HBM（冷往返已完成）",o:"每线程 24 个寄存器的值就绪",h:"→ 放行后直接使用，不再等内存"},rREG,"pre"));
+    ev.push(E(16,"小批量专家核完成并刷新，ACQBULK 放行","1 次放行；放行时 norm_w、topk 已在寄存器里",{f:"小批量专家核的 grid 完成 → <code>ACQBULK</code> 返回",i:"<code>y</code> 已全部写出，对本核可见",o:"warp 往下发 y 的加载",h:"→ 下一步：y 加载"},rSCH,"acq"));
     ev.push(Y_STEP(16.6));
   }
   if(md===3){
@@ -205,7 +205,7 @@ function build(md){
     ev.push(E(33.6,"这条路径的总账","合计：PN_PRE 1,615 → 1,133 条（−482）；同一处修改在 PN 上 1,603 → 1,120 条（−483）· 常驻 16 个 FP32 寄存器（64 B）· decode 1 / 16 / 32 省 0.208 / 0.300 / 0.304 µs",{f:"<code>空 asm：运行期 0 条指令，静态 SASS −482</code>",i:TOT_IN,o:"<code>out</code> BF16 [M, 4096]，写进 HBM",h:"→ 对照模式 1、2；M > 32 时第 2 步的预取不能开"},rOUT,"out",true));
   } else {
     const lo=Tm.loop[0];
-    ev.push(E(lo+0.3,"循环里每个相、每个槽重新算一遍 1 + norm_w，再乘进 y","321 次 FADD（PN_R1.md:29-31）· 每次先重新拆包 BF16 → FP32 · 静态 SASS 共 "+(md===1?"1,603":"1,615")+" 条",{f:"<code>nw[i] = 1.f + norm_w[i]</code> 在内层循环里（2 相 × 8 槽）；<code>y[i] *= nw[i]</code>",i:"<code>norm_w</code> 的 16 个 BF16 值（32 B，寄存器）· <code>y</code> 片段",o:"<code>y·(1+w)</code> FP32 · 寄存器",h:"→ 下一步：求平方和"},rFP,"loop"));
+    ev.push(E(lo+0.3,"循环里每个相、每个槽重新算一遍 1 + norm_w，再乘进 y","321 次 FADD· 每次先重新拆包 BF16 → FP32 · 静态 SASS 共 "+(md===1?"1,603":"1,615")+" 条",{f:"<code>nw[i] = 1.f + norm_w[i]</code> 在内层循环里（2 相 × 8 槽）；<code>y[i] *= nw[i]</code>",i:"<code>norm_w</code> 的 16 个 BF16 值（32 B，寄存器）· <code>y</code> 片段",o:"<code>y·(1+w)</code> FP32 · 寄存器",h:"→ 下一步：求平方和"},rFP,"loop"));
     ev.push(RMS_STEP(Tm.rms[0])); ev.push(OUT_STEP(Tm.out[0]));
     if(md===1) ev.push(E(36,"这条路径的总账","合计：PN 静态 SASS 1,603 条 · ACQBULK 前 0 条预取 · 6 次冷 DRAM 预读全在放行之后 · 321 次 FADD 重算",{f:"<code>pn = 预取 + y 加载 + 逐槽重算 nw + 归一化 + 写出</code>",i:TOT_IN,o:"<code>out</code> BF16 [M, 4096]，写进 HBM",h:"→ 模式 2 修预取，模式 3 再修重算"},rOUT,"out",true));
     else ev.push(E(34.4,"这条路径的总账","合计：PN_PRE 静态 SASS 1,615 条 · ACQBULK 前 6 条预取 · decode 1 / 16 / 32、verify 1 省 0.45 / 0.67 / 0.41 / 0.27 µs；M > 32 没有重叠窗口，verify 16 慢 +0.45 µs，所以只在 M ≤ 32 开 · 321 次 FADD 仍在",{f:"<code>预取在放行前出发，重算仍在循环里</code>",i:TOT_IN,o:"<code>out</code> BF16 [M, 4096]，写进 HBM",h:"→ 模式 3 再去掉重算"},rOUT,"out",true));
@@ -218,19 +218,19 @@ function build4(){
   const cells=[[1,"单请求全长",1.89],[3,"16 请求全长",3.14],[4,"32 请求滑窗",2.14],[5,"32 请求全长",3.50],[9,"16 请求 verify 全长",2.98],[11,"32 请求 verify 全长",6.36]];
   const ev=[]; const T0=1.5, DT=2.7;
   cells.forEach((c,j)=>{ const [ix,sh,dl]=c;
-    ev.push(E(T0+DT*j,"格 idx "+ix+"（"+sh+"）：Triton / Gluon 版换成同构 sm_90a CUDA C++ 版","省 "+dl.toFixed(2)+" µs（正反序均值）；一次性代价：为这个格重写内核",{f:"<code>t(idx "+ix+") = t_Triton(idx "+ix+") − "+dl.toFixed(2)+" µs</code>",i:"阶段 2 分页注意力（P1）的 Triton / Gluon 内核，格 idx "+ix+"（"+sh+"）；寄存器分配和指令序由 ptxas 对高级语言的输出决定",o:"同构 sm_90a CUDA C++ 内核：寄存器、命名屏障、setmaxnreg、SASS 指令序由源码写定",h:"→ 下一个格"},{p:PT.sch,n:ix,r:11},"c"+ix));
+    ev.push(E(T0+DT*j,"格 idx "+ix+"（"+sh+"）：Triton / Gluon 版换成同构 sm_90a CUDA C++ 版","省 "+dl.toFixed(2)+" µs（正反序均值）；一次性代价：为这个格重写内核",{f:"<code>t(idx "+ix+") = t_Triton(idx "+ix+") − "+dl.toFixed(2)+" µs</code>",i:"阶段 2 分页注意力的 Triton / Gluon 内核，格 idx "+ix+"（"+sh+"）；寄存器分配和指令序由 ptxas 对高级语言的输出决定",o:"同构 sm_90a CUDA C++ 内核：寄存器、命名屏障、setmaxnreg、SASS 指令序由源码写定",h:"→ 下一个格"},{p:PT.sch,n:ix,r:11},"c"+ix));
   });
-  ev.push(E(T0+DT*6,"阶段 2 的 12 个格合计：703.7 → 681.3 µs","省 22.4 µs（703.7 的 3.2%）；后续整合为 10 个模块并删去 6 个被支配模块，代码体积减少 32.5%",{f:"<code>Σ 12 格：703.7 → 681.3 µs</code>",i:"已列出的 6 个格合计 −20.01 µs；其余 6 格（idx 0, 2, 6, 7, 8, 10）合计 −2.39 µs（推导：22.4 − 20.01）",o:"12 格总耗时 681.3 µs，净省 22.4 µs",h:"→ 同样的做法用在阶段 1/3/4/5/7（P4）"},{p:PT.sch,n:"12",r:11},"cAll"));
-  ev.push(E(T0+DT*7,"阶段 1/3/4/5/7 的 30 个稠密投影格：换成 15 个自写 sm_90a CUDA C++ 预编译单元","每格省 0.09–1.87 µs（router T = 32 至 pooler T = 16）；nvcc 12.8 编译为压缩内嵌 cubin，运行期不再编译；一次性代价：重写 15 个单元",{f:"<code>30 格 → 15 个单元，t(格) = t_旧 − (0.09…1.87) µs</code>",i:"P4 稠密投影（qkv_gate、o、router、pooler、unpooler 等）原有内核；第一批只换 3 格：qkv_gate T = 256 省 0.32 µs、o T = 128 省 0.08 µs、unpooler T = 128 省 0.12 µs",o:"15 个 sm_90a CUDA C++ 单元（压缩 cubin 内嵌），调度与原来同构",h:"→ 同样的做法用在阶段 6 的专家核（P5）"},{p:PT.sch,n:"30",r:11},"cP4"));
+  ev.push(E(T0+DT*6,"阶段 2 的 12 个格合计：703.7 → 681.3 µs","省 22.4 µs（703.7 的 3.2%）；后续整合为 10 个模块并删去 6 个被支配模块，代码体积减少 32.5%",{f:"<code>Σ 12 格：703.7 → 681.3 µs</code>",i:"已列出的 6 个格合计 −20.01 µs；其余 6 格（idx 0, 2, 6, 7, 8, 10）合计 −2.39 µs（推导：22.4 − 20.01）",o:"12 格总耗时 681.3 µs，净省 22.4 µs",h:"→ 同样的做法用在阶段 1/3/4/5/7"},{p:PT.sch,n:"12",r:11},"cAll"));
+  ev.push(E(T0+DT*7,"阶段 1/3/4/5/7 的 30 个稠密投影格：换成 15 个自写 sm_90a CUDA C++ 预编译单元","每格省 0.09–1.87 µs（router T = 32 至 pooler T = 16）；nvcc 12.8 编译为压缩内嵌 cubin，运行期不再编译；一次性代价：重写 15 个单元",{f:"<code>30 格 → 15 个单元，t(格) = t_旧 − (0.09…1.87) µs</code>",i:"稠密投影（qkv_gate、o、router、pooler、unpooler 等）原有内核；第一批只换 3 格：qkv_gate T = 256 省 0.32 µs、o T = 128 省 0.08 µs、unpooler T = 128 省 0.12 µs",o:"15 个 sm_90a CUDA C++ 单元（压缩 cubin 内嵌），调度与原来同构",h:"→ 同样的做法用在阶段 6 的专家核（预填充）"},{p:PT.sch,n:"30",r:11},"cP4"));
   ev.push(E(T0+DT*8,"阶段 6 的预填充专家核（T = 753）：把缓冲槽算术改写成循环携带计数器","每个 K 步指令 341 → 328 条（−13 条，−3.8%）；周期 −2.8%–3.3%；idx 0 耗时 288.5 → 281.75 µs（省 6.75 µs，turn 1 提速 +0.80%..+0.86%）",{f:"<code>每 K 步 341 → 328 条指令</code>",i:"缓冲槽编号的整数算术（每个 K 步重算）；该核发射受限，HMMA 活跃度 56%–61%",o:"循环携带的槽计数器（逐步累加），省下 13 条整数指令 / K 步",h:"→ 阶段 3/8 的 6 个行内核"},{p:PT.tc,n:"328",r:12},"cP5"));
-  ev.push(E(T0+DT*9,"阶段 3/8 的 6 个残差 / 归一化行内核 + 后归一化加权和：同样换成 CUDA C++","首轮 first turn（T = 16,384）提速 +0.54%..+0.73%；4 请求 turn 4（T = 3,012）微慢，0.9972–0.9989 ×",{f:"<code>t_新 / t_旧：+0.54%..+0.73%（T = 16,384）</code>",i:"P5 预填充的 6 个行内核 + 后归一化加权和 + gemm2 尾声延迟使用",o:"CUDA C++ 版内核",h:"→ 合计"},{p:PT.sch,n:"6",r:11},"cRn"));
-  ev.push(E(T0+DT*10,"这条路径的总账","合计：阶段 2 省 22.4 µs；P4 每格省 0.09–1.87 µs；P5 专家核每 K 步少 13 条指令；P5 行内核的收益只在首轮 T = 16,384 兑现，turn 4（T = 3,012）微慢；代价是手写 C++ / PTX 的维护成本更高",{f:"<code>总账 = 各格节省之和 − 手写维护成本</code>",i:"4 行台账：阶段 2、阶段 1/3/4/5/7、阶段 6、阶段 3/8",o:"全量同构 sm_90a CUDA C++ 内核",h:"→ 对照模式 1–3：编译器陷阱要用 volatile / 空 asm 在源码里逐处堵上"},{p:PT.sch,n:"Σ",r:12},"cTot",true));
+  ev.push(E(T0+DT*9,"阶段 3/8 的 6 个残差 / 归一化行内核 + 后归一化加权和：同样换成 CUDA C++","首轮 first turn（T = 16,384）提速 +0.54%..+0.73%；4 请求 turn 4（T = 3,012）微慢，0.9972–0.9989 ×",{f:"<code>t_新 / t_旧：+0.54%..+0.73%（T = 16,384）</code>",i:"预填充的 6 个行内核 + 后归一化加权和 + gemm2 尾声延迟使用",o:"CUDA C++ 版内核",h:"→ 合计"},{p:PT.sch,n:"6",r:11},"cRn"));
+  ev.push(E(T0+DT*10,"这条路径的总账","合计：阶段 2 省 22.4 µs；稠密投影每格省 0.09–1.87 µs；预填充专家核每 K 步少 13 条指令；预填充行内核的收益只在首轮 T = 16,384 兑现，turn 4（T = 3,012）微慢；代价是手写 C++ / PTX 的维护成本更高",{f:"<code>总账 = 各格节省之和 − 手写维护成本</code>",i:"4 行台账：阶段 2、阶段 1/3/4/5/7、阶段 6、阶段 3/8",o:"全量同构 sm_90a CUDA C++ 内核",h:"→ 对照模式 1–3：编译器陷阱要用 volatile / 空 asm 在源码里逐处堵上"},{p:PT.sch,n:"Σ",r:12},"cTot",true));
   return {md:4,end:32,EV:ev,fl:[],cells,T0,DT};
 }
 function chipGeom(){ CH={};
   if(mode<4){ const L=CHIPS[mode], n=L.length, w=(624-(n-1)*8)/n; L.forEach((c,i)=>{ CH[c[0]]={x:8+i*(w+8),y:26,w:w,h:42,lab:c[1],sub:c[2],b:c[3]}; }); }
   else { const cells=D.cells; for(let i=0;i<12;i++) CH["c"+i]={x:150+i*40,y:24,w:36,h:22,lab:String(i),sub:"",b:[],cell:true};
-    CH.cAll={x:148,y:22,w:482,h:26}; CH.cP4={x:8,y:62,w:200,h:42,lab:"阶段 1/3/4/5/7 稠密投影",sub:"30 格 · 15 个单元"}; CH.cP5={x:218,y:62,w:200,h:42,lab:"阶段 6 专家核（P5）",sub:"每 K 步指令 341 → 328"}; CH.cRn={x:428,y:62,w:202,h:42,lab:"阶段 3/8 行内核（P5）",sub:"6 个残差 / 归一化核"}; CH.cTot={x:4,y:18,w:632,h:92}; } }
+    CH.cAll={x:148,y:22,w:482,h:26}; CH.cP4={x:8,y:62,w:200,h:42,lab:"阶段 1/3/4/5/7 稠密投影",sub:"30 格 · 15 个单元"}; CH.cP5={x:218,y:62,w:200,h:42,lab:"阶段 6 专家核（预填充）",sub:"每 K 步指令 341 → 328"}; CH.cRn={x:428,y:62,w:202,h:42,lab:"阶段 3/8 行内核（预填充）",sub:"6 个残差 / 归一化核"}; CH.cTot={x:4,y:18,w:632,h:92}; } }
 function stepIdx(){ let k=-1; for(let i=0;i<EV.length;i++){ if(EV[i].t<=t+1e-9) k=i; else break; } return k; }
 function drawStrip(k){ const act=k>=0?EV[k].chip:null, hue=k>=0&&EV[k].p?null:null; let r="", o="";
   const cur=k>=0?EV[k]:null;
@@ -242,7 +242,7 @@ function drawStrip(k){ const act=k>=0?EV[k].chip:null, hue=k>=0&&EV[k].p?null:nu
     $("algsvg").setAttribute("viewBox","0 0 640 "+(112+SASSL[mode].length*13));
   } else { $("algH").textContent="算法条：阶段 2 的 12 个计分格（编号 = 格 idx，彩色 = 本图逐格列出的 6 个）与另外三行台账";
     for(let i=0;i<12;i++){ const c=CH["c"+i], j=D.cells.findIndex(x=>x[0]===i), on=act==="c"+i; r+='<rect class="ch" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" rx="3" fill="'+(j>=0?hsl(HUE[j],55,on?36:46):"var(--anatomy-faint)")+'"/><text class="bn" x="'+(c.x+c.w/2)+'" y="'+(c.y+15)+'" style="font-size:11px">'+i+'</text>'; }
-    r+='<text class="lab" x="8" y="39">阶段 2 · P1 的 12 格</text>';
+    r+='<text class="lab" x="8" y="39">阶段 2 · 注意力的 12 格</text>';
     ["cP4","cP5","cRn"].forEach(id=>{ const c=CH[id], on=id===act; r+='<rect class="ch" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" rx="5" fill="'+(on?"var(--anatomy-blue)":"var(--anatomy-face)")+'" fill-opacity="'+(on?0.22:1)+'"/><text class="chl" x="'+(c.x+c.w/2)+'" y="'+(c.y+17)+'">'+c.lab+'</text><text class="chs" x="'+(c.x+c.w/2)+'" y="'+(c.y+32)+'">'+c.sub+'</text>'; });
     r+='<text class="mono" x="8" y="122" style="font-size:10px">每格指令序原先由 ptxas 对 Triton / Gluon 输出决定；移植后由 CUDA C++ 源码写定</text>';
     $("algsvg").setAttribute("viewBox","0 0 640 132"); }
@@ -253,9 +253,9 @@ const TX=(x)=>TL0+(TL1-TL0)*x/end;
 function drawTL(){ let rows, h="", rr="";
   const mk=(list)=>{ let y=TY0, out=[]; list.forEach(([n,hh])=>{ out.push([n,y,hh]); y+=hh+6; }); return out; };
   const bar=(a,b,y,hh,c,f)=>'<rect class="'+c+'" x="'+TX(a).toFixed(1)+'" y="'+y+'" width="'+Math.max(1,TX(b)-TX(a)).toFixed(1)+'" height="'+hh+'"'+(f?' fill="'+f+'"':'')+'/>';
-  if(mode<4){ rows=mk([["m20 专家核（前一个核）",18],["pn 的 warp：发射 / 等待",18],["访存在途（块编号同左）",30],["FP32 / ALU 管线",18]]); const Tm=D.Tm;
+  if(mode<4){ rows=mk([["前一个核（小批量专家核）",18],["pn 的 warp：发射 / 等待",18],["访存在途（块编号同左）",30],["FP32 / ALU 管线",18]]); const Tm=D.Tm;
     $("tlH").textContent="时间线：只表示先后，条形长度不按比例";
-    h+=bar(0,16,rows[0][1]+2,14,"m20")+'<text class="tn" x="'+TX(1)+'" y="'+(rows[0][1]+13)+'">m20 运行</text><text class="tn" x="'+(TX(16)+3)+'" y="'+(rows[0][1]+13)+'">完成 + 刷新</text>';
+    h+=bar(0,16,rows[0][1]+2,14,"m20")+'<text class="tn" x="'+TX(1)+'" y="'+(rows[0][1]+13)+'">小批量专家核运行</text><text class="tn" x="'+(TX(16)+3)+'" y="'+(rows[0][1]+13)+'">完成 + 刷新</text>';
     h+=bar(Tm.w[0],Tm.w[1],rows[1][1]+2,14,"wait")+bar(Tm.w[1],end-1.5,rows[1][1]+2,14,"free");
     D.fl.forEach(f=>{ h+=bar(f.dep,f.arr,rows[2][1]+(f.b-1)*3.4+1,3,"",BL(f.b)); h+='<rect class="tick" x="'+(TX(f.dep)).toFixed(1)+'" y="'+(rows[1][1]+1)+'" width="1.5" height="16" fill="'+BL(f.b)+'"/>'; });
     if(Tm.nw) h+=bar(Tm.nw[0],Tm.nw[1],rows[3][1]+2,14,"",hsl(212,55,46))+'<text class="tn" x="'+(TX(Tm.nw[0])-4)+'" y="'+(rows[3][1]+13)+'" text-anchor="end">nw ×16</text>';

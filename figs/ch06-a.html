@@ -161,19 +161,19 @@ const N=8, HUE=[212,262,312,172,32,142,352,92], TOT=[8.84,20.74];
 const AY=36,RH=12.5,CX=[8,218,428],CW=[200,200,204],TL0=132,TL1=620,TY0=26,TEND=22;
 const TX=(x)=>TL0+(TL1-TL0)*x/TEND;
 const MODE0=2; let mode=2, t=0, end=1, EV=[], slot=1, u=1;
-const M={1:{ro:"主循环 8.84 µs（P4 qkv_gate，T = 128）\n每个 K 步 8 条 HGMMA.64x64x16 · 1 条 DEPBAR.LE gsb0, 0x1 · ptxas 告警：无"},
+const M={1:{ro:"主循环 8.84 µs（稠密投影 qkv_gate，T = 128）\n每个 K 步 8 条 HGMMA.64x64x16 · 1 条 DEPBAR.LE gsb0, 0x1 · ptxas 告警：无"},
          2:{ro:"主循环 20.74 µs（慢 2.35 倍）\n每条 HGMMA 后 1 条 DEPBAR.LE gsb0, 0x0 · 告警 C7515"}};
 const stillT=()=>end*0.42;
 function setMode(md){ mode=md; end=TOT[md-1]; slot=end/N; u=TOT[0]/N; readout.textContent=M[md].ro; $("tIn").max=String(end);
   EV=[]; const ser=md===2;
-  EV.push({t:0,p:SCH[0],r:11,s: ser ? "编译期：流水循环里的 st.release.gpu 触发 ptxas 的 C7515，ptxas 在每条 HGMMA 后面写入 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x0（每条前还补 1 条 ARRIVE）。运行时 4 个 warp 先执行 WARPGROUP.ARRIVE 集合。代价：SASS 里多出 "+N+" 条 DEPBAR 和 "+(N-1)+" 条 ARRIVE（由 4 条 HGMMA 的复现外推）" : "4 个 warp 执行 WARPGROUP.ARRIVE，在 4 个 SMSP 上集合，准备发第一条 HGMMA。代价：每个 K 步 1 条 ARRIVE，要等最慢的那个 warp"});
+  EV.push({t:0,p:SCH[0],r:11,s: ser ? "编译期：流水循环里的 st.release.gpu 触发 ptxas 的 C7515，ptxas 在每条 HGMMA 后面写入 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x0（每条前还补 1 条 ARRIVE）。运行时 4 个 warp 先执行 WARPGROUP.ARRIVE 集合。代价：SASS 里多出 "+N+" 条 DEPBAR 和 "+(N-1)+" 条 ARRIVE（由 4 条 HGMMA 的小例子外推）" : "4 个 warp 执行 WARPGROUP.ARRIVE，在 4 个 SMSP 上集合，准备发第一条 HGMMA。代价：每个 K 步 1 条 ARRIVE，要等最慢的那个 warp"});
   for(let i=0;i<N;i++){ EV.push({t:i*slot+0.02,p:TC[0],n:i+1,s: ser ? "4 个 warp 各发 1 条 HGMMA "+(i+1)+"，矩阵乘交给各自 SMSP 的 Tensor Core。紧接着的 DEPBAR 让 warp 停发，等它做完。代价：1 条 HGMMA + 1 条 DEPBAR，一次排空约 40–67 clk 暴露在外" : (i===0 ? "4 个 warp 各发 1 条 HGMMA 1，矩阵乘交给各自 SMSP 的 Tensor Core；warp 不等它做完，直接去发下一条。代价：每个 warp 1 条指令，累加器一直占着寄存器" : "HGMMA "+(i+1)+" 排在 HGMMA "+i+" 后面进入 Tensor Core。代价：1 条指令，0 次等待")}); }
-  EV.push({t:end-0.01,p:SCH[0],r:11,s: ser ? "最后一条 HGMMA 做完，这一步结束。总代价：每个 K 步 "+N+" 条 HGMMA + "+N+" 条 DEPBAR，主循环 20.74 µs，是 8.84 µs 的 2.35 倍（20.74 µs 来自 flag release 放在这个循环里的 sf75ab 实验；最终 kernel 把它放在 producer warp，无告警）" : "每个 K 步末尾 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x1（wait_group<1>）：最多留 1 组在飞，其余做完；后面是 BAR.SYNC 和释放 SMEM 阶段的 SYNCS.ARRIVE。总代价：每个 K 步 "+N+" 条 HGMMA + 1 条等待，主循环 8.84 µs"});
+  EV.push({t:end-0.01,p:SCH[0],r:11,s: ser ? "最后一条 HGMMA 做完，这一步结束。总代价：每个 K 步 "+N+" 条 HGMMA + "+N+" 条 DEPBAR，主循环 20.74 µs，是 8.84 µs 的 2.35 倍（20.74 µs 来自 flag release 放在这个循环里的对照实验；最终 kernel 把它放在 producer warp，无告警）" : "每个 K 步末尾 1 条 WARPGROUP.DEPBAR.LE gsb0, 0x1（wait_group<1>）：最多留 1 组在飞，其余做完；后面是 BAR.SYNC 和释放 SMEM 阶段的 SYNCS.ARRIVE。总代价：每个 K 步 "+N+" 条 HGMMA + 1 条等待，主循环 8.84 µs"});
   const FM="D[m,n] += Σₖ x[m,k] · W[n,k]", XA="<code>x</code> 片 BF16 [64, 16] · 2 KiB · 本 SM 的 SMEM", WB="<code>W</code> 片 BF16 [64, 16] · 2 KiB（n = 64）· 本 SM 的 SMEM", DD=(i)=>"<code>D"+(i<4?0:1)+"</code> FP32 [64, 64] · 16 KiB · 4 个 warp 的寄存器，每线程 32 个（"+(i<4?"R24..R55":"R56..R87")+"）";
   const MSG="(C7515) Potential Performance Loss: wgmma.mma_async instructions are serialized due to non wgmma instructions defining accumulator registers of a wgmma between start and end of the pipeline stage in the function '&lt;kernel&gt;'";
   EV[0].c= ser ? { f:"<code>ptxas info    : "+MSG+"</code>",
-    i:"流水循环（实测复现，ptxas 12.8.93）：<code>fence; 4 × wgmma; commit_group; if (tid==0 &amp;&amp; kb==ks-2) st.release.gpu [flag]; wait_group 1</code>",
-    o:"每条 HGMMA 后 <code>WARPGROUP.DEPBAR.LE gsb0, 0x0</code>（复现里 4 条 HGMMA → 4 条 DEPBAR）；信息打印在 <code>-Xptxas -v</code> 的 info 级，不是 warning。原因按 ptxas 的话：流水阶段里有非 wgmma 指令",
+    i:"流水循环（实测小例子，ptxas 12.8.93）：<code>fence; 4 × wgmma; commit_group; if (tid==0 &amp;&amp; kb==ks-2) st.release.gpu [flag]; wait_group 1</code>",
+    o:"每条 HGMMA 后 <code>WARPGROUP.DEPBAR.LE gsb0, 0x0</code>（小例子里 4 条 HGMMA → 4 条 DEPBAR）；信息打印在 <code>-Xptxas -v</code> 的 info 级，不是 warning。原因按 ptxas 的话：流水阶段里有非 wgmma 指令",
     h:"→ HGMMA 1，发完马上 DEPBAR" } : { f:"无数学运算：<code>wgmma.fence</code> → <code>WARPGROUP.ARRIVE</code>，4 个 warp 汇合",
     i:DD(0)+"；初值 0", o:"无新数据。只保证：此前对 <code>D</code> 的寄存器访问，先于后面的 HGMMA", h:"→ HGMMA 1 读 <code>D</code> 并累加" };
   for(let i=0;i<N;i++) EV[1+i].c={ f:"<code>"+FM+"</code>，<code>HGMMA.64x64x16.F32.BF16</code>：行块 "+(i<4?0:1)+"，k 取该 K 步的第 "+(i%4+1)+" 个 16 列片",

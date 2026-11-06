@@ -1,0 +1,216 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 6-6 qkv_gemm 从 g0 到 g5：九个版本、四个词元数的实测耗时</title><style>
+.iso{
+  --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
+  --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
+  --anatomy-shade-0:#0f0f0f;--anatomy-shade-1:#121212;--anatomy-shade-2:#151515;--anatomy-shade-3:#181818;
+  --anatomy-lit-top:#262626;--anatomy-lit-shade:#1d1d1d;
+  --anatomy-hi:#d4d4d4;--anatomy-mid:#6a6a6a;--anatomy-lo:#3e3e3e;--anatomy-faint:#2a2a2a;--anatomy-lit:#ffffff;
+  --anatomy-halo:#050505;--anatomy-halo-opacity:.9;--anatomy-dot:#e6e6e6;
+  --anatomy-red:#ff6b6b;--anatomy-green:#6be0a0;--anatomy-blue:#6b9bff;
+  --anatomy-weight:.6px;--anatomy-ease:cubic-bezier(.32,.72,0,1);
+  --anatomy-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff0a,inset 0 0 0 1px #ffffff06,0 0 0 1px #00000026,0 1px 1px -.5px #00000014,0 3px 3px -1.5px #00000014,0 6px 6px -3px #00000014,0 12px 12px -6px #00000014;
+}
+.iso[data-theme="light"]{
+  --anatomy-page:#f2f2ef;--anatomy-card:#fbfbfa;--anatomy-text:#57575a;--anatomy-strong:#18181a;--anatomy-muted:#8c8c90;
+  --anatomy-paper:#fbfbfa;--anatomy-face:#ffffff;--anatomy-top:#ffffff;
+  --anatomy-shade-0:#dcdcd9;--anatomy-shade-1:#e5e5e2;--anatomy-shade-2:#ededea;--anatomy-shade-3:#f4f4f1;
+  --anatomy-lit-top:#ffffff;--anatomy-lit-shade:#eeeeeb;
+  --anatomy-hi:#26262a;--anatomy-mid:#8a8a8f;--anatomy-lo:#b4b4b8;--anatomy-faint:#d4d4d6;--anatomy-lit:#000000;
+  --anatomy-halo:#8a8a80;--anatomy-halo-opacity:.32;--anatomy-dot:#3a3a3e;
+  --anatomy-red:#e5484d;--anatomy-green:#30a46c;--anatomy-blue:#3e63dd;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff,0 0 0 1px #0000000f,0 1px 1px -.5px #0000000a,0 3px 3px -1.5px #0000000a,0 6px 6px -3px #0000000a,0 12px 12px -6px #0000000a;
+}
+.iso-svg{display:block;width:100%;height:auto;overflow:visible}
+.iso-svg path,.iso-svg circle{vector-effect:non-scaling-stroke}
+.iso-fill{fill:var(--anatomy-paper);stroke:none}
+.iso-solid[data-lit]>.iso-fill{fill:var(--anatomy-face)}
+.iso-shade,.iso-top{stroke:none}
+.iso-shade[data-shade="0"]{fill:var(--anatomy-shade-0)}
+.iso-shade[data-shade="1"]{fill:var(--anatomy-shade-1)}
+.iso-shade[data-shade="2"]{fill:var(--anatomy-shade-2)}
+.iso-shade[data-shade="3"]{fill:var(--anatomy-shade-3)}
+.iso-top{fill:var(--anatomy-top)}
+.iso-solid[data-lit]>.iso-top{fill:var(--anatomy-lit-top)}
+.iso-solid[data-lit]>.iso-shade{fill:var(--anatomy-lit-shade)}
+.iso-solid[data-seamless]>.iso-shade,.iso-solid[data-seamless]>.iso-top{stroke-width:.4;stroke-linejoin:round}
+.iso-solid[data-seamless]>.iso-shade[data-shade="0"]{stroke:var(--anatomy-shade-0)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="1"]{stroke:var(--anatomy-shade-1)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="2"]{stroke:var(--anatomy-shade-2)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="3"]{stroke:var(--anatomy-shade-3)}
+.iso-solid[data-seamless]>.iso-top{stroke:var(--anatomy-top)}
+.iso-solid[data-seamless][data-lit]>.iso-top{stroke:var(--anatomy-lit-top)}
+.iso-solid[data-seamless][data-lit]>.iso-shade{stroke:var(--anatomy-lit-shade)}
+.iso-solid[data-lit]>.iso-edge{stroke:var(--anatomy-lit)}
+.iso-halo{fill:var(--anatomy-halo);stroke:none;filter:blur(9px);opacity:var(--anatomy-halo-opacity);transform:translateY(3px)}
+.iso-line{fill:none;stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight);stroke-linecap:round;stroke-linejoin:round}
+.iso-line[data-tone="hi"]{stroke:var(--anatomy-hi)}
+.iso-line[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.iso-line[data-tone="lo"]{stroke:var(--anatomy-lo)}
+.iso-line[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.iso-line[data-tone="lit"]{stroke:var(--anatomy-lit)}
+.iso-line[data-tone="red"]{stroke:var(--anatomy-red)}
+.iso-line[data-tone="green"]{stroke:var(--anatomy-green)}
+.iso-line[data-tone="blue"]{stroke:var(--anatomy-blue)}
+.iso-line[data-dotted]{stroke-dasharray:.01 3.5;stroke-width:1}
+.iso-line[data-dashed]{stroke-dasharray:3 3}
+.iso-line[data-flow]{stroke-dasharray:2 6}
+.iso-wire-end{fill:var(--anatomy-paper);stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight)}
+.iso-wire[data-tone="hi"] .iso-wire-end{stroke:var(--anatomy-hi)}
+.iso-wire[data-tone="mid"] .iso-wire-end{stroke:var(--anatomy-mid)}
+.iso-wire[data-tone="faint"] .iso-wire-end{stroke:var(--anatomy-faint)}
+.iso-wire[data-tone="lit"] .iso-wire-end{stroke:var(--anatomy-lit)}
+.iso-dots circle{fill:var(--anatomy-dot);stroke:none;opacity:.32}
+.iso-dots[data-tone="hi"] circle{opacity:.85}
+.iso-dots[data-tone="mid"] circle{opacity:.45}
+.iso-dots[data-tone="lo"] circle{opacity:.22}
+.iso-dots[data-tone="faint"] circle{opacity:.12}
+.iso-face-text{fill:var(--anatomy-mid);font-family:var(--anatomy-mono);letter-spacing:.04em}
+.iso-face-text[data-tone="hi"]{fill:var(--anatomy-hi)}
+.iso-face-text[data-tone="lo"]{fill:var(--anatomy-lo)}
+.iso-face-text[data-tone="faint"]{fill:var(--anatomy-faint)}
+.tb-body{fill:var(--anatomy-shade-2);stroke:none}
+.tb-shine{fill:var(--anatomy-top);stroke:none}
+.tb-shade{fill:var(--anatomy-shade-0);stroke:none}
+.tb-ring{fill:none;stroke:var(--anatomy-lo);stroke-width:.45;stroke-linecap:butt;stroke-linejoin:round}
+.tb-ring[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.tb-ring[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.tb-ring[data-tone="hi"]{stroke:var(--anatomy-hi)}
+@keyframes iso-flow{to{stroke-dashoffset:-32}}
+@keyframes iso-pulse{0%,100%{opacity:.18}12%{opacity:1}40%{opacity:.18}}
+.iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
+.iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
+.iso-figure{margin:32px 0 36px}
+.iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
+.iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
+.iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+.iso-plate-corner[data-corner="fig"]{top:0;left:0;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="title"]{top:0;right:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="hint"]{bottom:0;left:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="readout"]{right:0;bottom:0;color:var(--anatomy-text);font-variant-numeric:tabular-nums}
+.iso-plate .iso-svg{margin:0 auto}
+.iso-legend{display:grid;gap:8px;margin-top:12px;color:var(--anatomy-muted);font-size:13px;line-height:1.55}
+.iso-keys{display:flex;flex-wrap:wrap;gap:6px 18px}
+.iso-key{display:inline-flex;align-items:center;gap:7px}
+.iso-swatch{width:16px;height:10px;flex:none;overflow:visible}
+.iso-swatch path{fill:none;stroke:var(--anatomy-hi);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.iso-swatch[data-mark="raised"] path,.iso-swatch[data-mark="flat"] path{stroke:var(--anatomy-mid)}
+.iso-swatch[data-mark="lit"] path{stroke:var(--anatomy-lit)}
+.iso-swatch[data-mark="dim"] path{stroke:var(--anatomy-lo)}
+.iso-swatch[data-mark="dotted"] path{stroke-dasharray:.01 3;stroke-width:1.4}
+.iso-swatch[data-mark="dashed"] path{stroke-dasharray:3 2.5}
+.iso-swatch[data-mark="red"] path{stroke:var(--anatomy-red)}
+.iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
+.iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
+.iso-swatch-crease{stroke:var(--anatomy-lo)!important}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
+
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body[data-theme="light"]{color-scheme:light}
+body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
+.fg svg{display:block;width:100%;height:auto;font-family:inherit}
+.fg .lab2{font-size:11.5px;fill:var(--anatomy-text)}.fg .tn{font-size:10.5px;fill:var(--anatomy-text)}
+.fg .chip{stroke:var(--anatomy-lo);stroke-width:.8}.fg .chip.nov{stroke-dasharray:3 2}.fg .cg{cursor:pointer}.fg .cg.fut{opacity:.55}
+.fg .cid{font-size:12px;font-weight:700;text-anchor:middle}.fg .cnm{font-size:10px;text-anchor:middle}.fg .clv{font-size:9px;text-anchor:middle;opacity:.85}
+.fg .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}.fg .cur{stroke:var(--anatomy-strong);stroke-width:2.4}.fg .trk{stroke:var(--anatomy-faint);stroke-width:.8}
+.fg .bx{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.8}.fg .bx.ch{stroke:var(--anatomy-red);stroke-width:1.6}
+.fg .bt{font-size:11.5px;font-weight:700;fill:var(--anatomy-strong)}.fg .bl{font-size:10.5px;fill:var(--anatomy-text)}.fg .bl.nw{fill:var(--anatomy-strong)}
+.fg .ar{fill:none;stroke:var(--anatomy-lo);stroke-width:1.1}.fg .arh{fill:var(--anatomy-lo)}
+.fg .sm{fill:var(--anatomy-blue)}.fg .sm.idle{fill:var(--anatomy-faint);opacity:.45}.fg .sm.un{fill:none;stroke:var(--anatomy-faint);stroke-width:.6}
+.fg .fr{fill:var(--anatomy-card);stroke:var(--anatomy-red);stroke-width:1.8}.fg .fn{font-size:10.5px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle}
+.fg .gl{stroke:var(--anatomy-faint);stroke-width:.5}.fg .gt{font-size:9.5px;fill:var(--anatomy-muted);text-anchor:end}
+.fg .b0{fill:var(--anatomy-lo);opacity:.55}.fg .b1{fill:var(--anatomy-blue)}.fg .b1.nov{fill:url(#hatchB)}.fg .bv{font-size:10px;font-weight:600;fill:var(--anatomy-strong);text-anchor:middle}.fg .bv.w{fill:#fff}
+.fg .ref{stroke:var(--anatomy-strong);stroke-width:1.2;stroke-dasharray:4 3}.fg .rt{font-size:9.5px;fill:var(--anatomy-strong);font-weight:600}
+.fg .gtl{font-size:11px;font-weight:700;fill:var(--anatomy-strong);text-anchor:middle}.fg .dl{font-size:10.5px;text-anchor:middle;fill:var(--anatomy-text)}
+.fg .dl.up{fill:var(--anatomy-red);font-weight:700}.fg .dl.dn{fill:var(--anatomy-green);font-weight:700}
+.fg .nar{margin:14px 8px 8px;min-height:15em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fg .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0}
+.kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
+.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
+.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+.lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
+.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo)}
+.lg i.lv{width:14px;border-radius:3px}.lg i.k0{background:var(--anatomy-lo);opacity:.55}.lg i.k1{background:var(--anatomy-blue)}.lg i.kr{border:2px solid var(--anatomy-red);border-radius:50%;width:10px;height:10px}
+.lg i.kd{border:0;border-top:1.5px dashed var(--anatomy-strong);height:0;vertical-align:3px}.lg i.kn{background:var(--anatomy-blue);opacity:.35}
+.cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55;max-width:100%;text-wrap:balance}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.iso-plate{padding-bottom:58px}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
+@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 6-6</span><span class="iso-plate-corner" data-corner="title">qkv_gemm 从 g0 到 g5：九个版本、四个词元数的实测耗时</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 96" role="img" aria-label="算法链：从 g0 到 g5 的九个版本，颜色是所属硬件级别">
+<text class="lab2" x="0" y="14">qkv_gemm：Y [T, 2304] = X [T, 8192] · Wᵀ。每个方块是一个版本（颜色 = 它用到的硬件级别）</text><g class="cg" data-i="0"><rect class="chip" x="0" y="24" width="68" height="54" rx="5" fill="hsl(220 8% 46%)"/><text class="cid" x="34" y="41" fill="#fff">g0</text><text class="cnm" x="34" y="56" fill="#fff">cuBLAS 基线</text><text class="clv" x="34" y="70" fill="#fff">基线</text></g><g class="cg" data-i="1"><rect class="chip" x="71.5" y="24" width="68" height="54" rx="5" fill="hsl(212 62% 44%)"/><text class="cid" x="105.5" y="41" fill="#fff">g1a</text><text class="cnm" x="105.5" y="56" fill="#fff">单核化</text><text class="clv" x="105.5" y="70" fill="#fff">第 0 级</text></g><g class="cg" data-i="2"><rect class="chip" x="143" y="24" width="68" height="54" rx="5" fill="hsl(172 62% 44%)"/><text class="cid" x="177" y="41" fill="#fff">g1</text><text class="cnm" x="177" y="56" fill="#fff">扩网格+环</text><text class="clv" x="177" y="70" fill="#fff">第 1–2 级</text></g><g class="cg" data-i="3"><rect class="chip" x="214.5" y="24" width="68" height="54" rx="5" fill="hsl(262 62% 44%)"/><text class="cid" x="248.5" y="41" fill="#fff">g2</text><text class="cnm" x="248.5" y="56" fill="#fff">寄存器试验</text><text class="clv" x="248.5" y="70" fill="#fff">第 2 级</text></g><g class="cg" data-i="4"><rect class="chip nov" x="286" y="24" width="68" height="54" rx="5" fill="hsl(32 62% 84%)"/><text class="cid" x="320" y="41" fill="var(--anatomy-strong)">g3</text><text class="cnm" x="320" y="56" fill="var(--anatomy-strong)">无此版本</text><text class="clv" x="320" y="70" fill="var(--anatomy-strong)">第 3 级</text></g><g class="cg" data-i="5"><rect class="chip" x="357.5" y="24" width="68" height="54" rx="5" fill="hsl(342 62% 44%)"/><text class="cid" x="391.5" y="41" fill="#fff">g4a</text><text class="cnm" x="391.5" y="56" fill="#fff">交换 A/B</text><text class="clv" x="391.5" y="70" fill="#fff">第 4 级</text></g><g class="cg" data-i="6"><rect class="chip" x="429" y="24" width="68" height="54" rx="5" fill="hsl(342 62% 44%)"/><text class="cid" x="463" y="41" fill="#fff">g4b</text><text class="cnm" x="463" y="56" fill="#fff">块原子加</text><text class="clv" x="463" y="70" fill="#fff">第 4 级</text></g><g class="cg" data-i="7"><rect class="chip" x="500.5" y="24" width="68" height="54" rx="5" fill="hsl(342 62% 44%)"/><text class="cid" x="534.5" y="41" fill="#fff">g4</text><text class="cnm" x="534.5" y="56" fill="#fff">BN 加宽</text><text class="clv" x="534.5" y="70" fill="#fff">第 4 级</text></g><g class="cg" data-i="8"><rect class="chip" x="572" y="24" width="68" height="54" rx="5" fill="hsl(142 62% 44%)"/><text class="cid" x="606" y="41" fill="#fff">g5</text><text class="cnm" x="606" y="56" fill="#fff">12 位权重</text><text class="clv" x="606" y="70" fill="#fff">第 5 级</text></g><g id="algO"></g><path class="trk" d="M0 87H640"/><path id="cur" class="cur" d="M0 82V92"/></svg><svg class="flat" viewBox="0 0 640 168" role="img" aria-label="一次 qkv_gemm 的六个部件，红圈标出这一步改了哪几个">
+<g id="partsG"></g><path class="ar" d="M206 41h10"/><path class="arh" d="M217 41l-4 -3v6z"/><path class="ar" d="M424 41h10"/><path class="arh" d="M435 41l-4 -3v6z"/><path class="ar" d="M206 127h10"/><path class="arh" d="M217 127l-4 -3v6z"/><path class="ar" d="M424 127h10"/><path class="arh" d="M435 127l-4 -3v6z"/><path class="ar" d="M538 77V84H102V90"/><path class="arh" d="M102 91l-3 -4h6z"/><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" id="chart" viewBox="0 0 640 178" role="img" aria-label="四个词元数下，这一步和上一步的实测耗时"></svg></div></div></figure><div class="ctl"><button id="play">暂停</button><label>步骤 <input id="tIn" type="range" min="0" max="8.98" step="0.02" value="0"></label></div><div class="lg"><span><i class="lv" style="background:hsl(212 62% 44%)"></i>第 0 级 核的启动</span><span><i class="lv" style="background:hsl(172 62% 44%)"></i>第 1 级 整张芯片</span><span><i class="lv" style="background:hsl(262 62% 44%)"></i>第 2 级 单个 SM</span><span><i class="lv" style="background:hsl(32 62% 44%)"></i>第 3 级 单个 SMSP</span><span><i class="lv" style="background:hsl(342 62% 44%)"></i>第 4 级 Tensor Core</span><span><i class="lv" style="background:hsl(142 62% 44%)"></i>第 5 级 指令与比特</span><span><i class="lv" style="background:hsl(220 8% 46%)"></i>基线</span></div>
+<div class="lg"><span><i class="kr"></i>红圈数字 = 这一步改了的部件</span><span><i class="k0"></i>上一步的耗时</span><span><i class="k1"></i>本步的耗时</span><span><i class="kd"></i>g0（cuBLAS）的耗时</span><span>绿 = 变快，红 = 变慢，灰 = 噪声</span></div>
+<p class="cap">播放，或拖动步骤，逐个版本看：上面六个部件里红圈标出了哪一个改了，卡片写出这一步的公式、输入、输出、交给下一步的问题和代价，下面的柱子对比四个词元数 T 上这一步和上一步的实测耗时。点方块或红圈可以直接跳到那一步。</p></main><script type="module">const D={"US":{"g0":[18.2,18.6,21.32,22.9],"g1a":[15.81,17.92,21.57,33.39],"g1":[15.94,17.94,18.84,25.46],"g2":[15.88,17.98,18.93,25.64],"g3":[15.88,17.98,18.93,25.64],"g4a":[15.83,16.86,18.71,25.3],"g4b":[15.96,17.02,17.41,23.78],"g4":[15.84,16.95,17.28,22.13],"g5":[12.89,14.3,17.35,21.36]},"BOOK_DELTA":{"g1a":[-2.39,-0.68,0.25,10.5],"g1":[0.13,0.02,-2.73,-7.94],"g2":[-0.06,0.03,0.09,0.18],"g3":[0,0,0,0],"g4a":[-0.05,-1.11,-0.22,-0.34],"g4b":[0.13,0.15,-1.3,-1.52],"g4":[-0.12,-0.06,-0.13,-1.65],"g5":[-2.95,-2.65,0.07,-0.77]},"BOOK_TOTAL":[-5.31,-4.3,-3.97,-1.54],"BOOK_PCT":[-29,-23,-19,-7],"TS":[8,32,128,256],"IDS":["g0","g1a","g1","g2","g3","g4a","g4b","g4","g5"],"CHIPS":[{"id":"g0","nm":"cuBLAS 基线","lv":null,"lt":"基线"},{"id":"g1a","nm":"单核化","lv":0,"lt":"第 0 级"},{"id":"g1","nm":"扩网格+环","lv":1,"lt":"第 1–2 级"},{"id":"g2","nm":"寄存器试验","lv":2,"lt":"第 2 级"},{"id":"g3","nm":"无此版本","lv":3,"lt":"第 3 级","nov":1},{"id":"g4a","nm":"交换 A/B","lv":4,"lt":"第 4 级"},{"id":"g4b","nm":"块原子加","lv":4,"lt":"第 4 级"},{"id":"g4","nm":"BN 加宽","lv":4,"lt":"第 4 级"},{"id":"g5","nm":"12 位权重","lv":5,"lt":"第 5 级"}],"PARTS":[["launch","核的启动"],["grid","132 个 SM"],["weight","权重读入"],["move","片上搬运"],["mma","矩阵乘"],["reduce","部分和归约"]],"S":{"g0":{"launch":["T = 8 / 32 / 128：2 个核","T = 256：1 个核"],"grid":{"n":null,"l":["本步不画 CTA 数"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["cuBLAS 自带，本图不画"],"mma":["cuBLAS 矩阵乘主核"],"reduce":["独立归约核加总部分和","（T = 256 为单核，无此核）"],"ring":[]},"g1a":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":72,"l":["T = 128 / 256","72 个 CTA（36 × 2）","60 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["T = 128 / 256：TMA 搬运"],"mma":["T = 8 / 32：交换 A/B 分块","T = 128 / 256：TMA wgmma"],"reduce":["最后到达的 1 个 CTA","在尾声串行读回并相加"],"ring":["launch","reduce"]},"g1":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":108,"l":["T = 128 / 256","108 个 CTA","24 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["TMA 生产者 warp + mbarrier 环","T = 128：8 槽；T = 256：5 槽","128 B 异或交错"],"mma":["T = 128：分块 128 × 64","T = 256：分块 256 × 64","T = 8 / 32：同 g1a"],"reduce":["原子票据：每个切分 CTA","认领 1/3 瓦片行并行归约"],"ring":["grid","reduce","move"]},"g2":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":108,"l":["T = 128 / 256","108 个 CTA","24 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["环同 g1","生产者 warp：setmaxnreg(24)"],"mma":["T = 128：分块 128 × 64","T = 256：分块 256 × 64","T = 8 / 32：同 g1a"],"reduce":["原子票据：每个切分 CTA","认领 1/3 瓦片行并行归约"],"ring":["move"]},"g3":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":108,"l":["T = 128 / 256","108 个 CTA","24 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["环同 g2","（g3 没有单独的版本）"],"mma":["T = 128：分块 128 × 64","T = 256：分块 256 × 64","T = 8 / 32：同 g1a"],"reduce":["原子票据：每个切分 CTA","认领 1/3 瓦片行并行归约"],"ring":[]},"g4a":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":108,"l":["T = 32 / 128 / 256","各 108 个 CTA","24 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["T = 128 / 256：TMA 环 + 异或交错","T = 32：9 槽环"],"mma":["T = 32：m64n32k16 交换 A/B","分块 64 × 32 × 128（9 槽环）","T = 128 / 256：同 g3"],"reduce":["原子票据：每个切分 CTA","认领 1/3 瓦片行并行归约"],"ring":["mma"]},"g4b":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":108,"l":["T = 128 / 256","108 个 CTA","24 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["环空槽的标志：生产者 warp 释放","（放在 wgmma 异步区之外）"],"mma":["T = 32：m64n32k16 交换 A/B","分块 64 × 32 × 128（9 槽环）","T = 128 / 256：同 g3"],"reduce":["UTMAREDG.2D.ADD 块原子加","在 L2 原地累加"],"ring":["reduce","move"]},"g4":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":126,"l":["T = 256：126 个 CTA","（T = 128 仍为 108）","6 个 SM 闲置"]},"weight":["W：BF16 37.7 MB（HBM）","X：[T, 8192] BF16"],"move":["环空槽的标志：生产者 warp 释放","（放在 wgmma 异步区之外）"],"mma":["T = 256：分块 256 × 128 × 64","Split-K 3 → 7；环 5 槽 → 4 槽"],"reduce":["UTMAREDG.2D.ADD 块原子加","在 L2 原地累加"],"ring":["mma","grid"]},"g5":{"launch":["每次矩阵乘启动 1 个核"],"grid":{"n":null,"l":["本步不画 CTA 数"]},"weight":["T = 8 / 32：C12 12 位 28.3 MB","T = 128 / 256：仍为 BF16"],"move":["T = 256：5 槽环"],"mma":["自写 CUDA C++ 内核","T = 256：BM = 128, BN = 192"],"reduce":["T = 256：不切分 K，无跨 CTA 归约","T = 128：BF16 Split-K"],"ring":["weight","mma","reduce"]}},"HEAD":{"g0":"g0 · cuBLAS 基线，每次矩阵乘先后启动主核和归约核（见第 0.5 章、第 1 章）","g1a":"g1a · ① 启动：2 个核 → 1 个核；② 归约：移进主核尾声（见第 1 章：算子融合）","g1":"g1 · ① 网格 72 → 108 个 CTA；② 票据并行归约；③ TMA 环 + 异或交错（见第 2、3 章）","g2":"g2 · ① 对生产者 warp 加 setmaxnreg(24) 上限，没有收益、未采用（见第 3 章）","g3":"g3 · 没有对应版本，数值同 g2（见第 4 章：辅助 warp）","g4a":"g4a · ① T = 32 换成交换 A/B 的 m64n32k16 内核（见第 5 章）","g4b":"g4b · ① 尾声改为 L2 里的二维块原子加；② 标志释放交给生产者 warp（见第 5 章）","g4":"g4 · ① T = 256 的分块列宽 BN 64 → 128；② 网格 108 → 126 个 CTA（见第 5、3 章）","g5":"g5 · ① 权重压成 12 位；② 自写 CUDA C++；③ T = 256 不再切分 K（见第 6 章）"},"CARD":{"g0":{"f":"Y = X · Wᵀ = P₁ + P₂ + …（K = 8,192 切成多段，每段 Pᵢ = X[:, Kᵢ] · W[:, Kᵢ]ᵀ）","i":"X [T, 8192] BF16；W [2304, 8192] BF16（37.7 MB）","o":"T = 8 / 32 / 128：先启动矩阵乘主核写出部分和，再启动归约核加成 Y；T = 256：单核直接写 Y","x":"多出来的归约核，交给 g1a 删掉（见第 1 章：算子融合）","c":"18.20 | 18.60 | 21.32 | 22.90 µs；每个数都含 4.96 µs 的空图重放固定开销"},"g1a":{"f":"仍是 Y = ΣPᵢ，但部分和由最后到达的那个 CTA 在主核尾声读回并相加","i":"X、W 同 g0；T = 8 / 32 用交换 A/B 分块，T = 128 / 256 用 36 × 2 = 72 个 CTA 的 TMA wgmma 分块","o":"单次 kernel 启动写出 Y，没有独立归约核","x":"T = 128 / 256 只开 72 个 CTA，60 个 SM 闲置；最后那 1 个 CTA 独自串行累加多达 1 MB 部分和。交给 g1（见第 2 章：整卡与波次）","c":"较 g0：−2.39 | −0.68 | +0.25 | +10.50 µs；T = 256 比单核 cuBLAS 慢 46%"},"g1":{"f":"Y = P₁ + P₂ + P₃（Split-K = 3）；每个切分 CTA 到达后用原子票据认领 1/3 瓦片行，并行读回归约","i":"T = 128 分块 128 × 64，T = 256 分块 256 × 64；X、W 同上","o":"网格 1 × 36 × 3 = 108 个 CTA（空闲 SM 从 60 个降到 24 个）；TMA 生产者 warp + mbarrier 环形缓冲（T = 128 为 8 槽，T = 256 为 5 槽）+ 128 B 异或交错","x":"T = 128 已比 cuBLAS 快 2.48 µs；T = 256 仍慢 2.56 µs。交给 g2 试压生产者寄存器，再交给 g4（见第 2 章：跨 SM 合并部分和；第 3 章：TMA 环与异或交错）","c":"较 g1a：+0.13 | +0.02 | −2.73 | −7.94 µs；T = 8 / 32 的内核没改，+0.13 / +0.02 是噪声"},"g2":{"f":"与 g1 相同，只对 T = 128 / 256 的 TMA 生产者 warp 加 setmaxnreg(24) 寄存器上限","i":"同 g1","o":"同 g1；生产者 warp 的寄存器上限为 24","x":"没有收益，未采用，实际内核保持不限制。单消费者 warpgroup 内核的寄存器本来就没有超标，压低生产者的寄存器不会提高驻留或吞吐（见第 3 章：一个 SM 的寄存器）","c":"较 g1：−0.06 | +0.03 | +0.09 | +0.18 µs，都在测量噪声带内：没有收益"},"g3":{"f":"没有新公式：g3 = g2","i":"同 g2","o":"同 g2","x":"辅助 warp 的改动只落在 router 内核上；qkv 内核“由生产者 warp 释放标志”要到 g4b 才和块原子加一起合入（见第 4 章：辅助 warp）","c":"数值与 g2 相同：15.88 | 17.98 | 18.93 | 25.64 µs；较 g2：0"},"g4a":{"f":"T = 32：Yᵀ = W · Xᵀ；W 放左矩阵 A（填满 64 行），X 放右矩阵 B（宽 32 列），指令 m64n32k16","i":"分块 64 × 32 × 128，Split-K = 3，9 槽环，108 个 CTA","o":"100% 的行填满，每条 wgmma 占 18.78 周期（原 m64n64k16 有 50% 行填零，占 32.06 周期）","x":"T = 128 / 256 的尾声还在读写全局工作区做票据归约。交给 g4b（见第 5 章：交换 A/B）","c":"较 g3：−0.05 | −1.11 | −0.22 | −0.34 µs；这一步的收益是 T = 32 的 −1.11 µs，其余档位的内核没改，变化在噪声带内"},"g4b":{"f":"尾声：stmatrix 把部分和写进 SMEM，再发 1 条 UTMAREDG.2D.ADD 在 L2 原地累加 Y += Pᵢ","i":"各切分 CTA 的部分和（FP32，寄存器）","o":"Y 在 L2 里原地累加，不再读写全局工作区；环形空槽的标志改由生产者 warp 释放，放在 wgmma 异步区之外，避开异步区的自动串行化","x":"T = 256 的分块只有 64 列宽。交给 g4 扩宽（见第 5 章：二维 TMA 原子归约；第 6 章第 1 节：异步区）","c":"较 g4a：+0.13 | +0.15 | −1.30 | −1.52 µs；代价：L2 原子加的顺序不固定，相对 L2 误差从 1.6e-3 升到 2.7e-3"},"g4":{"f":"T = 256 的分块 (256, 64, 64, Split-K 3, 5 槽) → (256, 128, 64, Split-K 7, 4 槽)","i":"同 g4b","o":"126 个 CTA；每个环形槽位喂给 Tensor Core 的矩阵乘工作量翻倍","x":"四个 T 首次全部比 g0 快；但 T = 8 / 32 仍要读全部 37.7 MB BF16 权重。交给 g5（见第 5 章：扩宽分块；第 3 章：缓冲槽）","c":"较 g4b：−0.12 | −0.06 | −0.13 | −1.65 µs；T = 256 的相对 L2 误差微升到 3.65e-3"},"g5":{"f":"T = 8 / 32：权重用 12 位 C12，片上解码后同时服务 8 / 32 个词元；T = 128 / 256：仍是 BF16","i":"T = 8 / 32：W 的 C12 主表 28.3 MB（原 37.7 MB，少读 25%）；T = 128 / 256：BF16 的 W","o":"T = 8：流式 K 内核；T = 32：Split-K 内核；T = 128：BF16 Split-K wgmma，移植成自写 C++；T = 256：BM = 128, BN = 192、5 槽环、2 波次，不切分 K，无跨 CTA 归约","x":"终版。T ≥ 128 受限于算力，压窄权重会因解码指令变慢，所以保持 BF16（见第 6 章：什么时候该压窄权重）","c":"较 g4：−2.95 | −2.65 | +0.07 | −0.77 µs；T = 8 / 32 约 1.9 µs 来自少读四分之一的权重，其余来自换核（两项没有拆开测）。较 g0 共 −5.31 | −4.30 | −3.97 | −1.54 µs"}},"NOISE":{"g1":[8,32],"g2":[8,32,128,256],"g3":[8,32,128,256],"g4a":[8,128,256],"g4b":[8,32],"g4":[8,32,128],"g5":[128]},"BAR":{"x0":40,"gw":150,"top":34,"bot":124,"max":36},"PITCH":71.5,"CW":68,"CY":24,"CH":54,"BW":204,"BH":70,"BX":[0,218,436],"BY":[6,92],"POS":{"launch":[0,0],"grid":[1,0],"weight":[2,0],"move":[0,1],"mma":[1,1],"reduce":[2,1]},"LV":[212,172,262,32,342,142],"N":9};
+
+const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
+const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const NS=D.N, END=NS-0.02, SPEED=1;
+let t=0, lastK=-1;
+const f2=(v)=>v.toFixed(2), sg=(v)=>(v>0.004?"+":v<-0.004?"\u2212":"")+Math.abs(v).toFixed(2);
+const ease=(u)=>u<=0?0:u>=1?1:u*u*(3-2*u);
+function chipHue(i){ const c=D.CHIPS[i]; return c.lv==null?"hsl(220 8% 46%)":"hsl("+D.LV[c.lv]+" 62% 44%)"; }
+function drawParts(k){
+  const id=D.IDS[k], st=D.S[id]; let h="";
+  D.PARTS.forEach(([key,title])=>{ const [c,r]=D.POS[key], x=D.BX[c], y=D.BY[r], ri=st.ring.indexOf(key), ch=ri>=0;
+    h+='<rect class="bx'+(ch?" ch":"")+'" x="'+x+'" y="'+y+'" width="'+D.BW+'" height="'+D.BH+'" rx="6"/>';
+    h+='<text class="bt" x="'+(x+(ch?28:10))+'" y="'+(y+17)+'">'+esc_(title)+'</text>';
+    const lines=key==="grid"?st.grid.l:st[key], lw=key==="grid"?118:188;
+    lines.forEach((l,j)=>{ h+='<text class="bl'+(ch?" nw":"")+'" x="'+(x+10)+'" y="'+(y+35+j*14)+'">'+esc_(l)+'</text>'; });
+    if(key==="grid"){ const n=st.grid.n, pw=5.6, gx=x+D.BW-6-12*pw, gy=y+7;
+      for(let q=0;q<132;q++){ const cx=gx+(q%12)*pw, cy=gy+Math.floor(q/12)*pw;
+        h+='<rect class="sm'+(n==null?" un":q<n?"":" idle")+'" x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" width="4.6" height="4.6" rx="1"/>'; } }
+  });
+  $("partsG").innerHTML=h;
+  $("focus").innerHTML=st.ring.map((key,i)=>{ const [c,r]=D.POS[key], cx=D.BX[c]+14, cy=D.BY[r]+13;
+    return '<circle class="fr" cx="'+cx+'" cy="'+cy+'" r="8.5"/><text class="fn" x="'+cx+'" y="'+(cy+3.8)+'">'+(i+1)+'</text>'; }).join("");
+  const cd=D.CARD[id];
+  $("stepT").textContent=D.HEAD[id];
+  $("stepK").innerHTML=[["公式",cd.f,1],["输入",cd.i],["输出",cd.o],["交给下一步",cd.x],["代价",cd.c]].map(r=>"<div><dt>"+r[0]+"</dt><dd"+(r[2]?' class="m"':"")+">"+esc_(r[1])+"</dd></div>").join("");
+  const u=D.US[id]; readout.textContent=D.IDS[k]+" · "+D.CHIPS[k].nm+"（"+D.CHIPS[k].lt+"）\nT = 8 | 32 | 128 | 256：" + u.map(f2).join(" | ") + " µs";
+  document.querySelectorAll(".cg").forEach((g,i)=>g.classList.toggle("fut",i>k));
+  const ox=k*D.PITCH; $("algO").innerHTML='<rect class="ao" x="'+(ox-2)+'" y="'+(D.CY-3)+'" width="'+(D.CW+4)+'" height="'+(D.CH+6)+'" rx="6"/>';
+}
+function drawChart(k,e){
+  const B=D.BAR, id=D.IDS[k], cur=D.US[id], prev=k>0?D.US[D.IDS[k-1]]:null, g0=D.US.g0, sc=(B.bot-B.top)/B.max, nov=id==="g3";
+  let h='<defs><pattern id="hatchB" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--anatomy-blue)" opacity=".25"/><path d="M0 0V5" stroke="var(--anatomy-blue)" stroke-width="1.6"/></pattern></defs>';
+  h+='<text class="lab2" x="0" y="12">实测耗时（µs，越低越好；每个数含 4.96 µs 空图重放开销）</text>';
+  h+='<g transform="translate(404 0)"><rect class="b0" x="0" y="4" width="10" height="8"/><text class="tn" x="14" y="12">上一步</text><rect class="b1" x="62" y="4" width="10" height="8"/><text class="tn" x="76" y="12">本步</text><path class="ref" d="M118 8h16"/><text class="tn" x="138" y="12">g0 基线</text></g>';
+  [0,10,20,30].forEach(v=>{ const y=B.bot-v*sc; h+='<path class="gl" d="M'+(B.x0-4)+' '+y+'H640"/><text class="gt" x="'+(B.x0-8)+'" y="'+(y+3)+'">'+v+'</text>'; });
+  D.TS.forEach((T,j)=>{ const cx=B.x0+B.gw*(j+0.5), yr=B.bot-g0[j]*sc; h+='<path class="ref" d="M'+(cx-60)+' '+yr.toFixed(1)+'H'+(cx+60)+'"/>'+(k>0?'<text class="rt" x="'+(cx+62)+'" y="'+(yr+3).toFixed(1)+'">g0</text>':''); });
+  D.TS.forEach((T,j)=>{ const cx=B.x0+B.gw*(j+0.5), bw=34, hasP=prev!=null;
+    const xp=cx-bw-3, xc=hasP?cx+3:cx-bw/2;
+    const pv=hasP?prev[j]:null, cv=hasP?pv+(cur[j]-pv)*e:cur[j];
+    if(hasP){ const yp=B.bot-pv*sc; h+='<rect class="b0" x="'+xp+'" y="'+yp.toFixed(1)+'" width="'+bw+'" height="'+(pv*sc).toFixed(1)+'"/><text class="bv" x="'+(xp+bw/2)+'" y="'+(B.bot-5)+'">'+f2(pv)+'</text>'; }
+    const yc=B.bot-cv*sc; h+='<rect class="b1'+(nov?" nov":"")+'" x="'+xc+'" y="'+yc.toFixed(1)+'" width="'+bw+'" height="'+(cv*sc).toFixed(1)+'"/><text class="bv'+(nov?"":" w")+'" x="'+(xc+bw/2)+'" y="'+(B.bot-5)+'">'+f2(cv)+'</text>';
+    h+='<text class="gtl" x="'+cx+'" y="'+(B.bot+14)+'">T = '+T+'</text>';
+    if(hasP){ const d=D.BOOK_DELTA[id][j], isN=(D.NOISE[id]||[]).indexOf(T)>=0, cl=isN||Math.abs(d)<0.004?"":(d>0?" up":" dn");
+      h+='<text class="dl'+cl+'" x="'+cx+'" y="'+(B.bot+28)+'">较上一步 '+sg(d)+(isN&&Math.abs(d)>=0.004?"（噪声）":"")+'</text>';
+      const d0=k===8?D.BOOK_TOTAL[j]:cur[j]-g0[j], p0=k===8?D.BOOK_PCT[j]:Math.round(100*d0/g0[j]); h+='<text class="dl'+(Math.abs(d0)<0.004?"":d0>0?" up":" dn")+'" x="'+cx+'" y="'+(B.bot+42)+'">较 g0 '+sg(d0)+'（'+(p0>0?"+":p0<0?"\u2212":"")+Math.abs(p0)+'%）</text>'; }
+    else h+='<text class="dl" x="'+cx+'" y="'+(B.bot+28)+'">基线</text>';
+  });
+  $("chart").innerHTML=h;
+}
+function show(){
+  const k=Math.max(0,Math.min(NS-1,Math.floor(t+1e-9))); const e=ease((t-k)/0.6);
+  if(k!==lastK){ lastK=k; drawParts(k); $("stepN").textContent="第 "+(k+1)+" 步"; }
+  drawChart(k,e); $("cur").setAttribute("d","M"+(t*D.PITCH).toFixed(1)+" "+(D.CY+D.CH+4)+"V"+(D.CY+D.CH+14)); $("tIn").value=String(t);
+}
+const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let playing=!still, last=0, hold=0, raf=0;
+function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if(playing){ if(t<END) t=Math.min(END,t+dt*SPEED); else { hold+=dt; if(hold>3){hold=0;t=0;} } } show(); raf=playing?requestAnimationFrame(loop):0; }
+const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
+const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=END){t=0;hold=0;} start(); } else show(); };
+play.addEventListener("click",()=>setPlay(!playing));
+$("tIn").max=String(END);
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
+const q=new URLSearchParams(location.search);
+t = q.has("t") ? +q.get("t") : (still ? 2 : 0); show(); if(playing) start(); else play.textContent="播放";
+</script></body></html>

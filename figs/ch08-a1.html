@@ -161,9 +161,9 @@ const pathA=(h,s)=>[HP[h],L2C,LSU[s],REG[s]];
 const M1=()=>{ // serial 3-hop chain
   const bl=[{n:1,c:B1,route:pathA(0,0),t0:0,t1:3,home:1,stay:1,until:3.4},{n:2,c:B2,route:pathA(1,0),t0:3.4,t1:6.4,home:1,stay:1,until:6.8},{n:3,c:B3,route:[HP[2],L2C,LSU[0],DST[0]],t0:6.8,t1:9.8,home:1,stay:1}];
   return {end:10.5,speed:1.1,shot:7.6,
-  ro:"3 跳串行：每跳只有 1 条独立指令，约 2.4 µs（verify 1 请求全长算例实测 2,400 ns）\n首次使用页表结果的 IMAD.WIDE 处，37%–42% 的停顿是长记分牌（P1 记录，形状 UNKNOWN）",
+  ro:"3 跳串行：每跳只有 1 条独立指令，约 2.4 µs（verify 1 请求全长算例实测 2,400 ns）\n首次使用页表结果的 IMAD.WIDE 处，37%–42% 的停顿是长记分牌（独立注意力测试中测得，具体形状未知）",
   axis:"时间（只表示先后，每跳画成一样长；真实约 600 / 640 / 1,150 ns）",
-  strip:{title:"算法：P1 读请求 b 的一个历史 KV 页，要走三跳",cells:[{a:"1",b:["seq_lens[b]","序列长度"],c:B1,t0:0,t1:3.4},{a:"2",b:["page_table[b,页号]","页表项"],c:B2,t0:3.4,t1:6.8},{a:"3",b:["cp.async","KV 页进 SMEM"],c:B3,t0:6.8,t1:10.5}]},
+  strip:{title:"算法：独立注意力读请求 b 的一个历史 KV 页，要走三跳",cells:[{a:"1",b:["seq_lens[b]","序列长度"],c:B1,t0:0,t1:3.4},{a:"2",b:["page_table[b,页号]","页表项"],c:B2,t0:3.4,t1:6.8},{a:"3",b:["cp.async","KV 页进 SMEM"],c:B3,t0:6.8,t1:10.5}]},
   blocks:bl,
   links:[pathA(0,0),pathA(1,0),[HP[2],L2C,LSU[0],DST[0]]],
   lights:[{sel:sel(0,"lsu"),t0:0,t1:3},{sel:sel(0,"lsu"),t0:3.4,t1:6.4},{sel:sel(0,"lsu"),t0:6.8,t1:9.8},{sel:sel(0,"regs"),t0:3,t1:3.4},{sel:sel(0,"regs"),t0:6.4,t1:6.8},{sel:sel(0,"sched"),t0:0,t1:0.4,cls:"issue"},{sel:sel(0,"sched"),t0:3.4,t1:3.8,cls:"issue"},{sel:sel(0,"sched"),t0:6.8,t1:7.2,cls:"issue"}],
@@ -195,7 +195,7 @@ const M2=()=>{ // speculation
     {r:1,a:0,b:3,k:"blk",c:B1,sub:0},{r:1,a:0.15,b:3.15,k:"blk",c:B2,sub:1},{r:1,a:3.4,b:6.4,k:"blk",c:B3,s:"3 KV 页"},
     {r:2,a:0.5,b:3.4,k:"wait"},{r:2,a:3.8,b:6.4,k:"wait"},{r:3,a:6.4,b:7.2,k:"blk",c:B3,s:"3"}],
   steps:[
-   st(0,HP[0],1,"warp 0 不等 seq_lens：按满长猜出页号，同时发出块 1 和块 2。","<code>页号' = f(满长)</code>（猜）；同时读 <code>seq_lens[b]</code> 与 <code>page_table[b, 页号']</code>","满长 = 页表数组宽度 = 最长历史 80,000 + 本次查询 token 数（二手记录写 80,008；decode 1 请求的确切宽度 UNKNOWN）；seq_lens int32 [B] 取 1 个 = 4 B；page_table 取 1 项 = 4 B；都在 HBM","n 与 phys'：各 int32，4 B，写进寄存器","n → 第 2 步校验；phys' → 第 3 步","2 条读指令连发；只付 1 次长记分牌等待"),
+   st(0,HP[0],1,"warp 0 不等 seq_lens：按满长猜出页号，同时发出块 1 和块 2。","<code>页号' = f(满长)</code>（猜）；同时读 <code>seq_lens[b]</code> 与 <code>page_table[b, 页号']</code>","满长 = 页表数组宽度 = 最长历史 80,000 + 本次查询 token 数（有资料写 80,008；decode 1 请求的确切宽度未知）；seq_lens int32 [B] 取 1 个 = 4 B；page_table 取 1 项 = 4 B；都在 HBM","n 与 phys'：各 int32，4 B，写进寄存器","n → 第 2 步校验；phys' → 第 3 步","2 条读指令连发；只付 1 次长记分牌等待"),
    st(3.1,REG[0],2,"块 1 与块 2 回到寄存器，warp 0 校验猜测。","<code>页号' == f(n) ?</code>","n、phys'：int32，在寄存器","校验结果：1 个谓词；猜对则 phys' 直接可用","phys' → 第 3 步","1 次比较；猜错才重读，实测猜错的代价为 0.000 [−0.016, +0.016] µs"),
    st(3.4,HP[2],3,"warp 0 用 phys' 发 cp.async，块 3 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","<code>k_cache</code>、<code>v_cache</code> FP8 E4M3 [pages, 1, 2, 64]，取 1 页：K 128 B + V 128 B = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → Q·K^T 与 P·V（见图 7-7、图 7-9）","1 条 cp.async；约 1,150 ns 才有第一块 KV 到位"),
    st(6.6,DST[0],3,"块 3 已进 SMEM。","（无计算）","KV 页：256 B，在 SMEM","KV 页：256 B，在 SMEM","KV 页 → 主循环","总代价：长记分牌等待由 3 次降为 2 次；解码 1 请求全长算例实测省 0.26 µs")]}; };
@@ -212,11 +212,11 @@ const M3=()=>{ // cross-round pipelining of page-table reads
    st(9,HP[2],2,"页表读回后才发第 k+1 轮的 cp.async，块 2 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","k_cache、v_cache FP8 E4M3，取 1 页 = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → 第 k+1 轮计算","总代价（原来）：每轮多露出 1 次页表读取（约 640 ns）"),
    st(B0,REG[0],null,"改后：第 k 轮开始算。","第 k 轮：Q·K^T、softmax、P·V","同上","同上","→ 第 5 步：同时读第 k+1 轮的页表","这一轮的计算时间不变"),
    st(B0+0.5,HP[1],1,"进入片上屏障等待之前，先发第 k+1 轮的页表读取，块 1 出发。","<code>phys' = page_table[b, 页号 k+1]</code>（提前一轮）","<code>page_table</code> int32 [B, max_pages]，取 1 项 = 4 B，在 HBM","phys'：int32，4 B，写进寄存器，等第 k 轮结束","phys' → 第 6 步 cp.async","1 条读指令，与第 k 轮的计算和等待重叠"),
-   st(B0+6,HP[2],2,"第 k+1 轮一开始就发 cp.async，块 2 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","phys' 已在寄存器；k_cache、v_cache：取 1 页 = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → 第 k+1 轮计算","总代价（提前流水化）：页表读取藏进上一轮；这一项的单独实测收益 UNKNOWN（记录里没有）"));
+   st(B0+6,HP[2],2,"第 k+1 轮一开始就发 cp.async，块 2 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","phys' 已在寄存器；k_cache、v_cache：取 1 页 = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → 第 k+1 轮计算","总代价（提前流水化）：页表读取藏进上一轮；这一项的单独实测收益未测"));
   return {end:B0+10,speed:1.4,shot:B0+4,
-   ro:"跨轮提前流水化：第 k+1 轮的页表读取藏进第 k 轮\n这一项的单独实测收益 UNKNOWN（记录里没有）",
+   ro:"跨轮提前流水化：第 k+1 轮的页表读取藏进第 k 轮\n这一项的单独实测收益未测",
    axis:"时间（只表示先后；640 ns 是页表读取的实测，不按比例）",
-   strip:{title:"算法：P1 相邻两轮的页表读取与计算",cells:[{a:"k",b:["第 k 轮","计算与屏障等待"],c:B1,t0:0,t1:6},{a:"1",b:["page_table","第 k+1 轮页表项"],c:OR,t0:6,t1:B0+4},{a:"2",b:["cp.async","第 k+1 轮 KV 页"],c:B3,t0:9,t1:B0+10}]},
+   strip:{title:"算法：独立注意力相邻两轮的页表读取与计算",cells:[{a:"k",b:["第 k 轮","计算与屏障等待"],c:B1,t0:0,t1:6},{a:"1",b:["page_table","第 k+1 轮页表项"],c:OR,t0:6,t1:B0+4},{a:"2",b:["cp.async","第 k+1 轮 KV 页"],c:B3,t0:9,t1:B0+10}]},
    blocks:bl,links:[[HP[1],L2C,LSU[0],REG[0]]],lights,cells:[{i:0,t:12,c:B3},{i:0,t:B0+9,c:B3}],
    rows:["第 k 轮：计算与等待","第 k+1 轮：页表读取","第 k+1 轮：cp.async","warp 发出读取"],bars,steps,divs:[B0-2]}; };
 const M4=()=>{ // SMEM table, clk axis
@@ -228,7 +228,7 @@ const M4=()=>{ // SMEM table, clk axis
   return {end:1620,speed:130,shot:1450,
   ro:"小表放进 SMEM：每次查询 328 周期（L2 命中）→ 23 周期\nverify 16 / 32 请求算例实测省 0.47–0.55 µs；SASS 全局读取 36 → 21 条",
   axis:"时间（周期，按 L2 命中 327.8、LDS 23.0 画；入口搬运那段只表示先后）",
-  strip:{title:"算法：P2 专家计算里，线程查每专家缩放系数小表 gsA[e]、gsB[e]（64 个 float）",cells:[{a:"1",b:["查询 e₁","第 1 次"],c:B1,t0:0,t1:328},{a:"2",b:["查询 e₂","第 2 次"],c:B2,t0:328,t1:656},{a:"3",b:["查询 e₃","第 3 次"],c:B3,t0:656,t1:1000},{a:"T",b:["小表 64 个 float","入口搬一次"],c:OR,t0:1000,t1:1400}]},
+  strip:{title:"算法：本地专家计算里，线程查每专家缩放系数小表 scale_a[e]、scale_b[e]（64 个 float）",cells:[{a:"1",b:["查询 e₁","第 1 次"],c:B1,t0:0,t1:328},{a:"2",b:["查询 e₂","第 2 次"],c:B2,t0:328,t1:656},{a:"3",b:["查询 e₃","第 3 次"],c:B3,t0:656,t1:1000},{a:"T",b:["小表 64 个 float","入口搬一次"],c:OR,t0:1000,t1:1400}]},
   blocks:bl,
   links:[pathA(0,0),[HP[1],L2C,LSU[0],DST[0]],[DST[0],REG[0]]],
   lights:[{sel:sel(0,"lsu"),t0:0,t1:984},{sel:sel(0,"lsu"),t0:1020,t1:1348},{sel:'[data-part="smem"]',t0:1348,t1:1500}],
@@ -239,10 +239,10 @@ const M4=()=>{ // SMEM table, clk axis
     {r:0,a:984,b:1000,k:"tick"}],
   divs:[1000],
   steps:[
-   st(0,HP[0],1,"原来：线程查 e₁，块 1 去读全局内存。","<code>g = gsA[e₁]</code>（读全局）","gsA、gsB：float32，共 64 个 = 256 B（64 × 4，推出），在 HBM / L2；e₁ 在寄存器","g：float32，4 B，写进寄存器","g → 本专家后面的计算","1 条全局读；L2 命中 327.8 周期（冷 HBM 600.2 周期）"),
-   st(328,HP[0],2,"线程再查 e₂，块 2 同样读全局。","<code>g = gsA[e₂]</code>（读全局）","同上，在 HBM / L2","g：float32，4 B，写进寄存器","g → 后面的计算","又 1 条全局读，又约 328 周期"),
-   st(656,HP[0],3,"线程查 e₃，块 3 也读全局。","<code>g = gsA[e₃]</code>（读全局）","同上，在 HBM / L2","g：float32，4 B，写进寄存器","g → 后面的计算","每次查询都付一次长记分牌等待"),
-   st(1020,HP[1],"T","改后：入口一次把小表（块 T）搬进 SMEM。","<code>smem_tab[0:64] ← gsA, gsB</code>","gsA、gsB：float32，共 64 个 = 256 B，在 HBM / L2","smem_tab：256 B，写进 SMEM","smem_tab → 后面每一次查询","1 次搬运，至少一次全局往返（约 328 周期）；SASS 全局读取 36 → 21 条"),
+   st(0,HP[0],1,"原来：线程查 e₁，块 1 去读全局内存。","<code>g = scale_a[e₁]</code>（读全局）","scale_a、scale_b：float32，共 64 个 = 256 B（64 × 4，推出），在 HBM / L2；e₁ 在寄存器","g：float32，4 B，写进寄存器","g → 本专家后面的计算","1 条全局读；L2 命中 327.8 周期（冷 HBM 600.2 周期）"),
+   st(328,HP[0],2,"线程再查 e₂，块 2 同样读全局。","<code>g = scale_a[e₂]</code>（读全局）","同上，在 HBM / L2","g：float32，4 B，写进寄存器","g → 后面的计算","又 1 条全局读，又约 328 周期"),
+   st(656,HP[0],3,"线程查 e₃，块 3 也读全局。","<code>g = scale_a[e₃]</code>（读全局）","同上，在 HBM / L2","g：float32，4 B，写进寄存器","g → 后面的计算","每次查询都付一次长记分牌等待"),
+   st(1020,HP[1],"T","改后：入口一次把小表（块 T）搬进 SMEM。","<code>smem_tab[0:64] ← scale_a, scale_b</code>","scale_a、scale_b：float32，共 64 个 = 256 B，在 HBM / L2","smem_tab：256 B，写进 SMEM","smem_tab → 后面每一次查询","1 次搬运，至少一次全局往返（约 328 周期）；SASS 全局读取 36 → 21 条"),
    st(1400,DST[0],1,"线程查 e₁，块 1 从 SMEM 读到寄存器。","<code>g = smem_tab[e₁]</code>","smem_tab 在 SMEM；e₁ 在寄存器","g：float32，4 B，写进寄存器","g → 后面的计算","1 条 LDS，23.0 周期"),
    st(1460,DST[0],2,"线程查 e₂、e₃，块 2、块 3 也只读 SMEM。","<code>g = smem_tab[e]</code>","smem_tab 在 SMEM","g：float32，4 B，写进寄存器","g → 后面的计算","每次查询 23.0 周期，不再碰全局内存"),
    st(1560,REG[0],3,"3 次查询都完成。","（无计算）","g × 3：在寄存器","g × 3：在寄存器","g → 后面的计算","总代价：每次查询由约 328 周期降到 23 周期，另付一次入口搬运；verify 16 / 32 请求算例实测省 0.47–0.55 µs")]}; };

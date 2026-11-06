@@ -165,7 +165,7 @@ const M1=()=>{ const B0=20, bl=[], bars=[], lights=[], steps=[];
   for(let i=0;i<1;i++) bars.push({r:2,a:0,b:0.8,k:"tick"});
   bars.push({r:2,a:B0,b:B0+0.8,k:"tick"},{r:2,a:B0+8,b:B0+8.8,k:"tick"},{r:2,a:B0+16,b:B0+16.8,k:"tick"});
   steps.push(
-   st(0,PT.sfu,1,"ex2.approx.ftz.f32 编译成 1 条 MUFU.EX2，发往 4 通道 SFU。","<code>y = 2^x</code>（<code>ex2.approx.ftz.f32</code> → <code>MUFU.EX2</code>）","x：fp32，每线程 1 个，4 B；整个 warp 32 个，在寄存器","y：fp32，每线程 1 个，在寄存器","y → 注意力权重 P","1 条指令，SFU 管线 8 周期，换 32 个值（不带 .ftz 的版本还会多出比较与乘法修正指令，条数文档未给出）"),
+   st(0,PT.sfu,1,"ex2.approx.ftz.f32 编译成 1 条 MUFU.EX2，发往 4 通道 SFU。","<code>y = 2^x</code>（<code>ex2.approx.ftz.f32</code> → <code>MUFU.EX2</code>）","x：fp32，每线程 1 个，4 B；整个 warp 32 个，在寄存器","y：fp32，每线程 1 个，在寄存器","y → 注意力权重 P","1 条指令，SFU 管线 8 周期，换 32 个值（不带 .ftz 的版本还会多出比较与乘法修正指令，条数未知）"),
    st(B0,PT.sfu,2,"ex2.approx.f16x2 被 ptxas 拆成两条 MUFU.EX2.F16，先发第 1 条。","<code>y.lo = 2^x.lo</code>（<code>MUFU.EX2.F16</code> 第 1 条）","x：打包的半精度 f16x2，每线程 1 个寄存器 = 4 B；低半在寄存器","y.lo：半精度，在寄存器","y.lo → 第 4 步 PRMT","1 条 MUFU，按 8 周期估算（半精度版的周期未单独实测）"),
    st(B0+8,PT.sfu,3,"SFU 只有标量通道，高半部分要再发第 2 条 MUFU.EX2.F16。","<code>y.hi = 2^x.hi</code>（<code>MUFU.EX2.F16</code> 第 2 条）","x.hi：半精度，在寄存器","y.hi：半精度，在寄存器","y.hi → 第 4 步 PRMT","第 2 条 MUFU，又按 8 周期估算；SFU 管线共 16 周期，换 64 个值"),
    st(B0+16,PT.alu,4,"两个结果用 1 条 PRMT 拼回一个 32 位寄存器。","<code>y = PRMT(y.lo, y.hi)</code>（字节重排）","y.lo、y.hi：半精度，在寄存器","y：f16x2，4 B，在寄存器","y → 注意力权重 P","1 条 ALU 指令，ALU 管线 2 周期；PRMT 是多出来的指令"),
@@ -186,11 +186,11 @@ const M2=()=>{ const A0=0,B0=21,bl=[],bars=[],lights=[],steps=[]; const raiseA=[
    st(12,PT.sfu,5,"块 4、5 又抬高最大值，再各调一次。","<code>O ← O · exp2f(m_old − m_new)</code>","同上","O 已重缩放","O → 继续累加 P·V","累计 3 次 SFU 调用（哪几块抬高最大值是示意）"),
    st(B0+3,PT.sfu,"2,4,5","惰性重缩放：块 2、4、5 的最大值没超过基准加 T，跳过 exp2f。","若 <code>m_tile ≤ m_ref + T</code>（T = 4..8）：不调 exp2f，不乘 O","m_tile、m_ref：每行 1 个 fp32；O：fp32 累加器，在寄存器","O 保持不变","O → 继续累加 P·V","0 次 SFU 调用",11),
    st(B0+18,PT.sfu,"末","循环结束，补做一次。","<code>O ← O · exp2f(m_ref − m_final)</code>","O、m_ref、m_final：同上","O 已按最终最大值缩放","O → 除以 l 后写出","1 次 SFU 调用"),
-   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 0 次，结尾 1 次（标准 3 次，本例为示意）；P1 实测：双 warpgroup 全长内核（vw2）把 T 从 4 放宽到 6，verify 32 / 16 请求全长省 1.42 / 0.46 µs；单 warpgroup 滑窗内核（vws）取 T = 8，verify 32 请求滑窗省 0.83 µs"));
+   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 0 次，结尾 1 次（标准 3 次，本例为示意）；独立注意力实测：双 warpgroup 全长内核把 T 从 4 放宽到 6，verify 32 / 16 请求全长省 1.42 / 0.46 µs；单 warpgroup 滑窗内核取 T = 8，verify 32 请求滑窗省 0.83 µs"));
   return {end:B0+21,speed:2.4,shot:B0+9,
-   ro:"惰性重缩放：减少 exp2f 的调用次数，而不是改指令\nP1 vw2 T = 4 → 6 省 1.42 / 0.46 µs（verify 32 / 16 全长）；vws T = 8 省 0.83 µs（verify 32 滑窗）",
+   ro:"惰性重缩放：减少 exp2f 的调用次数，而不是改指令\n独立注意力：双头核 T = 4 → 6 省 1.42 / 0.46 µs（verify 32 / 16 全长）；单头滑窗核 T = 8 省 0.83 µs（verify 32 滑窗）",
    axis:"时间（只表示先后；分块数和哪几块抬高最大值是示意）",
-   strip:{title:"算法：P1 在线 Softmax 依次读入 6 个 KV 分块（示意）",cells:TC6.map((c,i)=>({a:String(i+1),b:["分块 "+(i+1),(raiseA[i]?"m_tile > m_old":"未超过")],c,t0:i*3,t1:i*3+3}))},
+   strip:{title:"算法：独立注意力在线 Softmax 依次读入 6 个 KV 分块（示意）",cells:TC6.map((c,i)=>({a:String(i+1),b:["分块 "+(i+1),(raiseA[i]?"m_tile > m_old":"未超过")],c,t0:i*3,t1:i*3+3}))},
    blocks:bl,lights,cells:[],links:[[PT.reg,PT.sfu,PT.reg]],rows:["SFU：exp2f 重缩放","Tensor Core：Q·K^T"],bars,steps,divs:[B0-1]}; };
 // ---- mode 3: ALU writes the E4M3 byte directly (clk axis, SFU occupancy vs issue slots)
 const M3=()=>{ const B0=40, bl=[], bars=[], lights=[], steps=[]; const cs=[BL,TE,MA,OR];
@@ -200,8 +200,8 @@ const M3=()=>{ const B0=40, bl=[], bars=[], lights=[], steps=[]; const cs=[BL,TE
   lights.push({sel:sel("sfu"),t0:0,t1:32},{sel:sel("fp32"),t0:B0,t1:B0+7},{sel:sel("int32"),t0:B0+7,t1:B0+10});
   steps.push(
    st(0,PT.sfu,1,"原来：softmax 的 4 个指数各发 1 条 MUFU.EX2，在 SFU 排队。","<code>yᵢ = 2^xᵢ</code>（i = 0..3，<code>MUFU.EX2</code>），再把 P 舍入成 E4M3","x₀..x₃：fp32，每线程 4 个 = 16 B，在寄存器","y₀..y₃：fp32，在寄存器","y → 舍入成 E4M3 字节 → P·V","4 条 MUFU.EX2，4 个发射槽；SFU 管线 4 × 8 = 32 周期"),
-   st(24,PT.sfu,4,"第 4 条 MUFU.EX2 发出，SFU 管线一直满着。","<code>y₃ = 2^x₃</code>","x₃：fp32，在寄存器","y₃：fp32，在寄存器","y → 舍入成 E4M3 字节","每个 128-key 分块每个 warp 64 条 MUFU.EX2，SFU 占 77.3%，仅 SFU 就要 1,548 周期的下限（P5 全长注意力）"),
-   st(B0,PT.fma,"1–4","改后：因为 P 反正要舍入成 E4M3，ALU / FMA 直接写 E4M3 字节，不调 MUFU。","<code>u = FFMA.SAT(y, …) = (y + 7) / 15</code>；<code>n = f16x2 FMA(u, …) ≈ 120u</code>（取整）；<code>字节 = PRMT(…)</code>","x₀..x₃：fp32，在寄存器；常数 c：文档未逐个给出，不标","E4M3 字节：2^y 的 E4M3 码约为 8(y + 7)（Mitchell：2^f ≈ 1 + f），4 个字节拼进 1 个寄存器","4 个字节 → P·V 的 FP8 输入","FFMA.SAT、f16x2 FMA、PRMT 共约 9–10 个发射槽 / 4 个值（图中画 10），SFU 0 周期",11),
+   st(24,PT.sfu,4,"第 4 条 MUFU.EX2 发出，SFU 管线一直满着。","<code>y₃ = 2^x₃</code>","x₃：fp32，在寄存器","y₃：fp32，在寄存器","y → 舍入成 E4M3 字节","每个 128-key 分块每个 warp 64 条 MUFU.EX2，SFU 占 77.3%，仅 SFU 就要 1,548 周期的下限（整层 prefill 全长注意力）"),
+   st(B0,PT.fma,"1–4","改后：因为 P 反正要舍入成 E4M3，ALU / FMA 直接写 E4M3 字节，不调 MUFU。","<code>u = FFMA.SAT(y, …) = (y + 7) / 15</code>；<code>n = f16x2 FMA(u, …) ≈ 120u</code>（取整）；<code>字节 = PRMT(…)</code>","x₀..x₃：fp32，在寄存器；常数 c：未逐个给出，不标","E4M3 字节：2^y 的 E4M3 码约为 8(y + 7)（Mitchell：2^f ≈ 1 + f），4 个字节拼进 1 个寄存器","4 个字节 → P·V 的 FP8 输入","FFMA.SAT、f16x2 FMA、PRMT 共约 9–10 个发射槽 / 4 个值（图中画 10），SFU 0 周期",11),
    st(B0+10,PT.alu,"1–4","4 个字节拼好。","（无计算）","1 个寄存器 = 4 个 E4M3 字节，4 B","同左","→ FP8 P·V","总代价：发射槽 4 → 约 10，SFU 32 周期 → 0；每个分块 MUFU.EX2 66 → 2 条，整层实测提速 2.33%；若发射槽是瓶颈，或误差门不过，就不划算"));
   return {end:B0+13,speed:4.2,shot:B0+11,
    ro:"ALU/FMA 直接生成 E4M3 字节：SFU 32 周期 → 0，发射槽 4 → 约 10（每 4 个值）\n每个分块 MUFU.EX2 66 → 2 条；整层实测提速 2.33%",

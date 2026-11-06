@@ -162,7 +162,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <p class="cap">先选场景，再选做法，然后播放或拖动时间。看寄存器条有没有超出黑线，看在途槽数，以及消费者有没有空等。</p></main><script type="module">const HW={"src":[206.9,73.9],"l2":[245,136.8],"tma":[234,222.5],"slot":{"2":[[286.8,260.1],[350.4,304.7]],"3":[[276.2,252.7],[318.6,282.4],[361,312.1]],"6":[[265.6,245.2],[286.8,260.1],[308,275],[329.2,289.8],[350.4,304.7],[371.6,319.5]],"7":[[264.1,244.2],[282.3,256.9],[300.4,269.6],[318.6,282.4],[336.8,295.1],[355,307.9],[373.2,320.6]]},"prod":[407.9,165.3],"tc":[[387.1,198.3],[473.5,258.8],[314.8,234],[401.2,294.5]]};
 
 const G0=["寄存器分工","环形缓冲槽数"];
-const G1=[["统一给每个线程 232 个寄存器","1 个生产者 + 2 个消费者 warpgroup 分工"],["P4 pooler：6 槽","P4 pooler：7 槽","P2 专家：3 槽（4 个消费者共算同一分块）","P2 专家：乒乓调度，2 槽"]];
+const G1=[["统一给每个线程 232 个寄存器","1 个生产者 + 2 个消费者 warpgroup 分工"],["稠密投影 pooler：6 槽","稠密投影 pooler：7 槽","本地专家：3 槽（4 个消费者共算同一分块）","本地专家：乒乓调度，2 槽"]];
 const hsl=(h,s,l)=>"hsl("+h+" "+s+"% "+l+"%)";
 const tc=(k)=>hsl(205+((k*23)%60),55,k%2?52:40);
 const stp=(t,x,fm,inn,out,nx,c,ring,rn,rr)=>({t:t,x:x,fm:fm,in:inn,out:out,nx:nx,c:c,f:ring,n:rn,rr:rr});
@@ -170,7 +170,7 @@ function SCENE(a,b){ if(a===1) return b===1?sceneR1():ring({N:3,F:4,C:2,NCH:8,wk
 function simRing(N,NCH,F,C){ const ISS=0.3,R=[]; let pPrev=-ISS,cPrev=0;
   for(let k=0;k<NCH;k++){ const s=k%N, rel=k>=N?R[k-N].c1:0, p0=Math.max(pPrev+ISS,rel), f1=p0+F, c0=Math.max(f1,cPrev), c1=c0+C; R.push({k:k,s:s,p0:p0,f1:f1,c0:c0,c1:c1}); pPrev=p0; cPrev=c1; } return R; }
 function sceneR1(){ const T=20;
-  const sc={view:"sm",T:T,axis:"时间（只表示先后）",rows:["生产者 warpgroup","TMA","消费者 warpgroup","在途槽数"],segs:[{r:2,a:0,b:T,cls:"wait"}],dots:[],lit:[],paints:[],steps:[],algo:{title:"算法：P5 的 3-warpgroup 内核——1 个生产者 warpgroup 发 TMA，2 个消费者 warpgroup 跑 wgmma",cells:[{lab:"生产者",sub:"128 线程",col:hsl(30,85,52),a:T+1,b:T+2},{lab:"消费者 1",sub:"128 线程",col:hsl(212,62,44),a:T+1,b:T+2},{lab:"消费者 2",sub:"128 线程",col:hsl(236,50,55),a:T+1,b:T+2}]},wkey:"R1"};
+  const sc={view:"sm",T:T,axis:"时间（只表示先后）",rows:["生产者 warpgroup","TMA","消费者 warpgroup","在途槽数"],segs:[{r:2,a:0,b:T,cls:"wait"}],dots:[],lit:[],paints:[],steps:[],algo:{title:"算法：整层 prefill 的 3-warpgroup 内核——1 个生产者 warpgroup 发 TMA，2 个消费者 warpgroup 跑 wgmma",cells:[{lab:"生产者",sub:"128 线程",col:hsl(30,85,52),a:T+1,b:T+2},{lab:"消费者 1",sub:"128 线程",col:hsl(212,62,44),a:T+1,b:T+2},{lab:"消费者 2",sub:"128 线程",col:hsl(236,50,55),a:T+1,b:T+2}]},wkey:"R1"};
   sc.steps=[
    stp(0,"统一给每个线程 232 个寄存器","<code>寄存器需求 = 线程数 × 每线程寄存器 = 384 × 232</code>","CTA 有 3 个 warpgroup（1 生产者 + 2 消费者，共 384 线程）；寄存器池 65,536 个 32 位寄存器","需求 89,088 个（384 × 232，派生）","超出上限，见第 2 步","超出 65,536 上限 23,552 个（89,088 − 65,536）",HW.prod,"生"),
    stp(T*0.45,"生产者只算坐标、发 TMA，却和消费者一样占 232 个","<code>白占 = 128 × (232 − 40)</code>","生产者 128 线程 × 232 个寄存器","白占 24,576 个；消费者的累加器放不下，溢出","把这 24,576 个退还给消费者即可放下","24,576 ≥ 23,552，退还后够用",HW.tc[0],"消"),
@@ -190,7 +190,7 @@ function ring(cf){ const N=cf.N, NCH=cf.NCH, R=simRing(N,NCH,cf.F,cf.C), T=R[NCH
   const FM=cf.p4?"<code>acc += x[:, K块] · W[:, K块]ᵀ</code>（<code>h = x · Wᵀ</code>）":"<code>acc += x · dequant(W 分块 k)ᵀ</code>（wgmma）";
   const tot={N6:"总代价：SMEM 6 × 24 = 144 KiB；在途权重 5 × 16 = 80 KiB，没有完全覆盖满载往返延迟，消费者每轮有空等",N7:"总代价：SMEM 7 × 24 = 168 KiB（< 228 KiB 上限）；在途权重 6 × 16 = 96 KiB；实测耗时缩短 0.75–1.04 µs",N3:"总代价：总容量 3 × 36 = 108 KiB；在途 2 槽 = 72 KiB > 48 KiB 平台，消费者一直有数据可算",N2:"总代价：总容量 2 × 36 = 72 KiB；在途只有 1 槽 = 36 KiB < 48 KiB 平台，消费者每轮要空等；实测慢 1.2–1.6 µs",R2:"总代价：寄存器 5,120 + 59,392 = 64,512 ≤ 65,536，零溢出；消费者一直有数据可算"}[cf.wkey];
   const st=[];
-  if(cf.pre) st.push(stp(0,"入口：生产者 warpgroup 调 setmaxnreg.dec 40，消费者 warpgroup 调 setmaxnreg.inc 232","<code>setmaxnreg.dec 40</code>；<code>setmaxnreg.inc 232</code>","寄存器池 65,536 个；P5 的 3-warpgroup 内核：1 个生产者 + 2 个消费者 warpgroup","生产者 128 × 40 = 5,120 个；消费者 256 × 232 = 59,392 个；合计 64,512 个","生产者去发 TMA，消费者去等 full[s]","64,512 ≤ 65,536，零溢出，剩 1,024 个",HW.prod,"生"));
+  if(cf.pre) st.push(stp(0,"入口：生产者 warpgroup 调 setmaxnreg.dec 40，消费者 warpgroup 调 setmaxnreg.inc 232","<code>setmaxnreg.dec 40</code>；<code>setmaxnreg.inc 232</code>","寄存器池 65,536 个；整层 prefill 的 3-warpgroup 内核：1 个生产者 + 2 个消费者 warpgroup","生产者 128 × 40 = 5,120 个；消费者 256 × 232 = 59,392 个；合计 64,512 个","生产者去发 TMA，消费者去等 full[s]","64,512 ≤ 65,536，零溢出，剩 1,024 个",HW.prod,"生"));
   st.push(stp(cf.pre?0.2:0,"生产者发 1 条 TMA：块 1 → 槽 0","<code>TMA.load(块 1 → 槽 0) ; full[0].expect_tx(字节数)</code>",W+"；位置 HBM → L2","槽 0 写入块 1（SMEM）；<code>full[0]</code> 记录要到的字节数","<code>full[0]</code> 翻转后消费者读槽 0","1 条 TMA 指令，由生产者 1 个线程发出；不占消费者的寄存器",HW.tma,1));
   st.push(stp(r0.f1+0.1,"块 1 写满，消费者算块 1",FM,"槽 0 的块 1（SMEM）","累加器 <code>acc</code>（消费者寄存器）","算完向 <code>empty[0]</code> 报到，槽 0 可以再填","占用 Tensor Core 一轮；生产者此时在填后面的槽",HW.tc[0],1));
   st.push(stp(rN.p0,"槽 0 放行后，生产者填同一槽：块 "+(N+1),"<code>wait(empty[0]) ; TMA.load(块 "+(N+1)+" → 槽 0)</code>","<code>empty[0]</code>（消费者算完块 1 才报到）","槽 0 写入块 "+(N+1),"消费者算完前一块后接着读它",idle?"消费者在这之前已经空等一段；稳态在途槽数 = N − 1 = "+(N-1):"生产者领先消费者，不空等；稳态在途槽数 = N − 1 = "+(N-1),HW.slot[N][0],N+1));

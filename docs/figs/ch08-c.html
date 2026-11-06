@@ -223,21 +223,21 @@ const M1=()=>{ const bl=[],bars=[],lights=[],steps=[]; const K=[BL,TE,MA], B0=24
       bars.push({r:2,a:l0+0.3*i,b:l0+4+0.3*i,k:"blk",c:K[i],sub:i,subs:3}); }
     lights.push({sel:sel("lsu"),t0:l0,t1:l0+4.6},{sel:sel("lsu"),t0:ly,t1:ly+3.5});
     bl.push({n:4,c:OR,route:[L2C,PT.lsu,PT.reg],t0:ly,t1:ly+3.5,home:0,stay:ph==0?0:0});
-    bars.push({r:0,a:s,b:w,k:"blk",c:GR,s:"m20 运行"}); bars.push({r:1,a:s+1,b:w,k:"wait"}); bars.push({r:1,a:s+ (ph==0?1:1),b:s+1.4,k:"tick"});
+    bars.push({r:0,a:s,b:w,k:"blk",c:GR,s:"小批量专家核运行"}); bars.push({r:1,a:s+1,b:w,k:"wait"}); bars.push({r:1,a:s+ (ph==0?1:1),b:s+1.4,k:"tick"});
     bars.push({r:3,a:ly,b:ly+3.5,k:"blk",c:OR,s:"y"}); bars.push({r:3,a:ly+3.5,b:ly+5.5,k:"blk",c:GN,s:"算"}); });
   const wA=10, wB=B0+10;
   steps.push(
-   st(0,PT.sch,null,"后继 kernel 的 CTA 在 PDL 下提前进场，马上遇到 ACQBULK 并停住。","<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>（第 5 条指令）","前序 kernel（m20）还在运行；后继 CTA 已占着 SM 资源","warp 停在 ACQBULK，等前序全部写完且可见","→ 第 2 步：放行后才发预取","等待期间没有预取在飞：ptxas 把 6 条 ld.global.nc 排到了 ACQBULK 之后"),
-   st(wA,HP[0],"1,2,3","前序结束，ACQBULK 放行，6 条 ld.global.nc 才发出。","<code>ld.global.nc.v4</code> × 6（LDG.E.128）：norm_w、topk_weights、topk_ids","norm_w bf16 [4096]；topk_weights fp32 [M, 8]；topk_ids int32 [M, 8]；在 HBM（评测每次回放前清空 L2）","每线程 6 × 16 B = 96 B，写进寄存器","预取数据 → 第 3 步 y 的加载与计算","冷 DRAM 往返落在前序 kernel 之后的尾部",11),
-   st(wA+4.5,L2C,4,"预取回来之后，才加载 y 并算后归一化。","<code>y</code> 加载，再 <code>y · (1 + norm_w)</code>","y：前序 kernel 写出的专家输出，[对, 4096]，在 L2 / HBM（类型文档未给出，不标）","y 的片段，在寄存器","→ 后归一化的计算","总代价（下沉）：PDL 预读失效，预取整段落在关键路径上"),
+   st(0,PT.sch,null,"后继 kernel 的 CTA 在 PDL 下提前进场，马上遇到 ACQBULK 并停住。","<code>griddepcontrol.wait</code> → SASS <code>ACQBULK</code>（第 5 条指令）","前序 kernel（小批量专家核）还在运行；后继 CTA 已占着 SM 资源","warp 停在 ACQBULK，等前序全部写完且可见","→ 第 2 步：放行后才发预取","等待期间没有预取在飞：ptxas 把 6 条 ld.global.nc 排到了 ACQBULK 之后"),
+   st(wA,HP[0],"1,2,3","前序结束，ACQBULK 放行，6 条 ld.global.nc 才发出。","<code>ld.global.nc.v4</code> × 6（LDG.E.128）：norm_w、topk_weights、topk_ids","norm_w bf16 [4096]；topk_weights fp32 [M, 8]；topk_ids int32 [M, 8]；在 HBM（测试每次重放前清空 L2）","每线程 6 × 16 B = 96 B，写进寄存器","预取数据 → 第 3 步 y 的加载与计算","冷 DRAM 往返落在前序 kernel 之后的尾部",11),
+   st(wA+4.5,L2C,4,"预取回来之后，才加载 y 并算后归一化。","<code>y</code> 加载，再 <code>y · (1 + norm_w)</code>","y：前序 kernel 写出的专家输出，[对, 4096]，在 L2 / HBM（类型未知，不标）","y 的片段，在寄存器","→ 后归一化的计算","总代价（下沉）：PDL 预读失效，预取整段落在关键路径上"),
    st(B0,PT.lsu,"1,2,3","改后：加 volatile 的普通全局加载，6 条预取排在 ACQBULK 之前。","<code>asm volatile(\"ld.global.v4.u32 {…}, [addr];\" ::: \"memory\")</code>","norm_w、topk_weights、topk_ids：同上，在 HBM","每线程 6 × 16 B = 96 B，写进寄存器","预取数据 → 第 6 步 y 的加载与计算","6 条 LDG.E.128 在 ACQBULK 之前发出，与前序 kernel 重叠；0 条额外指令",11),
    st(B0+4.5,PT.sch,null,"ACQBULK 放行前，预取已在飞或已到。","<code>griddepcontrol.wait</code> → <code>ACQBULK</code>","前序 kernel 仍在运行；预取已在寄存器或飞行中","warp 在 ACQBULK 等待","→ 第 6 步","等待期间做有用的事：预读与前序尾部重叠"),
-   st(wB,L2C,4,"放行后第一条指令就发 y 的加载。","<code>y</code> 加载，再 <code>y · (1 + norm_w)</code>","y：同上；norm_w 等已在寄存器","y 的片段，在寄存器","→ 后归一化的计算","总代价（volatile）：V428 单独在 decode 1 / 16 上 −0.45 / −0.67 µs（置信区间上界 −0.06 / −0.14）；M 大于 32 时没有重叠窗口，verify 16 反而 +0.45 µs"));
+   st(wB,L2C,4,"放行后第一条指令就发 y 的加载。","<code>y</code> 加载，再 <code>y · (1 + norm_w)</code>","y：同上；norm_w 等已在寄存器","y 的片段，在寄存器","→ 后归一化的计算","总代价（volatile）：锁住预取顺序这一项单独在 decode 1 / 16 上 −0.45 / −0.67 µs（置信区间上界 −0.06 / −0.14）；M 大于 32 时没有重叠窗口，verify 16 反而 +0.45 µs"));
   return {end:B0+17,speed:3.6,shot:B0+6,
    ro:"volatile 加载：6 条 16 B 预取排在 ACQBULK 之前，恢复预读重叠\n普通 .nc 加载被 ptxas 下沉到 ACQBULK 之后，PDL 预读失效",
    axis:"时间（只表示先后）",
-   strip:{title:"算法：P2 后归一化 kernel 的指令顺序（预取 → 等前序 → 加载 y → 计算）",cells:[{a:"1",b:["norm_w","bf16 [4096]"],c:BL,t0:0,t1:B0+10},{a:"2",b:["topk_weights","fp32 [M, 8]"],c:TE,t0:0,t1:B0+10},{a:"3",b:["topk_ids","int32 [M, 8]"],c:MA,t0:0,t1:B0+10},{a:"4",b:["y","前序的输出"],c:OR,t0:wA+4.5,t1:B0+17}]},
-   blocks:bl,lights,cells:[],links:[[HP[0],L2C,PT.lsu,PT.reg]],rows:["前序 kernel（m20）","后继：ACQBULK 等待","后继：6 条预取","后继：y 与计算"],bars,steps,divs:[B0-2]}; };
+   strip:{title:"算法：本地专家后归一化 kernel 的指令顺序（预取 → 等前序 → 加载 y → 计算）",cells:[{a:"1",b:["norm_w","bf16 [4096]"],c:BL,t0:0,t1:B0+10},{a:"2",b:["topk_weights","fp32 [M, 8]"],c:TE,t0:0,t1:B0+10},{a:"3",b:["topk_ids","int32 [M, 8]"],c:MA,t0:0,t1:B0+10},{a:"4",b:["y","前序的输出"],c:OR,t0:wA+4.5,t1:B0+17}]},
+   blocks:bl,lights,cells:[],links:[[HP[0],L2C,PT.lsu,PT.reg]],rows:["前序 kernel（小批量专家核）","后继：ACQBULK 等待","后继：6 条预取","后继：y 与计算"],bars,steps,divs:[B0-2]}; };
 // ---- mode 2: rematerialisation, axis = static SASS count
 const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=1700, NA=1603, NB=1120;
   bl.push({n:1,c:BL,route:[HP[0],L2C,PT.lsu,PT.reg],t0:0,t1:60,home:1,stay:1,until:B0},{n:2,c:TE,route:[HP[1],L2C,PT.lsu,PT.reg],t0:20,t1:80,home:1,stay:1,until:B0});
@@ -256,7 +256,7 @@ const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=1700, NA=1603, N
   return {end:B0+NB+60,speed:340,shot:B0+300,
    ro:"空 asm：PN 的静态 SASS 1603 → 1120 条（少 483 条）\nH200 实测省 0.21–0.30 µs（decode 1/16/32）；运行期不生成指令",
    axis:"时间（只表示先后）；横条长度 = 静态 SASS 指令数，红色斜线 = 重算的 483 条",
-   strip:{title:"算法：P2 后归一化 y · (1 + norm_w)，16 个 nw 要在 2 个阶段 × 8 个槽里反复用",cells:[{a:"1",b:["nw[0..7]","1 + norm_w"],c:BL,t0:0,t1:B0+NB+60},{a:"2",b:["nw[8..15]","1 + norm_w"],c:TE,t0:0,t1:B0+NB+60}]},
+   strip:{title:"算法：本地专家后归一化 y · (1 + norm_w)，16 个 nw 要在 2 个阶段 × 8 个槽里反复用",cells:[{a:"1",b:["nw[0..7]","1 + norm_w"],c:BL,t0:0,t1:B0+NB+60},{a:"2",b:["nw[8..15]","1 + norm_w"],c:TE,t0:0,t1:B0+NB+60}]},
    blocks:bl,lights,cells:[],links:[[HP[0],L2C,PT.lsu,PT.reg]],rows:["无空 asm：静态 SASS","加空 asm：静态 SASS","重算的指令（483）"],bars,steps,divs:[B0-30]}; };
 const shift=(C,d)=>{ C.blocks.forEach(b=>{b.t0+=d;b.t1+=d;if(b.until!=null)b.until+=d;}); C.lights.forEach(l=>{l.t0+=d;l.t1+=d;}); C.bars.forEach(b=>{b.a+=d;b.b+=d;}); C.steps.forEach(x=>x.t+=d); C.strip.cells.forEach(c=>{c.t0+=d;c.t1+=d;}); C.end+=d; C.shot+=d; return C; };
 // ---- mode 3: 8-instruction branch-free NVFP4 decode (clk axis = pipe occupancy)
@@ -275,11 +275,11 @@ const M3=()=>{ const bl=[],bars=[],lights=[],steps=[];
    st(4,PT.alu,3,"4 条 LOP3（ALU）用掩码一步合并符号位与数值位，其余位清零。","<code>r = LOP3(t, 0x81C081C0, …)</code> × 4","移位后的中间值，在寄存器；掩码 0x81C081C0","4 个 BF16x2 的位型（块 3），在寄存器","块 3 → 第 4 步乘缩放","4 条 LOP3，各占 2 周期：ALU 管线 8 周期；没有分支"),
    st(4,PT.fma,4,"块缩放因子解包成打包 BF16，加偏置常量后，用 4 条 HMUL2（FMA）乘到 4 个寄存器上。","<code>x = HMUL2(r, scale · 0x5C005C00)</code> × 4","r：4 个寄存器；块缩放因子（FP8 E4M3，每 16 个值 1 个），偏置 0x5C005C00","4 个 BF16x2 寄存器（块 5），可直接送 Tensor Core","块 5 → wgmma / mma.sync","4 条 HMUL2，各占 2 周期：FMA 管线 8 周期"),
    st(12,PT.reg,5,"4 个 BF16x2 寄存器就绪。","（无计算）","4 个 BF16x2 寄存器，在寄存器","同左","→ Tensor Core","每解 1 个源寄存器：ALU 管线 12 周期（(2 + 4) × 2），FMA 管线 12 周期（2 条 IMAD.SHL + 4 条 HMUL2）"),
-   st(14,PT.reg,5,"再把 SwiGLU 的缩放因子折进外层系数。","<code>SwiGLU(g, u) = 0.5 · g · u · (1 + tanh(0.5 · g))</code>，对 u 线性","反量化缩放因子与常数，在寄存器","外层系数里已含缩放，内层循环少一次逐元素乘","→ 尾声","总代价：8 条整数指令 + 4 条 HMUL2，无分支无查表；P3 启用异或解码：12 个算例几何平均提速 0.58%，最高 1.01%（解码 32 请求滑窗）。另一项 SwiGLU 缩放折叠（P2）：尾声每元素指令 9 条 → 7 条，verify 16 / 32 请求省 0.54 / 0.60 µs"));
+   st(14,PT.reg,5,"再把 SwiGLU 的缩放因子折进外层系数。","<code>SwiGLU(g, u) = 0.5 · g · u · (1 + tanh(0.5 · g))</code>，对 u 线性","反量化缩放因子与常数，在寄存器","外层系数里已含缩放，内层循环少一次逐元素乘","→ 尾声","总代价：8 条整数指令 + 4 条 HMUL2，无分支无查表；整层 decode / verify 启用异或解码：12 个算例几何平均提速 0.58%，最高 1.01%（解码 32 请求滑窗）。另一项 SwiGLU 缩放折叠（本地专家）：尾声每元素指令 9 条 → 7 条，verify 16 / 32 请求省 0.54 / 0.60 µs"));
   return shift({end:18,speed:2.2,shot:6,
-   ro:"8 条整数指令（2 SHF + 2 IMAD.SHL + 4 LOP3）+ 4 条 HMUL2，无分支\nALU、FMA 管线各 12 周期；P3 异或解码几何平均提速 0.58%，最高 1.01%（解码 32 请求滑窗）",
+   ro:"8 条整数指令（2 SHF + 2 IMAD.SHL + 4 LOP3）+ 4 条 HMUL2，无分支\nALU、FMA 管线各 12 周期；整层 decode / verify 异或解码几何平均提速 0.58%，最高 1.01%（解码 32 请求滑窗）",
    axis:"时间（周期；只画管线被占用的时间，不含依赖延迟）",
-   strip:{title:"算法：P2 / P3 每轮循环解 8 个 4 位 NVFP4 权重成 4 个 BF16x2",cells:[{a:"1",b:["源寄存器","8 × E2M1，32 位"],c:BL,t0:-6,t1:14},{a:"2",b:["移位","2 SHF + 2 IMAD.SHL"],c:TE,t0:0,t1:4},{a:"3",b:["掩码合并","4 LOP3"],c:MA,t0:4,t1:12},{a:"4",b:["缩放","4 HMUL2"],c:OR,t0:4,t1:12},{a:"5",b:["4 × BF16x2","送 Tensor Core"],c:GN,t0:12,t1:18}]},
+   strip:{title:"算法：本地专家 / 整层 decode / verify 每轮循环解 8 个 4 位 NVFP4 权重成 4 个 BF16x2",cells:[{a:"1",b:["源寄存器","8 × E2M1，32 位"],c:BL,t0:-6,t1:14},{a:"2",b:["移位","2 SHF + 2 IMAD.SHL"],c:TE,t0:0,t1:4},{a:"3",b:["掩码合并","4 LOP3"],c:MA,t0:4,t1:12},{a:"4",b:["缩放","4 HMUL2"],c:OR,t0:4,t1:12},{a:"5",b:["4 × BF16x2","送 Tensor Core"],c:GN,t0:12,t1:18}]},
    blocks:bl,lights,cells:[],links:[[PT.reg,PT.alu,PT.reg],[PT.reg,PT.fma,PT.reg]],rows:["ALU 管线","FMA 重型子管线","寄存器里的结果"],bars,steps,divs:[]},6); };
 const MODES={1:M1,2:M2,3:M3};
 

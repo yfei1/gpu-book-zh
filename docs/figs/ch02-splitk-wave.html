@@ -284,9 +284,9 @@ function setMode(md){ mode=md; tqv=optv(); const d=[];
       f:"y_part[s, tok, n0:n0+64] ← bf16(acc)",i:"acc FP32 [A_tok, 64]（寄存器）",o:"部分和平面 y_part BF16 [SK = "+SK+", A_tok, 4096]（L2/HBM）",x:"后归一化核读取全部 "+SK+" 份平面"});
     d.push({t:SK===4?10.0:6.0,at:"l2",alg:[0,SK-1,0,63],s:"后归一化核以 FP32 读这 "+SK+" 份平面并相加，乘每专家归一化与路由权重，写出 m。代价："+(SK===1?"只读 1 份平面":"多读 "+(SK-1)+" 份平面（相对不切分）"),
       f:"m = postnorm(Σₛ y_part[s])，求和用 FP32",i:"y_part BF16 [SK = "+SK+", A_tok, 4096]（L2/HBM）",o:"m BF16 [16, 4096]（HBM）",x:"m 交给阶段 7 的 unpooler"});
-    const TOT = SK===1 ? "总代价：1 个波次但只占一半槽位，平面 1 份（8 KiB / 对）；这是对照基准" : SK===2 ? "总代价：1 个波次铺满，平面 2 份（16 KiB / 对）；实测比 Split-K = 1 省 1.38 µs（5 个种子全胜，区间 [-1.71, -1.18] µs）" : "总代价：2 个波次，平面 4 份（32 KiB / 对）；实测比 Split-K = 2 慢 +3.26 µs（另一次实测 +1.50 µs）";
+    const TOT = SK===1 ? "总代价：1 个波次但只占一半槽位，平面 1 份（8 KiB / 对）；这是对照基准" : SK===2 ? "总代价：1 个波次铺满，平面 2 份（16 KiB / 对）；实测比 Split-K = 1 省 1.38 µs（5 组随机数据全胜，区间 [-1.71, -1.18] µs）" : "总代价：2 个波次，平面 4 份（32 KiB / 对）；实测比 Split-K = 2 慢 +3.26 µs（另一次实测 +1.50 µs）";
     d.push({t:SK===4?11:7,at:"die",alg:[0,SK-1,0,63],s:"m 写出，gemm2 完成。"+TOT,f:"m = Σₛ y_part[s]（后归一化）",i:SK+" 份平面已被读完",o:"m BF16 [16, 4096]（HBM）",x:"m 交给阶段 7 的 unpooler"});
-    readout.textContent = SK===1 ? "Split-K = 1：CTA 数约占半个波次，SM 槽位空一半\n基准（decode 16 下投影）" : SK===2 ? "Split-K = 2：CTA 数刚好铺满一个波次\n实测省 1.38 µs（区间 [-1.71, -1.18] µs，5 个种子全胜）" : "Split-K = 4：CTA 数越过波次上限，掉进第 2 波\n实测比 Split-K = 2 慢 +3.26 µs（另一次 +1.50 µs）";
+    readout.textContent = SK===1 ? "Split-K = 1：CTA 数约占半个波次，SM 槽位空一半\n基准（decode 16 下投影）" : SK===2 ? "Split-K = 2：CTA 数刚好铺满一个波次\n实测省 1.38 µs（区间 [-1.71, -1.18] µs，5 组随机数据全胜）" : "Split-K = 4：CTA 数越过波次上限，掉进第 2 波\n实测比 Split-K = 2 慢 +3.26 µs（另一次 +1.50 µs）";
     rows = SK===4 ? ["第 1 波（s = 0, 1）","第 2 波（s = 2, 3）","部分和平面 → L2","后归一化核"] : ["第 1 波","部分和平面 → L2","后归一化核"];
     if(SK===1){ h+=bar(0.1,WAVE_END,0,SEGC[0],"66 个 SM 槽位在算"); h+=bar(WAVE_END,5.6,1,CM,"写 1 份"); h+=bar(6.0,7.2,2,CM,"读 1 份"); end=7.3; }
     else if(SK===2){ h+=bar(0.1,WAVE_END,0,SEGC[1],"132 个 SM 槽位在算"); h+=bar(WAVE_END,5.6,1,CM,"写 2 份"); h+=bar(6.0,7.2,2,CM,"读 2 份"); end=7.3; }

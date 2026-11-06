@@ -221,7 +221,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="40" step="0.001" value="0"></label></div><div class="lg"><span><i class="kd"></i>一块数据，字母 / 数字 = 哪块</span><span><i class="kw"></i>在等 / 切换空隙</span><span>深色 SM = 正在算；蓝色 SM = 已进场</span></div>
 <p class="cap">先选场景，再选做法，然后播放或拖动时间。看 kernel 之间的空隙、多出的 HBM 往返，以及权重预读与前序收尾的重叠。</p></main><script type="module">const HW={"stack":[[278.5,59.6],[226.7,88.6],[174.9,117.6],[465.1,164],[413.3,192.9],[361.5,221.9]],"l2":[320,150.4],"top":[351.1,133],"bot":[284.8,170.1]};
 
-const G0=["P5：均方根归一化的拆分","P2、P3：PDL 等待前预读权重","P2：合写大 kernel 与 PDL 串联"];
+const G0=["整层 prefill：均方根归一化的拆分","本地专家与整层 decode / verify：PDL 等待前预读权重","本地专家：合写大 kernel 与 PDL 串联"];
 const G1=[["独立的归一化 kernel","拆入 pooler 尾声和专家矩阵乘尾声"],["不开 PDL","开 PDL，但先等待再读权重","开 PDL，等待前预读权重"],["合写大 kernel（全网格栅栏）","拆成两个 kernel，用 PDL 串联"]];
 const hsl=(h,s,l)=>"hsl("+h+" "+s+"% "+l+"%)";
 const CA=hsl(212,62,44), CB=hsl(168,55,38), CC=hsl(330,55,46), RA=hsl(14,80,45);
@@ -244,7 +244,7 @@ function sceneNorm(b){ const sep=b===1, T=sep?11:9;
   if(sep){ sc.steps=[
    stp(PO[1]-0.9,"pooler kernel 把 h 写回 HBM","<code>h = x · poolerᵀ</code>",X+"，位置 HBM → L2 → SM",HB+"，写到 HBM","归一化 kernel 读 h","写 24.7 MB",HW.stack[0],"h"),
    stp(G1[0]+0.1,"kernel 边界：pooler 结束，归一化 kernel 还没开始","—","—","—","归一化 kernel 启动","1 个节点切换空隙（第 1 章第 2 节）",HW.top,"隙"),
-   stp(NK[0]+0.05,"归一化 kernel 读 h，按列乘 gain，再按行乘 r_m","<code>x2[m, :] = h[m, :] ⊙ gain · r_m</code>；<code>r_m = rsqrt(mean(h[m, :]²) + ε)</code>",HB.replace("写到","")+"，位置 HBM；<code>gain</code> BF16 <code>[4096]</code>","<code>x2</code> BF16 <code>[3012, 4096]</code>，24.7 MB，写到 HBM","专家 w13 kernel 读 x2","多读 24.7 MB + 多写 24.7 MB = 49.3 MB（派生）；4.8 TB/s 下限约 10.3 µs（派生）；该 kernel 在 T = 3,012 约 14 µs（正文）",HW.stack[1],"x2"),
+   stp(NK[0]+0.05,"归一化 kernel 读 h，按列乘 gain，再按行乘 r_m","<code>x2[m, :] = h[m, :] ⊙ gain · r_m</code>；<code>r_m = rsqrt(mean(h[m, :]²) + ε)</code>",HB.replace("写到","")+"，位置 HBM；<code>gain</code> BF16 <code>[4096]</code>","<code>x2</code> BF16 <code>[3012, 4096]</code>，24.7 MB，写到 HBM","专家 w13 kernel 读 x2","多读 24.7 MB + 多写 24.7 MB = 49.3 MB（派生）；4.8 TB/s 下限约 10.3 µs（派生）；该 kernel 在 T = 3,012 约 14 µs",HW.stack[1],"x2"),
    stp(EX[0]+0.1,"专家 w13 kernel 读 x2，做第一层矩阵乘","<code>h1 = x2 · dequant(w13[e])ᵀ</code>","<code>x2</code> BF16 <code>[3012, 4096]</code>；<code>w13[e]</code> uint8 <code>[8192, 2048]</code>（E2M1 × 2 打包）","<code>h1</code> BF16 <code>[该专家的 token 数, 8192]</code>","SwiGLU 与第二层矩阵乘","读 x2 一次",HW.bot,"w13"),
    stp(T-0.05,"三个 kernel 都完成","同上","—","—","—","总代价：3 个 kernel、2 个切换空隙，HBM 多 49.3 MB 往返；归一化 kernel 约 14 µs",HW.bot,"w13")];
    sc.ro="独立归一化 kernel：多 1 个 kernel + 49.3 MB HBM 往返\nT = 3,012 时该 kernel 约 14 µs"; }
@@ -279,14 +279,14 @@ function scenePdl(b){ const T=b===1?13.5:b===2?12.5:10.5;
    stp(6,"同流开 PDL：后继 CTA 趁前序最后波次进场","—","—","—","后继 CTA 在等待点停下","没有切换空隙；部分 SM 提前进场",HW.bot,"进"),
    stp(6.2,"后继 CTA 一进场就在 cudaGridDependencySynchronize() 处等待","<code>griddepcontrol.wait</code>","前序 kernel 的完成信号","后继 CTA 被挡在等待点","前序完成后才放行","进场的 SM 在等待点空等，W2 还没读",HW.bot,"等"),
    stp(8.1,"前序完成，放行；后继才开始读 w2",FM,W,"SM 里的 W2 分块","读完后算 inter × W2","读 W2 排在等待之后",HW.stack[3],1),
-   stp(T-0.05,"后继 kernel 完成","同上",IN,"<code>y</code> BF16 <code>[M, 4096]</code>","per-expert 归一化与加权求和","总代价：去掉切换空隙；P3 上开启同流 PDL 实测省 1.9–3.2 µs",HW.bot,"y")];
-   sc.ro="开 PDL，先等待再读权重：去掉切换空隙\nP3 实测省 1.9–3.2 µs"; }
+   stp(T-0.05,"后继 kernel 完成","同上",IN,"<code>y</code> BF16 <code>[M, 4096]</code>","per-expert 归一化与加权求和","总代价：去掉切换空隙；整层 decode / verify 上开启同流 PDL 实测省 1.9–3.2 µs",HW.bot,"y")];
+   sc.ro="开 PDL，先等待再读权重：去掉切换空隙\n整层 decode / verify 实测省 1.9–3.2 µs"; }
   else { sc.steps=[
    stp(6,"后继 CTA 进场，先不等待：把等待点放在权重预读之后","<code>load W2 → SMEM</code> ; <code>griddepcontrol.wait</code>",W,"W2 分块进入 SMEM 环","读完后到等待点","进场就开始读 w2，与前序的最后波次重叠",HW.stack[3],1),
    stp(7,"前序还在收尾，后继已读进 W2","同上","同上","SMEM 里已有 W2 分块","到等待点停下","W2 的 HBM 读取被藏在前序收尾期里",HW.bot,"W2"),
    stp(8,"前序完成，放行；后继只需读 inter 就能算",FM,IN+"；W2 已在 SMEM","<code>y</code> BF16 <code>[M, 4096]</code>","per-expert 归一化与加权求和","只剩 inter 的读取与计算",HW.bot,"y"),
-   stp(T-0.05,"后继 kernel 完成","同上","—","—","—","总代价：W2 读取与前序收尾重叠。P3 上再使 verify 1 请求滑窗提速 0.80%（已记录的另两格：解码 16 请求滑窗 0.61%、解码 32 请求全长 0.19%）；P2 批量 16 与 32 解码重叠掉 5–11 µs",HW.bot,"y")];
-   sc.ro="开 PDL，等待前预读权重：W2 读取与收尾重叠\nP2 重叠 5–11 µs；P3 verify 1 请求滑窗再提速 0.80%"; }
+   stp(T-0.05,"后继 kernel 完成","同上","—","—","—","总代价：W2 读取与前序收尾重叠。整层 decode / verify 上再使 verify 1 请求滑窗提速 0.80%（另两个测试格：解码 16 请求滑窗 0.61%、解码 32 请求全长 0.19%）；本地专家批量 16 与 32 解码重叠掉 5–11 µs",HW.bot,"y")];
+   sc.ro="开 PDL，等待前预读权重：W2 读取与收尾重叠\n本地专家重叠 5–11 µs；整层 verify 1 请求滑窗再提速 0.80%"; }
   return sc; }
 function sceneMega(b){ const mega=b===1, T=mega?11:10.1;
   const sc={view:"pkg",T:T,axis:"时间（只表示先后；栅栏本身约 1.4 µs）",rows:mega?["所有 CTA：w13","全网格栅栏","所有 CTA：w2","L2 计数器"]:["kernel A：w13","kernel B：预读 w2","kernel B：w2","L2 计数器"],segs:[],dots:[],lit:[],steps:[],algo:{title:"算法：每个专家两步——w13 矩阵乘（含 SwiGLU）→ w2 矩阵乘；第二步要等第一步的 inter 全部写完",cells:[]}};
@@ -304,8 +304,8 @@ function sceneMega(b){ const mega=b===1, T=mega?11:10.1;
    stp(0.2,"合写大 kernel：所有 CTA 先做 w13 阶段",H,XI,"<code>inter</code> BF16 <code>[M, 4096]</code>，写到 L2 / HBM","全部 CTA 写完后才能做 w2","整个 kernel 的 CTA 必须同时驻留",HW.top,"w13"),
    stp(5.1,"w13 阶段结束：每个 CTA 对 L2 计数器加 1，然后自旋等待","<code>atomicAdd(&grid_cnt, 1)</code> ; <code>while (grid_cnt &lt; CTA 总数)</code>","L2 计数器","所有 CTA 停在栅栏","计数到齐，全部放行","全网格栅栏本身约 1.4 µs",HW.l2,"栅"),
    stp(6.1,"放行后做 w2 阶段","<code>y = inter · dequant(w2[e])ᵀ</code>","<code>inter</code> BF16 <code>[M, 4096]</code>；<code>w2[e]</code> uint8 <code>[4096, 2048]</code>","<code>y</code> BF16 <code>[M, 4096]</code>","per-expert 归一化与加权求和","W2 在栅栏之后才读",HW.bot,"w2"),
-   stp(T-0.05,"大 kernel 完成","同上","—","—","—","总代价：1 个全网格栅栏（约 1.4 µs），所有 CTA 必须同时驻留；P3、P5 把更多阶段合写成全层大 kernel，被否决；大纲记一个合写变体慢 5–8 µs，出处只有大纲，形状 UNKNOWN",HW.bot,"w2")];
-   sc.ro="合写大 kernel：全网格栅栏约 1.4 µs\nP3、P5 合写被否决；大纲记 5–8 µs（形状 UNKNOWN）"; }
+   stp(T-0.05,"大 kernel 完成","同上","—","—","—","总代价：1 个全网格栅栏（约 1.4 µs），所有 CTA 必须同时驻留；整层 decode / verify 和整层 prefill 都试过把更多阶段合写成全层大 kernel，被否决；另有一个合写变体慢 5–8 µs，形状未知",HW.bot,"w2")];
+   sc.ro="合写大 kernel：全网格栅栏约 1.4 µs\n整层 decode / verify 和整层 prefill 的合写被否决；一个合写变体慢 5–8 µs（形状未知）"; }
   else { sc.steps=[
    stp(0.2,"kernel A 只做 w13 阶段",H,XI,"<code>inter</code> BF16 <code>[M, 4096]</code>","kernel B 读 inter","没有栅栏；CTA 不必同时驻留",HW.top,"w13"),
    stp(4,"kernel B 用 PDL 提前进场，先预读 w2","<code>load W2 → SMEM</code> ; <code>griddepcontrol.wait</code>","<code>w2[e]</code> uint8 <code>[4096, 2048]</code>，静态权重，位置 HBM","W2 分块进入 SMEM","kernel A 完成后放行","W2 读取与 kernel A 的收尾重叠",HW.stack[3],"W2"),

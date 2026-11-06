@@ -257,7 +257,7 @@ function events(md){ const E=[], tt=T[md];
   if(md===1){
     E.push({t:0,at:"cpu",n:0,s:"主机用 cudaLaunchCooperativeKernel 启动一个大 kernel：132 个 CTA，每个 SM 1 个，必须同时驻留。代价：全卡同时驻留；没上芯片的 CTA 到不了栅栏，会死锁",c:{f:"cudaLaunchCooperativeKernel(fused, grid = 132, block, args)", i:["参数指针 x₂、W13、W2 和缩放（每个 8 B）；grid = 132，每个 SM 1 个 CTA · CPU（主机）内存"], o:["1 条协作启动命令 · 硬件派发器；132 个 CTA 必须同时驻留"], n:"→ 阶段 A：每个 CTA 算 h 的一片（第 2 步起）"}});
     E.push({t:AE[0],at:"reg",n:1,s:"阶段 A：第 1 区的 CTA 先算完 w13，把 h 的第 1 片写进 L2，然后停在栅栏上等。代价：这 22 个 SM 空等，直到最慢的一区算完",c:{f:"阶段 A：h = x₂ · W13ᵀ ;  inter = silu(h_gate) ⊙ h_up    （区 1 算第 1 片）", i:[XB.x,XB.w13], o:["h 的第 1 片（共 6 片，示意）· 写入 L2；这 22 个 SM 停在栅栏上"], n:"h 的各片 → 阶段 B：每个 CTA 都要读全部 6 片"}});
-    E.push({t:PE,at:"reg",n:6,s:"第 6 区最后写完 h 的第 6 片，全卡 CTA 才通过全网格栅栏。代价：栅栏本身约 1.42 µs（132 个 CTA 实测 1419.3 ns），所有 SM 都在等",c:{f:"grid.sync()    （全网格栅栏）", i:["h 的第 6 片 · L2（最后写完）","132 个 CTA 的到达信号（实现 UNKNOWN）"], o:["h 的 6 片全部写完 · L2；栅栏放行"], n:"→ 阶段 B：读 W2，再读 h 的全部 6 片"}});
+    E.push({t:PE,at:"reg",n:6,s:"第 6 区最后写完 h 的第 6 片，全卡 CTA 才通过全网格栅栏。代价：栅栏本身约 1.42 µs（132 个 CTA 实测 1419.3 ns），所有 SM 都在等",c:{f:"grid.sync()    （全网格栅栏）", i:["h 的第 6 片 · L2（最后写完）","132 个 CTA 的到达信号（实现方式未知）"], o:["h 的 6 片全部写完 · L2；栅栏放行"], n:"→ 阶段 B：读 W2，再读 h 的全部 6 片"}});
     E.push({t:tt.rel,at:"hbm",n:0,s:"栅栏放行，阶段 B 才开始：每个 CTA 先读自己的 w2 权重。代价：读 w2 的时间排在栅栏之后，直接加在关键路径上",c:{f:"W2 块 ← W2 的行    （栅栏之后才开始读）", i:[XB.w2], o:["W2 的块 · SM 片上存储"], n:"W2 块 → 下一步与 h 一起乘"}});
     E.push({t:tt.w1,at:"l2",n:0,s:"每个 CTA 读 h 的全部 6 片，再乘 w2。代价：每行 w2 都要等 6 片全部写完，这是需要栅栏的原因",c:{f:XB.B, i:[XB.h+" · L2（读全部 6 片）","W2 块 · SM 片上存储"], o:[XB.y], n:XB.yn}});
     E.push({t:tt.e,at:"die",n:0,s:"阶段 B 算完。总代价：1 个 kernel，1 次 1.42 µs 栅栏，全卡 CTA 等最慢的一区；比拆成两个 PDL kernel 慢约 0.7–0.8 µs（decode 16 / 32）",c:{f:"y = ( silu(x₂·W13ᵀ[:, gate]) ⊙ (x₂·W13ᵀ[:, up]) ) · W2ᵀ    （一个专家，合写）", i:[XB.x,XB.w13,XB.w2], o:[XB.y], n:XB.yn}}); }
@@ -267,7 +267,7 @@ function events(md){ const E=[], tt=T[md];
     E.push({t:AE[3],at:"reg",n:4,s:"其它区陆续写完 h 的各片并退出，阶段 B 的 CTA 陆续进场预读 w2。代价：先算完的 SM 不空等，也不用等最慢的一区",c:{f:"区 2–5：h 的第 2–5 片 = x₂ · W13ᵀ … ;   B 的 CTA：W2 环 ← W2 的行", i:[XB.x,XB.w2+"（B 的 CTA 预读）"], o:["h 的第 2–5 片 · 写入 L2","W2 的预读环 · 各 SM 的片上存储"], n:"h 的各片 → 阶段 B 放行后读"}});
     E.push({t:PE,at:"reg",n:6,s:"第 6 区写完 h 的第 6 片，阶段 A 全部完成，阶段 B 的等待函数放行。代价：1 条 PDL 串行边，约 0.64 µs",c:{f:"cudaGridDependencySynchronize()    （阶段 B 的等待函数返回）", i:["h 的第 6 片 · L2（最后写完）"], o:["h 的 6 片全部可见 · L2；B 的 CTA 放行"], n:"→ 阶段 B：读 h 的全部 6 片"}});
     E.push({t:tt.rel,at:"l2",n:0,s:"每个阶段 B 的 CTA 读 h 的全部 6 片，再乘 w2。代价：w2 已在预读，只剩读 h 和计算",c:{f:XB.B, i:[XB.h+" · L2（读全部 6 片）","W2 的预读环 · SM 片上存储"], o:[XB.y], n:XB.yn}});
-    E.push({t:tt.e,at:"die",n:0,s:"阶段 B 算完。总代价：2 次启动，1 条 0.64 µs 的边；P2 实测比合写快 0.70 / 0.82 µs（decode 16 / 32，V391 − V389）",c:{f:"y = ( silu(x₂·W13ᵀ[:, gate]) ⊙ (x₂·W13ᵀ[:, up]) ) · W2ᵀ    （一个专家，拆成两个 kernel）", i:[XB.x,XB.w13,XB.w2], o:[XB.y], n:XB.yn}}); }
+    E.push({t:tt.e,at:"die",n:0,s:"阶段 B 算完。总代价：2 次启动，1 条 0.64 µs 的边；本地专家实测比合写快 0.70 / 0.82 µs（decode 16 / 32）",c:{f:"y = ( silu(x₂·W13ᵀ[:, gate]) ⊙ (x₂·W13ᵀ[:, up]) ) · W2ᵀ    （一个专家，拆成两个 kernel）", i:[XB.x,XB.w13,XB.w2], o:[XB.y], n:XB.yn}}); }
   return E.sort((a,b)=>a.t-b.t); }
 const rect=(a,b,y,h,fill,cls)=>'<rect '+(cls?'class="'+cls+'" ':'')+'x="'+TX(a).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,TX(b)-TX(a)).toFixed(1)+'" height="'+h+'"'+(fill?' fill="'+fill+'"':'')+'/>';
 function setMode(md){ mode=md; EV=events(md); readout.textContent=M[md].ro; $("tIn").max=String(T[md].e); t=Math.min(t,T[md].e);

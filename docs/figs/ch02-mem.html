@@ -307,7 +307,7 @@ function gemvSteps(v){
   s.push({T:100, t:"整行完成："+(q?"v5":"v1")+" 的 W 行走完了 HBM → L2 → L1 → 寄存器 → FFMA。",
     f:"y[r] = Σ_{k<8192} W[r,k] · x[k]", i:"W[r,:] · BF16 [8192] · 16 KiB · HBM；x · BF16 [8192] · 16 KiB · L2",
     o:"y[r] · FP32 · 4 B · L2", x:"下一行 r+1 由另一个 CTA 做同样的事（共 2,304 行）",
-    c:q?"总代价：CTA 内 64 条 warp 读指令（v1 的 1/8）；W 的 16 KiB 全部有用，x 另读 16 KiB（整卡 2,304 × 16 KiB = 37.7 MB）；每个 SM 在途 32.0 KiB；整卡实测 17.76 µs，2,127 GB/s（v1：58.88 µs）。":"总代价：CTA 内 512 条 warp 读指令；W 的 16 KiB 全部有用，x 另读 16 KiB（整卡 2,304 × 16 KiB = 37.7 MB）；每个 SM 在途 4.0 KiB；整卡实测 58.88 µs，642 GB/s。",
+    c:q?"总代价：CTA 内 64 条 warp 读指令（v1 的 1/8）；W 的 16 KiB 全部有用，x 另读 16 KiB（整卡 2,304 × 16 KiB = 37.7 MB）；每个 SM 在途 32.0 KiB；整卡实测 17.49 µs，2,160 GB/s（v1：54.08 µs）。":"总代价：CTA 内 512 条 warp 读指令；W 的 16 KiB 全部有用，x 另读 16 KiB（整卡 2,304 × 16 KiB = 37.7 MB）；每个 SM 在途 4.0 KiB；整卡实测 54.08 µs，699 GB/s。",
     ring:[], lv:[0,1,2,3], lit:[], algOn:[1,2,3], algRing:[]});
   return s;
 }
@@ -364,7 +364,7 @@ function tmaSteps(){
 const WR=["STK","L2N","L1","LSU","REG"], XR=["L2N","L1","LSU","REG"];
 function gemvMode(v){ const q=v===2, N=q?16:2, dl=q?0.35:0.5, nr=q?"7":"63";
   return { steps:gemvSteps(v), tma:false,
-    ro:q?"每条 warp 指令读 512 B（16 个扇区）· 每个 SM 在途 32.0 KiB\n整卡实测 2,127 GB/s（17.76 µs）":"每条 warp 指令读 64 B（2 个扇区）· 每个 SM 在途 4.0 KiB\n整卡实测 642 GB/s（58.88 µs）",
+    ro:q?"每条 warp 指令读 512 B（16 个扇区）· 每个 SM 在途 32.0 KiB\n整卡实测 2,160 GB/s（17.49 µs）":"每条 warp 指令读 64 B（2 个扇区）· 每个 SM 在途 4.0 KiB\n整卡实测 699 GB/s（54.08 µs）",
     moves:[
       {b:2,route:XR,a:0,e:32.78,n:N,dl:dl,hold:{until:60.43,at:"REG",off:[-7,7]}},
       {b:1,route:WR,a:0,e:60.02,n:N,dl:dl,hold:{until:60.43,at:"REG",off:[7,7]}},

@@ -251,9 +251,9 @@ MODES[2]=()=>{ const E=[],moves=[],bars=[],tog=[]; const PT=3;
     moves.push(mv(i,rc(i),t0,t0+3,[D.DST[g0+4],D.TC[0]],t0+3)); for(let c=0;c<8;c++) tog.push([cell[g0+c],"gone",t0+3]);
     bars.push({r:0,a:t0,b:t0+3,c:rc(i),n:i}); bars.push({r:2,a:t0,b:t0+3,c:"var(--anatomy-blue)",n:"acc"}); }
   E.push({t:12,d:2,lit:[...all4("fp"),...all4("regs")],p:D.FP[0],n:"×",r:10,a:[tileX2(4)-2,40,96,30],s:"K 循环结束后，按行乘一次缩放因子。代价：每个输出元素 1 次乘，整个 K 循环只做这一次",
-    c:wc("out[r, :] = acc[r, :] × s_row[r]","acc（FP32，寄存器）；s_row：每个输出行一个缩放因子（FP32）","out 分块（输出类型资料里未给出）","写出 out")});
+    c:wc("out[r, :] = acc[r, :] × s_row[r]","acc（FP32，寄存器）；s_row：每个输出行一个缩放因子（FP32）","out 分块（输出类型未知）","写出 out")});
   moves.push(mv("×",EC,12,14,[D.REG[0],D.FP[0]],14)); bars.push({r:1,a:12,b:14,c:EC,n:"×s"}); bars.push({r:2,a:12,b:14,c:EC});
-  E.push({t:14,d:1,p:D.REG[0],n:"∑",r:9,a:[16,22,570,48],s:"总代价：0 次提升，QGMMA 链不断；预填充 B = 1 / B = 4 端到端 −12.2% / −12.4%，gate_up（M = 2,432）单核 501.7 → 374.6 µs（只改行缩放、不开快速累加时为 463.5 µs）。付出：失去每 128-K 瓦片的 FP32 提升精度；解码 B = 6（M = 120）上 32/32 次门控丢失用户 104 的 c10 召回命中，必须关掉，代价 +10.9%（+3.59 ms）",
+  E.push({t:14,d:1,p:D.REG[0],n:"∑",r:9,a:[16,22,570,48],s:"总代价：0 次提升，QGMMA 链不断；预填充 B = 1 / B = 4 端到端 −12.2% / −12.4%，gate_up（M = 2,432）单核 501.7 → 374.6 µs（只改行缩放、不开快速累加时为 463.5 µs）。付出：失去每 128-K 瓦片的 FP32 提升精度；解码 B = 6（M = 120）上 32/32 次质量检查都丢失了测试用户的前 10 召回命中，必须关掉，代价 +10.9%（+3.59 ms）",
     c:wc("use_fast_accum = true；K 循环里 0 次提升","—","B = 1：12.56–12.62 → 10.97–11.24 ms（预填充，bucket 640）","解码 B = 6 要关掉，回到全累加")});
   return {EV:E,end:15,rows:["Tensor Core（QGMMA）","fp32 管线","acc 累加器"],bars,moves,tog,links:[],tlT:"只表示先后，宽度不按比例；这条链里没有空等",
     algT:"算法：同样 4 个 K = 128 瓦片（块 = K 瓦片 1…4）；缩放改到尾声按行乘一次",alg:(tt)=>strip12(2,tt),

@@ -252,7 +252,7 @@ function events(md){ const E=[]; const one=M[md].one;
     cost:"总代价："+(one?"单条 acc：":"8 路 acc：")+R.length+" 条指令，下一次读在第 "+ldg+" 周期发出，空转 "+stalls+" 周期；ALU 一共占 "+aluCyc()+" 周期"+(one?"，调度器却用了 "+(ldg+1)+" 个周期":"，调度器只用 "+(ldg+1)+" 个周期")}});
   return E.sort((a,b)=>a.t-b.t); }
 function setMode(md){ mode=md; sim(md); EV=events(md); const one=M[md].one; const stalls=R.reduce((a,r)=>a+r.stall,0), ldg=R[R.length-1].iss;
-  readout.textContent=M[md].t+"：下一次读在第 "+ldg+" 周期发出\n空转 "+stalls+" 周期 · ALU 占 "+aluCyc()+" 周期 · 实测 v8→v9：15.62 → 15.58 µs";
+  readout.textContent=M[md].t+"：下一次读在第 "+ldg+" 周期发出\n空转 "+stalls+" 周期 · ALU 占 "+aluCyc()+" 周期 · 实测 v8→v9：14.74 → 14.83 µs";
   $("algT2").textContent="实测拆包 512 条 = (128 W + 128 x) × 2：256 LOP3 + 134 SHF（ALU）+ 122 IMAD.U32（FMA 管线）。";
   let h=""; const y=(i)=>TY0+i*24; const accRows={};
   R.forEach(r=>{ if(r.stall>0) h+=bar(r.st0,r.iss,y(0),null,null,"wait"); h+=bar(r.iss,r.iss+1,y(0),col(r.e),r.n);

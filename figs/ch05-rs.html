@@ -187,7 +187,7 @@ function mk(md){
   const regsR=["R24","R28","R32","R36"];
   if(md===1){
     sp.n=4; sp.A="A = x 块 [64, 64]（SMEM）"; sp.Bl="B = Wᵀ [64, 64]（SMEM）"; sp.Dl="acc [64, 64]";
-    sp.side=["P4 qkv_gate，m = 128","CTA (0,0,0)，1 个 warpgroup","x 的第 0–63 行","W 的 64 行 n0…n0+63","K 步 i：64 个 K = 4 片 k16"];
+    sp.side=["稠密投影 qkv_gate，m = 128","CTA (0,0,0)，1 个 warpgroup","x 的第 0–63 行","W 的 64 行 n0…n0+63","K 步 i：64 个 K = 4 片 k16"];
     sp.ro="A 在 SMEM（描述符）· 4 条 HGMMA · A 占 0 个寄存器\nB 在 SMEM · 管线 4 × 32.06 = 128.24 周期（实测）";
     const s1=add({t:"生产者线程用 TMA 把 x 与 W 的一个 K 步写进 SMEM",
       f:"SMEM[x 环 s] ← x[0:128, k0:k0+64]；SMEM[W 环 s] ← W[n0:n0+64, k0:k0+64]",
@@ -200,7 +200,7 @@ function mk(md){
     const s2=add({t:"4 个 warp 等 full 栅栏放行，再执行 wgmma.fence",f:"mbarrier.try_wait.parity(full[s]); wgmma.fence.sync.aligned",
       i:"full[s] 栅栏（SMEM）；acc：FP32 [64, 64]，寄存器，32 个/线程",o:"4 个 warp 会合（SASS WARPGROUP.ARRIVE）；之前对 acc 寄存器的访问先于 wgmma",
       x:"会合后，为切片 1 建描述符并发出 wgmma",
-      c:"1 条 fence · 周期未测（UNKNOWN）· TMA 写的 SMEM 只等 mbarrier，不需要 fence.proxy.async",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
+      c:"1 条 fence · 周期未测· TMA 写的 SMEM 只等 mbarrier，不需要 fence.proxy.async",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
     sp.pulses.push({t0:s2.t0,t1:s2.t1,k:["sched"]});
     const s3=add({t:"4 个 warp 为 A 与 B 各建一个 SMEM 描述符",f:"descA = xa + ((j·32) >> 4)；descB = wb + ((j·32) >> 4)，j = 0…3",
       i:"x 块、W 块在 SMEM 的起始地址（以 16 B 为单位）；布局：K 主序，128B swizzle，SBO 1,024 B",
@@ -228,23 +228,23 @@ function mk(md){
   }
   if(md===2){
     sp.n=4; sp.A="A = p [64, 64]（寄存器）"; sp.Bl="B = V [64, 64]（SMEM）"; sp.Dl="acc [64, 64]";
-    sp.side=["P1 注意力，1 个 CTA","4 个 warp = 1 个 warpgroup","64 行 p × 64 个 key 的块","V 的 64 维","64 个 key = 4 片 k16"];
+    sp.side=["独立注意力，1 个 CTA","4 个 warp = 1 个 warpgroup","64 行 p × 64 个 key 的块","V 的 64 维","64 个 key = 4 片 k16"];
     sp.ro="A = p 在寄存器 · 4 条 HGMMA · A 占 16 个寄存器\nB = V 在 SMEM（.tnspB）· 管线 4 × 35.24 = 140.96 周期（实测）";
     const s1=add({t:"V 的 64 个 key 已在 SMEM，作为 B",f:"V_tile[64 key, 64 d] 在 SMEM",
-      i:"V 块：BF16 [64, 64]，8,192 B，SMEM（缓存里是 FP8 E4M3 [pages, page, 2, 64]；转成 BF16 并写入 SMEM 的指令未追踪，UNKNOWN）",
+      i:"V 块：BF16 [64, 64]，8,192 B，SMEM（缓存里是 FP8 E4M3 [pages, page, 2, 64]；转成 BF16 并写入 SMEM 的指令数未测）",
       o:"B 的 4 个 k16 切片，各 [16, 64]，2,048 B（块 1–4）",x:"SASS 里 B 的描述符带 .tnspB：V 以 [key, d] 存放，读成 [K, N] 要转置",
-      c:"写 V 的指令数 UNKNOWN（未追踪）· 本图只计 P · V 这一组 wgmma",ring:ring("cell",8,"B"),bars:[[0,"smb"]]},4);
+      c:"写 V 的指令数未测· 本图只计 P · V 这一组 wgmma",ring:ring("cell",8,"B"),bars:[[0,"smb"]]},4);
     for(let j=0;j<4;j++) sp.cells.push({c:8+j,t:s1.t0+0.8+j*0.7,u:99,h:j});
     const s2=add({t:"4 个 warp 在寄存器里算出 p，转成 BF16",f:"p = exp2(s − m)；l += Σ p；p_bf16 = bf16(p)",
       i:"s：FP32 [64, 64]，寄存器（Q·Kᵀ 的累加器，32 个/线程）；m：每行最大值",
       o:"p：BF16 [64, 64]，8,192 B，寄存器 16 个/线程；按 A 片段布局，每个 k16 片占 4 个 32 位寄存器（a0…a7，8 个 BF16）",
       x:"p 不写 SMEM，直接作为 wgmma 的 A",
-      c:"每元素 2 条 FMA + 1 条 exp2f（8 周期，SFU 最慢，第 5 章第 1 节）· BF16 转换指令数 UNKNOWN · 16 个寄存器被占到 wait 之后",ring:ring("slot",0,"1"),bars:[[1,"ins"]]},4);
+      c:"每元素 2 条 FMA + 1 条 exp2f（8 周期，SFU 最慢，第 5 章第 1 节）· BF16 转换指令数未测 · 16 个寄存器被占到 wait 之后",ring:ring("slot",0,"1"),bars:[[1,"ins"]]},4);
     for(let j=0;j<4;j++) sp.regs.push({i:j,t:s2.t0+1.2+j*0.7,td:s2.t0+1.2+j*0.7,te:0});
     sp.pulses.push({t0:s2.t0,t1:s2.t1,k:["fp32","sfu"]});
     const s3=add({t:"p 的寄存器刚被 ALU 写过，4 个 warp 先执行 wgmma.fence",f:"wgmma.fence.sync.aligned",
-      i:"p 的 16 个寄存器（刚写）；acc：FP32 [64, 64]，寄存器",o:"寄存器写入先于 wgmma 读取（SASS WARPGROUP.ARRIVE，kernel.sass:1463）",x:"随后发出 4 条 RS HGMMA",
-      c:"1 条 fence · 周期未测（UNKNOWN）· 这一条 fence 同时保护 p 的寄存器",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
+      i:"p 的 16 个寄存器（刚写）；acc：FP32 [64, 64]，寄存器",o:"寄存器写入先于 wgmma 读取（SASS WARPGROUP.ARRIVE）",x:"随后发出 4 条 RS HGMMA",
+      c:"1 条 fence · 周期未测· 这一条 fence 同时保护 p 的寄存器",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
     sp.pulses.push({t0:s3.t0,t1:s3.t1,k:["sched"]});
     for(let j=0;j<4;j++){ const js=j+1; const s=add({t:"4 个 warp 发出第 "+js+" 片 wgmma，A 从寄存器读，B 从 SMEM 读",
       f:"acc[64×64] += p[:, "+16*j+":"+16*js+"] · V[key "+16*j+":"+16*js+", :]",
@@ -256,9 +256,9 @@ function mk(md){
       sp.moves.push({t0:s.t0+1.5,t1:s.t0+2.6,k:"D",i:j,p:[PART.tc,DSLOT]});
       sp.pulses.push({t0:s.t0,t1:s.t1,k:["tc","regs"]}); sp.cells.find(c=>c.c===8+j).u=s.t1; sp.dhot=sp.dhot||[]; sp.dhot.push([s.t0+2.4,s.t1]); }
     const s8=add({t:"4 个 warp 提交这一组，等到全部完成",f:"wgmma.commit_group; wgmma.wait_group 0",
-      i:"4 条在途 HGMMA（kernel.sass 第 1469–1525 行，末条带 gsb0）",o:"组完成：acc 可读；p 的 16 个寄存器可再用（SASS WARPGROUP.DEPBAR.LE gsb0, 0x0，:1541）",
+      i:"4 条在途 HGMMA（末条带 gsb0）",o:"组完成：acc 可读；p 的 16 个寄存器可再用（SASS WARPGROUP.DEPBAR.LE gsb0, 0x0，:1541）",
       x:"acc 进入下一个 key 块的缩放与累加；p 的寄存器留给下一块的 p",
-      c:"1 条 commit + 1 条 wait · warp 停发指令 · 排空实测：RS N = 128 为 38.9，N = 256 为 53.4 周期；N = 64 未测（UNKNOWN）",ring:ring("part","regs","acc"),bars:[[1,"wait"]]},3);
+      c:"1 条 commit + 1 条 wait · warp 停发指令 · 排空实测：RS N = 128 为 38.9，N = 256 为 53.4 周期；N = 64 未测",ring:ring("part","regs","acc"),bars:[[1,"wait"]]},3);
     sp.pulses.push({t0:s8.t0,t1:s8.t1,k:["regs"]}); sp.regs.forEach(r=>r.te=s8.t1);
     add({t:"RS 方式总结（p · V）：A 一直在寄存器，没有写回 SMEM",f:"acc[64×64] = Σ(j = 1…4) p_j · V_j",i:"4 个 A 切片在寄存器，4 个 B 切片在 SMEM",o:"acc [64, 64] FP32，在寄存器",x:"acc 进入下一个 key 块",
       c:"总代价：4 条 HGMMA · A 占 16 个寄存器（到 wait 为止）· Tensor Core 读 SMEM 8,192 B（只有 B）· 管线 4 × 35.24 = 140.96 周期，比 SS 多 4 × 3.18 = 12.72 · 若 p 走 SS，要另写 SMEM 8,192 B、做 1 次 fence.proxy.async（实测 19.8 周期）、再读 8,192 B · 有用 524,288 FLOP",
@@ -267,7 +267,7 @@ function mk(md){
   }
   if(md===3){
     sp.n=8; sp.A="A = 解码后的 W [64, 128]（寄存器）"; sp.Bl="B = xᵀ [128, 32]（SMEM）"; sp.Dl="acc [64, 32]";
-    sp.side=["P4 qkv_gate，m = 32","1 个 consumer warpgroup","（共 2 个，交替 K 步）","W 的 64 行放在 M（swap-AB）","32 个词元放在 N","K 步 i：128 个 K = 8 片 k16"];
+    sp.side=["稠密投影 qkv_gate，m = 32","1 个 consumer warpgroup","（共 2 个，交替 K 步）","W 的 64 行放在 M（swap-AB）","32 个词元放在 N","K 步 i：128 个 K = 8 片 k16"];
     sp.ro="A = 解码后的 W 在寄存器 · 8 条 wgmma · A 占 32 个寄存器\nB = x 在 SMEM · 管线 8 × 20.38 = 163.04 周期（实测）";
     const s1=add({t:"生产者用 TMA 把 C12 平面、逃逸表和 x 块写进 SMEM",f:"SMEM[W 环 s] ← C12 平面[64 行, 128 列]；SMEM[x 环 s] ← x[0:32, k0:k0+128]",
       i:"W 以 C12 码存放，每个权重 12 bit：64 行 × 128 列 = 12,288 B（3 × 4,096 B）；逃逸表 128 B；x：BF16 [32, 8192]，取 [32, 128] = 8,192 B；都在 HBM / L2",
@@ -277,14 +277,14 @@ function mk(md){
     sp.pulses.push({t0:s1.t0,t1:s1.t1,k:["tma"]});
     const s2=add({t:"每个线程用 ld.shared 把自己的 C12 字读进寄存器",f:"w[0:24] ← ld.shared.v4 × 6（平面）；e ← ld.shared.v4（逃逸）",
       i:"SMEM：平面 12,288 B + 逃逸 128 B；每线程读平面 96 B",o:"每线程 24 个 32 位寄存器 = C12 码；128 线程 × 96 B = 12,288 B",x:"寄存器里的码交给解码",
-      c:"每线程 7 条 ld.shared.v4（6 + 1）· 24 个寄存器 · SMEM 读 12,288 B · 周期未测（UNKNOWN）",ring:ring("cell",0,"A"),bars:[[1,"ins"]]},4);
+      c:"每线程 7 条 ld.shared.v4（6 + 1）· 24 个寄存器 · SMEM 读 12,288 B · 周期未测",ring:ring("cell",0,"A"),bars:[[1,"ins"]]},4);
     for(let j=0;j<8;j++){ sp.moves.push({t0:s2.t0+0.2+j*0.35,t1:s2.t0+1.4+j*0.35,k:"C",i:j,p:[CELL[j],SLOT[j]]}); sp.regs.push({i:j,t:s2.t0+1.4+j*0.35,td:0,te:0}); sp.cells.find(c=>c.c===j).u=s2.t1; }
     const s3=add({t:"4 个 warp 用 ALU 把 C12 码解码成 BF16，直接成为 A",f:"a[0:32] = decode(w[0:24], e)；C12 → BF16 × 2 每个 32 位寄存器",
       i:"24 个寄存器的 C12 码；逃逸表",o:"解码后的 W：BF16 [64, 128]，16,384 B = 128 线程 × 32 寄存器 × 4 B；8 个切片各 4 个寄存器（a + 4j）",
-      x:"这 32 个寄存器直接做 wgmma 的 A，不写 SMEM",c:"ALU 解码指令数 UNKNOWN（未数）· 解码后占 32 个寄存器 · 没有 SMEM 往返",ring:ring("slot",0,"1"),bars:[[1,"ins"]]},4);
+      x:"这 32 个寄存器直接做 wgmma 的 A，不写 SMEM",c:"ALU 解码指令数未数· 解码后占 32 个寄存器 · 没有 SMEM 往返",ring:ring("slot",0,"1"),bars:[[1,"ins"]]},4);
     sp.regs.forEach((r,j)=>{ r.td=s3.t0+0.4+j*0.4; }); sp.pulses.push({t0:s3.t0,t1:s3.t1,k:["int32"]});
     const s4=add({t:"4 个 warp 先执行 wgmma.fence",f:"wgmma.fence.sync.aligned",i:"a 的 32 个寄存器（刚写）；acc：FP32 [64, 32]，寄存器，16 个/线程",
-      o:"寄存器写入先于 wgmma 读取（SASS WARPGROUP.ARRIVE）",x:"随后发出 8 条 RS wgmma",c:"1 条 fence · 周期未测（UNKNOWN）",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
+      o:"寄存器写入先于 wgmma 读取（SASS WARPGROUP.ARRIVE）",x:"随后发出 8 条 RS wgmma",c:"1 条 fence · 周期未测",ring:ring("part","sched","调度"),bars:[[1,"ins"]]},3);
     sp.pulses.push({t0:s4.t0,t1:s4.t1,k:["sched"]});
     for(let j=0;j<8;j++){ const js=j+1; const s=add({t:"4 个 warp 发出第 "+js+" 片 wgmma，A 是解码后的 W，B 是 x",
       f:"acc[64×32] += Wdec[0:64, "+16*j+":"+16*js+"] · x[0:32, k0+"+16*j+":k0+"+16*js+"]ᵀ",
@@ -297,10 +297,10 @@ function mk(md){
       sp.pulses.push({t0:s.t0,t1:s.t1,k:["tc","regs"]}); sp.cells.find(c=>c.c===8+j).u=s.t1; sp.dhot=sp.dhot||[]; sp.dhot.push([s.t0+1.9,s.t1]); }
     const s13=add({t:"4 个 warp 提交这一组，等到全部完成",f:"wgmma.commit_group; wgmma.wait_group 0",i:"8 条在途 wgmma（同 1 组）",
       o:"组完成：acc 可读；a 的 32 个寄存器可再用",x:"acc 累加到下一个 K 步；a 的寄存器留给下一步的解码结果",
-      c:"1 条 commit + 1 条 wait · warp 停发指令 · 排空实测：RS N = 128 为 38.9 周期；N = 32 未测（UNKNOWN）",ring:ring("part","regs","acc"),bars:[[1,"wait"]]},3);
+      c:"1 条 commit + 1 条 wait · warp 停发指令 · 排空实测：RS N = 128 为 38.9 周期；N = 32 未测",ring:ring("part","regs","acc"),bars:[[1,"wait"]]},3);
     sp.pulses.push({t0:s13.t0,t1:s13.t1,k:["regs"]}); sp.regs.forEach(r=>r.te=s13.t1);
     add({t:"RS 方式总结（解码权重）：解码结果一直在寄存器，没有写回 SMEM",f:"acc[64×32] = Σ(j = 1…8) Wdec_j · x_jᵀ",i:"8 个 A 切片在寄存器，8 个 B 切片在 SMEM",o:"acc [64, 32] FP32，在寄存器",x:"acc 累加到下一个 K 步",
-      c:"总代价：8 条 wgmma · A 占 32 个寄存器 · acc 16 个寄存器 · Tensor Core 读 SMEM 8,192 B（只有 B）· 管线 8 × 20.38 = 163.04 周期 · 省下解码后 W 写 SMEM 16,384 B、读 16,384 B 和 1 次 fence.proxy.async（19.8 周期）· HBM → SMEM 只搬 12,288 B · 有用 524,288 FLOP · 实测：4 个 W 流式单元快 0.83–1.81 µs（P4 对照；最终 P4 核后来换了）",
+      c:"总代价：8 条 wgmma · A 占 32 个寄存器 · acc 16 个寄存器 · Tensor Core 读 SMEM 8,192 B（只有 B）· 管线 8 × 20.38 = 163.04 周期 · 省下解码后 W 写 SMEM 16,384 B、读 16,384 B 和 1 次 fence.proxy.async（19.8 周期）· HBM → SMEM 只搬 12,288 B · 有用 524,288 FLOP · 实测：4 个 W 流式单元快 0.83–1.81 µs（稠密投影对照；最终的稠密投影核后来换了）",
       ring:ring("part","regs","acc"),bars:[]},4);
     sp.hold.push([2,"smb",s1.t1,s2.t1],[2,"regb",s2.t0+1.4,s13.t1],[4,"regb",sp.steps[4].t0,s13.t1]);
   }

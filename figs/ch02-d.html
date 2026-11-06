@@ -177,7 +177,7 @@ function setMode(){ const n=split?32:64; A={t0:0,t1:n*RT}; B=split?{t0:0.15,t1:0
   else EV.push({t:A.t1,at:"A",s:"y[r] 完成。总代价：约 64 × 0.334 ≈ 21.4 µs；这段时间里其余 SM 已经没有活干",
       f:"y[r] = Σₖ W[r,k] · x[k]",i:"64 轮累加后的 acc（寄存器）",o:"y[r] BF16 [1]（2 B），写回 HBM",x:"整个 y 可交给下一阶段"});
   EV.sort((a,b)=>a.t-b.t);
-  readout.textContent=(split?"切半：两个 CTA 各 32 轮 + 跨 SM 交接 0.67 µs，约 "+(Mg.t1).toFixed(1)+" µs":"不切半：一个 CTA 64 轮，约 "+A.t1.toFixed(1)+" µs")+"\n实测（整个 kernel）：v1 58.88 µs → v3 48.26 µs";
+  readout.textContent=(split?"切半：两个 CTA 各 32 轮 + 跨 SM 交接 0.67 µs，约 "+(Mg.t1).toFixed(1)+" µs":"不切半：一个 CTA 64 轮，约 "+A.t1.toFixed(1)+" µs")+"\n实测（整个 kernel）：v1 54.08 µs → v3 43.34 µs";
   let h=""; const bar=(r,y,c)=>{ const n=Math.round((r.t1-r.t0)/RT); for(let i=0;i<n;i++) h+='<rect x="'+TX(r.t0+i*RT).toFixed(1)+'" y="'+(y+2)+'" width="'+Math.max(1,TX(RT)-TX(0)-1).toFixed(1)+'" height="14" fill="'+c+'"/>'; };
   bar(A,TY0,CA); if(B) bar(B,TY0+24,CB); if(Mg) h+='<rect x="'+TX(Mg.t0).toFixed(1)+'" y="'+(TY0+50)+'" width="'+(TX(Mg.t1)-TX(Mg.t0)).toFixed(1)+'" height="14" fill="'+CM+'"/>';
   $("tl").innerHTML=h; let ax=""; for(let u=0;u<=22;u+=2) ax+='<text class="tn" x="'+TX(u).toFixed(1)+'" y="'+(TY0+86)+'" text-anchor="middle">'+u+'</text>'; $("ax").innerHTML=ax;

@@ -280,7 +280,7 @@ function timeline(){ const s=SEG; let h="";
 const fmtN=(v)=>String(v);
 function sentence(k,r,u){ const w=tid>>5, kidx=tid+128*Math.max(0,r-1), Wi=row*K+kidx;
   switch(k){
-  case 0: return "CPU 执行 gemv_kernel<<<2304, 128, 0, stream>>>：把一条启动命令放进 stream 就返回，GPU 随后建立 2304 个 CTA。代价：1 条命令；CPU 立刻返回，y 此时还没有算出；空 kernel 的启动与计时固定开销约 3.68 µs";
+  case 0: return "CPU 执行 gemv_kernel<<<2304, 128, 0, stream>>>：把一条启动命令放进 stream 就返回，GPU 随后建立 2304 个 CTA。代价：1 条命令；CPU 立刻返回，y 此时还没有算出；空 kernel 的启动与计时固定开销约 4.6 µs";
   case 1: return "GPU 把第 "+row+" 号 CTA 分到一个 SM 上，它令 row = blockIdx.x = "+row+"，认领 W 的第 "+row+" 行。代价：0 次内存访问；一个 SM 最多同时放 16 个这样的 CTA（每个 128 个线程，共 64 个 warp）";
   case 2: return "第 "+tid+" 号线程（第 "+w+" 号 warp）令 tid = "+tid+"、acc = 0，k 从 "+tid+" 开始。代价：row、tid、acc、k 都放在寄存器里，每个线程共占 22 个寄存器；smem 占 512 B";
   case 3: return "第 1 轮：线程 "+tid+" 读 W["+row+" × 8192 + "+kidx+"] = W["+Wi+"] 和 x["+kidx+"]，乘加进 acc。代价：2 次读，每次 2 B，共 4 B，其中只有 2 B 是这一行的 W；1 次乘加；这个线程同时在途的读只有 1 × 2 B";
@@ -288,7 +288,7 @@ function sentence(k,r,u){ const w=tid>>5, kidx=tid+128*Math.max(0,r-1), Wi=row*K
   case 5: return "每个线程把 acc 写进 smem["+tid+"]（第 "+(tid>>2)+" 格），然后到 __syncthreads() 等齐。代价：128 个线程共写 128 次、512 B；最快的线程要等最慢的线程；bar.sync 实测约 173 个周期（另一测具）";
   case 6: return "只有 0 号线程继续：依次读 smem[0..127]，加成 sum；其余 127 个线程空等。代价：128 次读和 128 次加串成一条链，至少 128 × 4 = 512 个周期（相依的加法约 4 个周期）；127 个线程闲着";
   case 7: return "0 号线程把 sum 写进 y["+row+"]。代价：1 次 4 B 写，这 4 B 是整个 CTA 的有用输出；写完这个 CTA 结束，SM 腾出位置给下一个 CTA";
-  default: return "整个 kernel：2304 个 CTA 铺在 132 个 SM 上，每个 SM 同时放 16 个，先上 2112 个，剩 192 个在第二轮。总代价：读 W 37.7 MB（有用），另外重复读 x 共 2304 × 16 KiB = 37.7 MB（只有 16 KiB 不同）；实测 58.88 µs，含约 3.7 µs 固定开销，约为 7.9 µs 下界的 13.4%"; } }
+  default: return "整个 kernel：2304 个 CTA 铺在 132 个 SM 上，每个 SM 同时放 16 个，先上 2112 个，剩 192 个在第二轮。总代价：读 W 37.7 MB（有用），另外重复读 x 共 2304 × 16 KiB = 37.7 MB（只有 16 KiB 不同）；实测 54.08 µs，含约 4.6 µs 固定开销，约为 7.9 µs 下界的 14.6%"; } }
 function show(){ const end=t>=TOT; let k=8; if(!end){ k=SEG.findIndex(s=>t>=s.t0&&t<s.t1); } const sg=SEG[k]; const u=sg?(t-sg.t0)/(sg.t1-sg.t0):1;
   const r = k===3?1 : k===4?2+Math.min(62,Math.floor(u*63)) : k>=5&&k<8?64 : 0;
   const w=tid>>5, kidx=tid+128*Math.max(0,r-1);
@@ -321,7 +321,7 @@ function show(){ const end=t>=TOT; let k=8; if(!end){ k=SEG.findIndex(s=>t>=s.t0
   readout.textContent = k<3||k===8&&false ? "row = "+row+" · tid = "+tid+"（第 "+w+" 号 warp 的第 "+(tid&31)+" 号线程）\n还没有读数据 · 每个线程共 64 轮"
     : k<5 ? "row = "+row+" · tid = "+tid+" · 第 "+r+" / 64 轮 · k = "+kidx+"\n读 W["+(row*K+kidx)+"] 与 x["+kidx+"]，各 2 B · acc 已累加 "+r+" 项"
     : k<8 ? "row = "+row+" · tid = "+tid+" · 64 / 64 轮已完成\n每个线程累加了 64 项 · 现在在 smem 里归约"
-    : "row = "+row+" · tid = "+tid+" · 64 / 64 轮\n整个 kernel 实测 58.88 µs（下界 7.9 µs 的 13.4%）";
+    : "row = "+row+" · tid = "+tid+" · 64 / 64 轮\n整个 kernel 实测 54.08 µs（下界 7.9 µs 的 14.6%）";
   const x=TX(Math.min(t,TOT)); $("clipR").setAttribute("width",(x-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+x.toFixed(1)+" "+(TY0-4)+"V"+(TY0+5*28)); $("tIn").value=String(t); }
 // code panel
 document.querySelectorAll(".cl").forEach(e=>{ const i=+e.dataset.l; e.textContent=LINES[i]; e.addEventListener("click",()=>{

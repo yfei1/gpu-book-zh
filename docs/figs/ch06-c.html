@@ -243,7 +243,7 @@ function setMode(md){ mode=md; INS=build(md); readout.textContent=M[md].ro; cons
   const FS=["<code>s1 = (R ⟲ 8) = (R ≪ 8) | (R ≫ 24)</code>","<code>s2 = (R ⟲ 12) = (R ≪ 12) | (R ≫ 20)</code>","<code>s3 = R ≪ 2</code>","<code>s4 = R ≪ 6</code>"];
   const RR="<code>R</code> 32 位 = 8 个 E2M1（半字节：位 3 符号，位 2…0 码），4 B，取自 <code>w13</code> uint8 [256, 8192, 2048]；图中源按参考顺序（元素 k 在位 4k+3…4k，图 6-3）画，kernel 实际用离线重排后的布局 · 寄存器堆";
   INS.forEach((x,i)=>{ const kk=x.k, d="D"+kk, sN="s"+(kk+1); let c;
-    if(x.name==="SHF"||x.name==="IMAD.SHL") c={ f:FS[kk], i:RR, o:"<code>"+sN+"</code> 32 位临时值 · 寄存器堆", h:"→ LOP3 ("+d+") 用 "+sN+"（配对为推断）" };
+    if(x.name==="SHF"||x.name==="IMAD.SHL") c={ f:FS[kk], i:RR, o:"<code>"+sN+"</code> 32 位临时值 · 寄存器堆", h:"→ LOP3 ("+d+") 用 "+sN+"（这一配对尚未确证）" };
     else if(x.name==="LOP3") c={ f:"<code>"+d+" = (R ⊕ "+sN+") ∧ 0x81C081C0</code>（lut 0x28）",
       i:"<code>R</code> 32 位 · 寄存器；<code>"+sN+"</code> 32 位 · 寄存器；掩码 0x81C081C0（立即数）",
       o:"<code>"+d+"</code> 32 位：两个 BF16 半，各留符号 + 3 位数值位；权重 "+(kk+1)+" 在低半、权重 "+(kk+5)+" 在高半（示意）；其余位 0 · 寄存器", h:"→ HMUL2 ("+d+") 乘 S" };
