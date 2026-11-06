@@ -1,6 +1,6 @@
 # 附录 B：Hopper（`sm_90a`）`CUDA C++ → PTX → SASS` 速查表
 
-**本书地图：** 第 0 章 → 第 0.5 章 → 第 1–6 章 [第 0 级 → 第 5 级] → 第 7–8 章 → 第 9 章 → 附录 A → **【附录 B：`CUDA C++ → PTX → SASS` 速查表】**
+**本书地图：** 前言 → 第 0.0 章 → 第 0 章 → 第 0.5 章 → 第 1–6 章 [第 0 级 → 第 5 级] → 第 7–10 章 → 附录 A → **【附录 B：`CUDA C++ → PTX → SASS` 速查表】**
 
 承接附录 A 末尾的问题（指令速查）：当在 Nsight Compute 的 Source 页面或 `cuobjdump --dump-sass` 反汇编里看到陌生的 SASS 助记符时，怎样快速查出它对应的 CUDA C++ 写法、PTX 指令与所在的硬件单元？
 
@@ -75,7 +75,7 @@
 | 32 | 流式优先淘汰全局读取（`__ldcs`） | `__ldcs(p)`；内联 `ld.global.cs` | `ld.global.cs.v4.b32` | `LDG.E.EF`、`LDG.E.EF.128`、`LDG.E.EF.64` | LSU → L1/L2（优先淘汰）· 第 2 级 | `.cs` 编译为 `.EF`（`evict_first`）修饰符（写出形式 `STG.E.EF / STG.E.EL` 与 PTX 的配对为推断） |
 | 33 | 带 `createpolicy` 的 L1/L2 留存提示加载 | 内联 `createpolicy.fractional.L2::evict_first.b64` 加 `ld.global.L1::evict_first.L2::cache_hint` | `createpolicy.fractional.L2::evict_first\|evict_last.b64 pol,1.0`；`ld.global...L2::cache_hint` | `UMOV`、`LDG.E.EF`、`STG.E.EL`、`LDG.E` | LSU（策略存于统一寄存器）· 第 2 级 | L1 提示变成 `.EF/.EL` 后缀（`st.global.L1::evict_last` 对应 `STG.E.EL` 为推断）；L2 策略通过 `desc[URn]` 传给硬件 |
 | 34 | 预取到 L2 缓存 | `__builtin_prefetch`；内联 `prefetch.global.L2` | `prefetch.global.L2 [a]`；`prefetch.global.L1` | `CCTL.E.PF2` | L2 缓存控制 · 第 2 级 | 1 对 1 生成缓存控制预取指令 `CCTL.E.PF2` |
-| 35 | 局部内存读写（寄存器溢出或动态下标数组） | 动态下标局部数组；寄存器溢出（`ptxas -v` 报告 `spill stores/loads`） | `ld.local`；`st.local` | `LDL`、`LDL.LU`、`STL` | LSU → L1 → L2（位于全局显存）· 第 2 级 | `.LU`（最后一次使用）在读出后释放缓存行；热循环中出现 `LDL/STL` 代表寄存器溢出 |
+| 35 | 局部内存读写（寄存器溢出、动态下标数组或未内联调用栈帧） | 动态下标局部数组；寄存器溢出（`ptxas -v` 报告 `spill`）；未加 `__forceinline__` 的设备函数调用栈帧 | `ld.local`；`st.local` | `LDL`、`LDL.LU`、`STL` | LSU → L1 → L2（位于全局显存）· 第 2 级 | `.LU`（最后一次使用）在读出后释放缓存行；出现 `LDL/STL` 代表寄存器溢出或非内联函数调用栈帧（加 `__forceinline__` 可消去栈帧往返） |
 | 36 | 内核参数与常量内存读取 | kernel 形参；`__constant__` 变量 | `ld.param.*`；`ld.const` | `LDC`、`ULDC` | SM 常量缓存 · 第 2 级 | 形参存于常量体 `c[0x0][0x210..]`；`ULDC` 直接把整束相同的常量读入统一寄存器 `UR` |
 | 37 | 通用地址空间读写（`cvta`） | 编译器无法静态区分全局或共享空间的指针；`cluster.map_shared_rank` 返回的远端指针 | `ld.b32`；`st.b32`；`cvta.shared.u64`；`ld.shared::cluster` | `LD`、`ST` | LSU（运行时硬件解码地址窗口）· 第 2 级 | 通用 `LD.E / ST.E` 需在运行时判断地址空间；跨 CTA 读取远端共享内存也编译为 `LD.E` |
 | 38 | SMEM 普通读写 | `extern __shared__ T s[]`；`s[i]`；`float4` 向量访问 | `ld.shared.b32/v4.b32`；`st.shared::cta.v4.b32` | `LDS`、`LDS.64`、`LDS.128`、`LDS.U8`、`LDS.U16`、`STS`、`STS.64`、`STS.128` | LSU → SMEM（32 个 4 字节 bank）· 第 2 级 | 1 对 1 带位宽后缀；整束 `LDS.128` 共读 512 字节（分 4 个波面请求 32 个 bank） |
@@ -145,7 +145,7 @@
 | 84 | 协作启动全网格同步栅栏（`grid.sync`） | `cooperative_groups::this_grid().sync()`；`cudaLaunchCooperativeKernel` | 标准库展开：全局原子计数 + 内存栅栏 + `ld.acquire` 自旋 + `bar.sync` | `ATOMG.E.ADD.STRONG.GPU`、`MEMBAR.ALL.GPU`、`LDG.E.STRONG.GPU`、`CCTL.IVALL`、`BAR.SYNC.DEFER_BLOCKING` | L2 原子单元 + 各 SM 轮询（推断）· 第 0 级 | 未在反汇编中观察到 `grid.sync`，其展开为块内屏障、全卡栅栏与 L2 计数器轮询由标准库实现规则推出（132 个 CTA 实测耗时约 1.42 µs） |
 | 85 | 轮询休眠与让出调度（`nanosleep`） | `__nanosleep(ns)`；`__nv_nanosleep` | `nanosleep.u32 t` | `NANOSLEEP`、`YIELD` | SMSP 线程束调度器 · 第 3 级 | 在 `[0, 2t]` 纳秒区间内挂起当前 warp（上限 1 ms），自旋循环中常辅以 `YIELD`（`mbarrier` 等待循环中的 `NANOSLEEP.SYNCS` 变体为推断） |
 | 86 | 读取周期计数器与全局纳秒计时器 | `clock64()`；`clock()`；内联读取 `%globaltimer` 或 `%clock64` | `mov.u64 d, %clock64`；`mov.u64 d, %globaltimer` | `CS2R`、`S2UR`、`S2R` | 特殊寄存器读取 · 第 3 级 | `%clock64` 编译为 `CS2R Rd, SR_CLOCKLO`，`%globaltimer` 编译为 `CS2R Rd, SR_GLOBALTIMERLO`（仅在反汇编中直接观察到；`CS2R Rx, SRZ` 亦用于清零寄存器对） |
-| 87 | 分支、调用、返回、退出与断点 | `if / for / switch`；函数调用；`return`；`__trap()` | `bra / bra.uni`；`call.uni`；`brx.idx`；`ret`；`exit`；`trap` | `BRA`、`BRX`、`CALL`、`RET`、`EXIT`、`BPT`、`BSSY`、`BSYNC`、`BREAK` | 分支与发射单元 · 第 3 级 | 整束一致跳转标有 `.U`（如 `BRA.U`）；可能分化的分支由编译器包在 `BSSY ... BSYNC` 重汇合区间内 |
+| 87 | 分支、调用、返回、退出与断点（含 64 位整数除法子程序调用） | `if / for / switch`；函数调用；64 位整数除法 `a / b`（`int64_t`）；`return` | `bra / bra.uni`；`call.uni`；`div.s64 / u64`；`ret`；`exit` | `BRA`、`BRX`、`CALL`、`RET`、`EXIT`、`BPT`、`BSSY`、`BSYNC`、`BREAK` | 分支与发射单元 · 第 3 级 | 整束一致跳转标 `.U`；分化分支包在 `BSSY ... BSYNC` 内；`sm_90a` 无硬件 64 位整数除法，`div.s64` 会编译为慢速子程序调用 `CALL.REL __cuda_sm20_div_s64`（改用 32 位无符号除法可消去调用） |
 | 88 | 线程与块下标读取及统一寄存器搬运 | `threadIdx.x`；`blockIdx.x`；`blockDim.x`；`gridDim.x`；整束一致标量 | `mov.u32 %tid.x / %ctaid.x / %ntid.x / %nctaid.x` | `S2R`、`S2UR`、`R2UR`、`UMOV`、`ULDC` | 特殊寄存器与统一寄存器文件 · 第 3 级 | `S2R` 读入每线程向量寄存器 `R`；`S2UR` 直接读入整束共享的统一寄存器 `UR`；`R2UR` 把向量寄存器值拷入 `UR` |
 | 89 | 双元素半精度快速指数（`ex2.approx.f16x2 / bf16x2`） | 内联 `ex2.approx.f16x2`；`ex2.approx.ftz.bf16x2`；`h2exp2(__half2)` | `ex2.approx.f16x2 d,a`；`ex2.approx.ftz.bf16x2 d,a` | `MUFU.EX2.F16`、`MUFU.EX2.BF16`、`PRMT` | SFU 管线（2 次 `MUFU`）+ ALU 管线 · 第 4 级 | 编译实测 1 条 `ex2.approx.f16x2` 被拆成 **2** 条标量 `MUFU.EX2.F16`（含 `.H1` 高半字）加 1 条 `PRMT` 重排（`bf16x2` 对应 `MUFU.EX2.BF16` 与 `tanh` 打包形态按同族规则推断） |
 | 90 | `volatile` 与系统级作用域访存 | `volatile T*` 读写；`cuda::atomic_ref<T, thread_scope_system>`；内联 `ld.relaxed.sys` | `ld.volatile.global`；`ld/st.relaxed.sys.global` | `LDG.E.STRONG.SYS`、`LD.E.STRONG.SYS`、`STG.E.STRONG.SYS` | LSU → L2 → PCIe / NVLink · 第 1 级 | `.STRONG.SYS` 仅在反汇编中直接观察到，其与 PTX 修饰符的配对及 `STG.E.STRONG.SYS` 为推断；`ld.volatile.shared` 生成普通 `LDS` |

@@ -56,6 +56,11 @@ def fix_stray_bold(h):
     """CommonMark does not close ** after full-width punctuation; render those pairs as bold."""
     return "".join(p if i % 2 else STRAY_BOLD.sub(r"<strong>\1</strong>", p) for i, p in enumerate(SKIP.split(h)))
 
+def escape_table_code_pipes(md_text):
+    """A | inside a code span splits a table cell; escape it on table rows."""
+    esc = lambda line: re.sub(r"`[^`]*`", lambda c: re.sub(r"(?<!\\)\|", r"\\|", c.group(0)), line)
+    return "\n".join(esc(l) if l.lstrip().startswith("|") else l for l in md_text.split("\n"))
+
 def map_nav(m):
     items = [x.strip() for x in m.group(1).split("→")]
     li = []
@@ -121,7 +126,7 @@ def main():
             continue
         t = p.read_text(); shutil.copy2(p, REPO / "book" / p.name)
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
-        t = re.sub(FIG_PAT, fig_rep, t, flags=re.S)
+        t = escape_table_code_pipes(re.sub(FIG_PAT, fig_rep, t, flags=re.S))
         t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
         chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, fix_stray_bold(md.render(t)))}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title)}</a></li>')
     (DOCS / "index.html").write_text(TMPL.format(css=CSS, toc="".join(toc), secs="".join(secs)))
