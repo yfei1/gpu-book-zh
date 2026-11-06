@@ -1,0 +1,8 @@
+{
+  "name": "gpu-book-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "katex": "0.19.1"
+  }
+}
