@@ -19,7 +19,7 @@ body{margin:0;background:#f2f2ef;color:#2a2a2e;font:16px/1.85 -apple-system,"Pin
 main{max-width:760px;margin:40px auto 120px;padding:0 24px}
 h1{font-size:26px;line-height:1.4;margin:36px 0 12px}
 h2{font-size:20px;line-height:1.5;margin:34px 0 10px}
-code{font:13.5px ui-monospace,Menlo,monospace;background:#e8e8e4;padding:1px 4px;border-radius:4px}
+code{font:13.5px ui-monospace,Menlo,monospace;background:#e8e8e4;padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
 h1 code,h2 code,h3 code{font-size:.85em;padding:0 3px}
 pre{background:#fbfbfa;border:1px solid #ddd;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 pre code{background:none;padding:0;font-size:inherit}
@@ -47,6 +47,13 @@ TMPL = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta na
 <body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>
 <nav><ol class="toc">{toc}</ol></nav>{secs}</main></body></html>"""
 MAP_PAT = re.compile(r"<p><strong>本书地图：</strong>\s*(.*?)</p>", re.S)
+
+STRAY_BOLD = re.compile(r"\*\*((?:(?!</?(?:p|li|pre|h\d)\b)[^*])+?)\*\*")
+SKIP = re.compile(r"(<pre.*?</pre>)", re.S)
+
+def fix_stray_bold(h):
+    """CommonMark does not close ** after full-width punctuation; render those pairs as bold."""
+    return "".join(p if i % 2 else STRAY_BOLD.sub(r"<strong>\1</strong>", p) for i, p in enumerate(SKIP.split(h)))
 
 def map_nav(m):
     items = [x.strip() for x in m.group(1).split("→")]
@@ -113,7 +120,7 @@ def main():
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = re.sub(FIG_PAT, fig_rep, t, flags=re.S)
         t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
-        chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, md.render(t))}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title)}</a></li>')
+        chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, fix_stray_bold(md.render(t)))}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title)}</a></li>')
     (DOCS / "index.html").write_text(TMPL.format(css=CSS, toc="".join(toc), secs="".join(secs)))
     write_readme(chapters, built, (DOCS / "index.html").read_text())
     (DOCS / ".nojekyll").write_text("")

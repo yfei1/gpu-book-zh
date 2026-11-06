@@ -238,7 +238,7 @@ function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
 const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=end){t=0;hold=0;} start(); } else show(); };
 play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ setPlay(false); t=+$("tIn").value; show(); });
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
 function wire(m0, tStill){ document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); t=0; hold=0; setPlay(!still); if(still){t=end*tStill;show();} }));
   document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
   const q=new URLSearchParams(location.search); t = q.has("t") ? +q.get("t") : (still ? end*tStill : 0); show(); if(playing) start(); else play.textContent="播放"; }

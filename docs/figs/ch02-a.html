@@ -233,7 +233,7 @@ function tick(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now;
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(tick);} };
 const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=m.end){t=0;hold=0;} start(); } else show(); };
 play.addEventListener("click",()=>setPlay(!playing));
-tIn.addEventListener("input",()=>{ setPlay(false); t=+tIn.value; show(); });
+tIn.addEventListener("input",()=>{ const v_=+tIn.value; setPlay(false); t=v_; show(); });
 nIn.addEventListener("input",()=>{ render(); if(t>m.end) t=m.end; show(); });
 half.addEventListener("change",()=>{ render(); if(t>m.end) t=m.end; show(); });
 document.querySelectorAll("[data-n]").forEach(b=>b.addEventListener("click",()=>{ nIn.value=b.dataset.n; if(b.dataset.n==="2310") half.checked=true; render(); t=0; hold=0; setPlay(true); }));

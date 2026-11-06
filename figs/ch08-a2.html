@@ -202,9 +202,9 @@ const M2=()=>{ // UR
    st(NA,REG[1],"1,2,3","改前做完。","（无计算）","静态指令数：不上抬路径每分块 304 条","同左","→ 对照改后","总代价（改前）：304 条 / 分块，其中约 51 条（37 + 14）是重建变量"),
    st(B0,SCH[1],"1,2,3","改后：三个变量移入统一寄存器 UR，不变量提到循环外。","同一份更新，改在 uniform 流水线上做","同一份值：每个 warp 1 份（UR），不是 32 份","更新后的槽号、相位、描述符，在 UR","→ mbarrier 等待与 wgmma 描述符","uniform 指令每条 2 周期，每个 warp 只算 1 次而不是 32 路；仍占 1 个发射槽，所以发射槽满时并不免费"),
    st(B0+60,SCH[1],null,"同时，每分块一次的 128 线程栅栏改为按 warp 独立到达 mbarrier。","<code>BAR.SYNC（128 线程）</code> → <code>mbarrier.arrive</code>（每 warp）","每个 warp 的 arrive 计数","mbarrier 计数","→ 下一分块的等待","去掉每分块 1 次 BAR.SYNC"),
-   st(B0+NB,SCH[1],"1,2,3","改后做完。","（无计算）","静态指令数：不上抬路径每分块 284 条","同左","→ 归一化融合同轮合并测试","总代价（改后）：304 → 284 条（−20，是 UR / 外提与栅栏改为按 warp 到达两项合计；分析预估目标约 269 条）；与归一化融合同轮合并测试，比上一步提速 0.60%（比模块化基线 1.35%）"));
+   st(B0+NB,SCH[1],"1,2,3","改后做完。","（无计算）","静态指令数：不上抬路径每分块 284 条","同左","→ 归一化融合同轮合并测试","总代价（改后）：304 → 284 条（−20，是 UR / 外提与栅栏改为按 warp 到达两项合计；分析预估目标约 269 条）；与归一化融合同轮合并测试，比上一步提速 0.60%（比更早的统一注意力版本 1.35%）"));
   return {end:B0+NB+30,speed:95,shot:B0+120,
-   ro:"UR：不上抬路径每分块指令 304 → 284 条（预估目标约 269）\n与归一化融合同轮合并：比上一步提速 0.60%，比模块化基线提速 1.35%",
+   ro:"UR：不上抬路径每分块指令 304 → 284 条（预估目标约 269）\n与归一化融合同轮合并：比上一步提速 0.60%，比更早的统一注意力版本提速 1.35%",
    axis:"时间（只表示先后）；条长 = 静态指令数，斜线 = 重建变量约 51 条",
    strip:{title:"算法：P5 全长注意力消费者循环，每分块要推进 3 个全 warp 相同的变量",cells:[{a:"1",b:["环槽号","ring slot"],c:B1,t0:0,t1:B0+NB+30},{a:"2",b:["相位位","phase"],c:B2,t0:0,t1:B0+NB+30},{a:"3",b:["矩阵描述符","descriptor"],c:B3,t0:0,t1:B0+NB+30}]},
    blocks:bl,lights,cells:[],tags:[{p:[480,60],s:"UR：每个 warp 1 份",t0:B0,t1:B0+NB+30}],links:[],rows:["改前：每分块指令","改后：每分块指令","UR 更新"],bars,steps,divs:[B0-20],labels:["指令","输入","输出","交给下一步","代价"]}; };
@@ -256,7 +256,7 @@ function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
 const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=end){t=0;hold=0;} start(); } else show(); };
 play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ setPlay(false); t=+$("tIn").value; show(); });
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
 document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); t=0; hold=0; setPlay(!still); if(still){ t=C.shot??end*0.6; show(); } }));
 const q=new URLSearchParams(location.search); const m0=+(q.get("m")||1);
 document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);

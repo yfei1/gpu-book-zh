@@ -277,7 +277,7 @@ function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
 const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=7){t=0;hold=0;} start(); } else show(); };
 play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ setPlay(false); t=+$("tIn").value; show(); });
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
 function setMode(m){ mode=m; layout(); }
 document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); t=0; hold=0; setPlay(!still); if(still){t=7;show();} }));
 const q=new URLSearchParams(location.search); const m0=+(q.get("m")||1);

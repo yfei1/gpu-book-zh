@@ -223,7 +223,7 @@ function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
 const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=end){t=0;hold=0;} start(); } else show(); };
 play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ setPlay(false); t=+$("tIn").value; show(); });
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
 const upd=()=>{ thr=+$("thrI").value; rpt=+$("rptI").value; smk=+$("smI").value; calc(); t=0; hold=0; setPlay(!still); if(still){t=end;show();} };
 ["thrI","rptI","smI"].forEach(id=>$(id).addEventListener("input",upd));
 document.querySelectorAll("[data-pre]").forEach(b=>b.addEventListener("click",()=>{ const [a,b2,c]=b.dataset.pre.split(","); $("thrI").value=a; $("rptI").value=b2; $("smI").value=c; upd(); }));

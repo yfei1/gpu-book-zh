@@ -333,7 +333,7 @@ function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if
 const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
 const play=$("play"); function setPlay(p){ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=TOT){t=0;hold=0;} start(); } else show(); }
 play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ setPlay(false); t=+$("tIn").value; show(); });
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
 $("rowIn").addEventListener("input",()=>{ row=+$("rowIn").value; $("rowV").textContent=row; layout(); show(); });
 $("tidIn").addEventListener("input",()=>{ tid=+$("tidIn").value; $("tidV").textContent=tid; layout(); timeline(); show(); });
 const q=new URLSearchParams(location.search);
