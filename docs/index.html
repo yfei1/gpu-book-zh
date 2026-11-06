@@ -49,7 +49,7 @@ pre{font-size:13px;line-height:1.55;white-space:pre}table{display:block;overflow
 <figure class="fig"><iframe src="figs/ch00-a.html" loading="lazy" title="图 0-1" onload="fit(this)"></iframe></figure>
 <p>每个用户的输入文本是一个 <strong>request</strong>（请求）。它被切成一串 <strong>token</strong>（词元）。自回归生成每步都要用刚算出的词去预测下一个词，所以在 <strong>decode</strong>（逐词生成）阶段，每个请求每步只输入 1 个新 token。每个 token 在层内是一个固定宽度的浮点数向量，叫 <strong>residual stream</strong>（残差流）。各阶段从残差流读入向量并输出中间向量。这些中间向量统称 <strong>activation</strong>（激活），其中 <code>o</code> 与 <code>unpooler</code> 把结果加回残差流。</p>
 <p>本层是 <strong>MoE</strong>（混合专家）结构，共有 256 组独立的专家权重矩阵，每步只为每个 token 挑 8 个专家。线上由 8 张 H200 分担同一层。卡间通信不计入赛题耗时，所以本书只测单张卡分到的部分。每张卡放 32 个专家，单 token 挑出的 8 个专家平摊到各卡上平均每卡只有 <code>8 × 32 ÷ 256 = 1</code> 个。但挑中的专家不会均匀落到各卡上，均匀抽取时命中最多专家的那张最忙卡平均分到约 2.5 个不同专家。一步推理必须等最忙卡算完。赛题下界给该期望值乘上 0.75 的路由折扣，按 <code>2.5 × 0.75 ≈</code> <strong>1.87</strong> 个专家（约 53 MB，接近平均数的两倍）计入耗时（图 0-1）。</p>
-<p>如图 0-1 所示，单张卡上的一层依次执行七个核心阶段，各阶段前后夹着不读大矩阵权重的归一化与残差相加小操作。</p>
+<p>按播放或拖动图 0-1 的时间滑块，可以看到 1 个 token 依次流过七个核心阶段（<code>o</code> 与 <code>unpooler</code> 处标有“+”加回残差流，各阶段前后还夹着不读大矩阵权重的归一化小操作）。</p>
 <ul>
 <li><code>qkv_gate</code> 投影（读 37.7 MB）。把残差流乘上 <strong>BF16</strong>（脑浮点，每参数 2 字节）权重矩阵，算出查询（Q）、键（K）、值（V）与门控向量。</li>
 <li>attention（注意力，即 P1）。用当前 token 的 Q 与可见历史 token 的 K 求权重，再按权重对 V 加权求和。历史 K、V 按 <strong>FP8</strong>（8 位浮点，1 字节）存进 <strong>KV cache</strong>（键值缓存）。只看最近固定数量历史 token 的滑窗层读 0.5 MB，看全部历史 token 的全长层读 20.5 MB。</li>
@@ -68,7 +68,7 @@ pre{font-size:13px;line-height:1.55;white-space:pre}table{display:block;overflow
 </code></pre>
 <p>一个阶段的总浮点运算次数除以总显存读写字节数称为 <strong>arithmetic intensity</strong>（算术强度，单位 <code>FLOP/B</code>）。用算力上限除以带宽上限得到 <code>989 ÷ 4.8 ≈ 206 FLOP/B</code>，称为 <strong>ridge point</strong>（平衡点）。算术强度低于 206 时，读 1 字节的耗时比矩阵单元算完对应运算还长，所以计算单元等 HBM 返回数据。高于 206 时，数据等矩阵单元。</p>
 <p>小模型先猜候选词、再由大模型一次并行检验的做法称为 <strong>speculative decoding</strong>（投机解码），这一检验步称为 <strong>verify</strong>。32 个并发请求各检验 8 个候选词时，全批总词数 <code>T</code> 增大到 256。在图 0-2 中，只有 <code>qkv_gate</code>、<code>pooler</code>、<code>unpooler</code> 这 3 个大矩阵乘略微跨过了 206。<code>o</code>、<code>router</code> 与注意力依然留在平衡点以下。1 次乘加含 2 FLOP，1 个 BF16 权重占 2 字节，权重被 <code>T</code> 个 token 共享后仅按权重算强度为 <code>2 × T ÷ 2 = T FLOP/B</code>（计入激活读写后 <code>qkv_gate</code> 约为 224）。但 <code>router</code> 权重是 4 字节 FP32，仅按权重算强度减半为 <code>T ÷ 2 = 128</code>，加上激活读写后降至约 84。历史 KV cache 属于每个请求私有、无法跨请求共享，所以注意力强度不随 <code>T</code> 增大。</p>
-<p><code>T = 1</code> 时，BF16 稠密层强度只有 <code>2 × 1 ÷ 2 = 1 FLOP/B</code>。全层所有阶段都远低于 206，所以单请求 <code>decode</code> 下 GPU 绝大部分时间在等 HBM。把图 0-1 里滑窗层的七项读取字节数相加约为 192 MB。用 192 MB 除以 4.8 TB/s，即得全书追踪的单层基准下界 <strong>40 µs</strong>。其中第一阶段 <code>qkv_gate</code> 单独读 37.7 MB，下界约 7.9 µs，这是后续各章 <strong>gemv</strong>（矩阵乘向量，即 <code>y = W · x</code>）演化的终点线。</p>
+<p><code>T = 1</code> 时，BF16 稠密层强度只有 <code>2 × 1 ÷ 2 = 1 FLOP/B</code>。全层所有阶段都远低于 206，所以单请求 <code>decode</code> 下 GPU 绝大部分时间在等 HBM。在图 0-1 中选滑窗层，读数为“滑窗层：一步共读 191.9 MB”。第二行读数为“最短用时 <strong>40.0 µs</strong>（读得最多的是 pooler 和 MoE 专家）”，这正是全书追踪的 40 µs 单层基准下界。切到全长层，读数变为“全长层：一步共读 211.9 MB”与“最短用时 44.1 µs（读得最多的是 pooler 和 MoE 专家）”。其中第一阶段 <code>qkv_gate</code> 单独读 37.7 MB，下界约 7.9 µs，这是后续各章 <strong>gemv</strong>（矩阵乘向量，即 <code>y = W · x</code>）演化的终点线。</p>
 <hr />
 <p><strong>带走一句话：</strong> 单请求 decode 下滑窗层读 192 MB 权重与缓存，按 4.8 TB/s 算出的单层下界是 40 µs（其中 <code>qkv_gate</code> 占 7.9 µs）。</p>
 <p><strong>下一章要回答的问题：</strong> 第一阶段 <code>qkv_gate</code> 把 <code>[M, K]</code> 的权重矩阵 <code>W</code> 乘上长 <code>K</code> 的输入向量 <code>x</code>（<code>y = W · x</code>），这个计算写成一段最小的 CUDA C++ 程序长什么样，代码里的每个关键字规定了什么并行与共享规则？→ 进入 第 0.5 章：一段最小的 CUDA 程序</p>
@@ -132,7 +132,8 @@ for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * 
 <p>但图 1-1 第二行显示，开启 CUDA Graph 后基线仍有两处损耗。第一，未融合的层间小操作各自把中间向量写回 HBM 再读出来，占了单请求 decode 单层耗时的约四分之一。第二，同一 <code>stream</code> 里后一个图节点必须等前一个节点的所有 CTA 退出、写入全部可见后才能开始。这道隐式栅栏在相邻图节点切换时留下约 1 µs 的硬件切换空隙。因此第 0 级的第一步优化是做 <strong>kernel fusion</strong>（算子融合），把层间小操作融进相邻的矩阵乘与注意力 kernel 中。每少一次启动就省掉一次切换空隙和一次 HBM 往返，这把单请求 decode（<code>T = 1</code>）的单层启动从 SGLang 基线估计的约 17 次压到 <strong>11</strong> 次。</p>
 <hr />
 <h2>2. 用 PDL（编程依赖启动）让前序收尾与后继读权重重叠</h2>
-<p>如图 1-1 第三行所示，每个 kernel 末尾都不是同时停下的。大部分 CTA 已结束时，仍有少数 CTA 在收尾。收尾期大部分计算单元已经空出，且后继预读静态权重不依赖前序刚算出的激活。所以 Hopper 的 <strong>PDL</strong>（Programmatic Dependent Launch，编程依赖启动）允许后继在前序收尾时提前进场。PDL 按下面四步工作。</p>
+<div class="slot">图 1-2（图还在画）</div>
+<p>如图 1-1 第三行与图 1-2 所示，每个 kernel 末尾都不是同时停下的。大部分 CTA 已结束时，仍有少数 CTA 在收尾。收尾期大部分计算单元已经空出，且后继预读静态权重不依赖前序刚算出的激活。所以 Hopper 的 <strong>PDL</strong>（Programmatic Dependent Launch，编程依赖启动）允许后继在前序收尾时提前进场。PDL 按下面四步工作。</p>
 <ul>
 <li>声明编程依赖边。主机端启动后继时挂上属性 <code>cudaLaunchAttributeProgrammaticStreamSerialization</code>。</li>
 <li>前序触发。前序每个 CTA 在算完主体循环、进入收尾期前调用 <code>cudaTriggerProgrammaticLaunchCompletion()</code>。所有前序 CTA 都已触发或退出时，硬件派发器即可启动后继 kernel。</li>
@@ -142,8 +143,8 @@ for (int k = tid; k &lt; K; k += 128) acc += __bfloat162float(W[row * K + k]) * 
 <p>在 P1 全长层 decode（<code>T = 1</code>）测试中，把触发点放在前序函数开头反而比放在主体循环之后慢了近 <strong>2 µs</strong>。触发调用并不代表前序数据已写完。过早进场的后继 CTA 只能停在等待函数上，空占芯片上的 CTA 位置（见第 3 章）。</p>
 <hr />
 <h2>3. 合写成一个协作大 kernel 还是拆成两个 PDL 串联 kernel？</h2>
-<div class="slot">图 1-2（图还在画）</div>
-<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 3 章）。图 1-2 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。</p>
+<div class="slot">图 1-3（图还在画）</div>
+<p>第 0 章的专家计算（P2）里，每个专家先乘 <code>w13</code>，再乘 <code>w2</code>。<code>w2</code> 的每一行都要读 <code>w13</code> 的全部输出，而这些输出由许多 CTA 分别写出。若用协作启动（<code>cudaLaunchCooperativeKernel</code>）把两步合写进一个大 kernel，两步之间就必须插一道全网格同步栅栏。协作启动要求所有 CTA 同时驻留在芯片上，否则没上芯片的 CTA 永远到不了栅栏就会死锁。而芯片一次能同时驻留的 CTA 数量有限（见第 3 章）。图 1-3 的 P2（decode 批量 16–32）对比中，拆成两个 PDL 串联 kernel 的写法反而净快约 <strong>0.7–0.8 µs</strong>。可能的原因是全网格栅栏本身耗时约 1.4 µs，且全卡 CTA 都要空等最慢的那个算完 <code>w13</code>。拆开后两个 kernel 之间的 PDL 交接只需约 0.6 µs，而且先算完 <code>w13</code> 的 CTA 一退场，<code>w2</code> 的 CTA 就能进场预读权重分块。</p>
 <hr />
 <h2>4. gemv 演化（v1 → v2）：把流启动链录进单张 CUDA Graph 重放</h2>
 <p>单层里 <strong>v1</strong>（见第 0.5 章）的 <code>gemv_kernel</code> 前后紧跟归一化（<code>rmsnorm</code>）与写缓存后处理（<code>rope_kv</code>）。若主机端从 Python 逐个流启动 <code>[rmsnorm, gemv_kernel, rope_kv]</code>，相邻 kernel 之间会暴露下发空隙。本章的 <strong>v2</strong> 在预热期把三步调用链录进同一张 CUDA Graph 并实例化，运行时单次重放。</p>
@@ -195,14 +196,13 @@ if (threadIdx.x == 0) {
 <p>在图 2-3 的测试中，跨 SM 经 L2 交接一次的中位耗时约为 <strong>0.67 µs</strong>。这与第 1 章两个 kernel 之间的 PDL 交接（约 0.6 µs）同量级。所以能留在单 SM 内部完成的计算不跨 SM 交接。</p>
 <hr />
 <h2>5. gemv 演化（v2 → v3 → v4）：K-halves 切尾波与 L2 缓存留存提示</h2>
-<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡单轮容量为 2,112 个 CTA，第二轮留下 <code>r = 192</code> 个尾波 CTA。由于 <code>192 ≤ 2,112 ÷ 2</code> 满足第 1 节“余数不超过单轮容量一半”的切半条件，<strong>v3</strong>（在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA）。两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。尾波里每个 CTA 只有 <code>128 × 2 B = 256</code> 字节在途，耗时由串行往返次数决定，切半 <code>K</code> 直接把尾波块的串行往返次数减半。H200 实测：<code>58.88 →</code> <strong>48.26 µs</strong>（<code>1.22×</code>），约为 7.9 µs 下界的 <code>16.3%</code>。</p>
+<figure class="fig"><iframe src="figs/ch02-d.html" loading="lazy" title="图 2-4" onload="fit(this)"></iframe></figure>
+<p>按第 3 章的驻留规则，<strong>v2</strong>（<code>&lt;&lt;&lt;2304, 128&gt;&gt;&gt;</code>）每 SM 驻留 16 个 CTA，全卡单轮容量为 2,112 个 CTA，第二轮留下 <code>r = 192</code> 个尾波 CTA。由于 <code>192 ≤ 2,112 ÷ 2</code> 满足第 1 节“余数不超过单轮容量一半”的切半条件，<strong>v3</strong>（在途 4.0 KiB/SM）把最后 192 行拆成 384 个半行 <code>K/2</code> 的 CTA（启动 2,496 个 CTA），两半按第 4 节的 L2 <code>acq_rel</code> 原子计数由后到者合并写回。尾波里每个 CTA 只有 <code>128 × 2 B = 256</code> 字节在途，算完一整行要走 <code>8,192 ÷ 128 = 64</code> 次串行往返（按单次约 0.33 µs 估算，图 2-4 读数为“不切半：一个 CTA 64 轮，约 21.4 µs”）。切半后每个半块只走 32 次往返，图 2-4 读数变为“切半：两个 CTA 各 32 轮 + L2 合并，约 11.2 µs”（估算省约 10 µs），第三行读数“实测（整个 kernel）：v1 58.88 µs → v3 <strong>48.26 µs</strong>”（<code>1.22×</code>，约为 7.9 µs 下界的 <code>16.3%</code>，实测省 10.6 µs）与这一估算吻合。</p>
 <p>接着 <strong>v4</strong>（每 SM 16 个 CTA，在途 4.0 KiB/SM）用 <code>createpolicy</code> 为中央 L2 加上留存提示（<code>.L1::evict_first</code> 同时提示本 SM 的 L1 优先淘汰流式数据）。权重 <code>W</code> 每字节只读 1 次，标为 <strong><code>evict_first</code></strong>（读完优先淘汰）；向量 <code>x</code>（16 KiB）被重复读取，标为 <strong><code>evict_last</code></strong>（优先留在 L2）。</p>
 <pre><code class="language-cuda">// v4：用 createpolicy 生成 L2 策略描述符，W 标 evict_first，x 标 evict_last
-asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;
-&quot;
+asm volatile(&quot;createpolicy.fractional.L2::evict_first.b64 %0, 1.0;\n&quot;
              &quot;ld.global.L1::evict_first.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pW), &quot;=h&quot;(w) : &quot;l&quot;(Wp));
-asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;
-&quot;
+asm volatile(&quot;createpolicy.fractional.L2::evict_last.b64 %0, 1.0;\n&quot;
              &quot;ld.global.L2::cache_hint.b16 %1, [%2], %0;&quot; : &quot;=l&quot;(pX), &quot;=h&quot;(xv) : &quot;l&quot;(xp));
 </code></pre>
 <p>测具在每次冷缓存计时前写入 512 MiB 清空 60 MiB 的 L2，H200 冷缓存实测：<code>48.26 →</code> <strong>43.94 µs</strong>（<code>1.10×</code>），约为 7.9 µs 下界的 <code>17.9%</code>。但在不清空 L2 的热缓存重复测试中，单层 <code>W</code>（37.7 MB）本可装进 60 MiB 的 L2。此时 <code>evict_first</code> 阻止了 <code>W</code> 留在 L2，使热缓存耗时反而从 <code>29.02 µs</code> 退化到 <code>42.88 µs</code>（真实多层推理中其他层本就会冲掉 <code>W</code>，冷缓存才是真实工作点）。</p>
@@ -283,7 +283,7 @@ gemv_v6&lt;&lt;&lt;2304, 32, 0, stream&gt;&gt;&gt;(W, x, y, K);
 </code></pre>
 <p>第一个条件是让 SMSP 发射槽不空（掩盖片上 SMEM 短延迟）。从 SMEM 读取数据返回约需 23 个周期。若每个 warp 发出 1 条读取后紧跟 3 条独立指令（共 <code>n = 4</code> 条），单个 SMSP 只需驻留 <code>⌈23 ÷ 4⌉ =</code> <strong>6</strong> 个 warp。这 6 个 warp 轮流发射，就能实现 0 个 no eligible 空周期（图 4-2 下行）。若写成 <code>idx = len[i]; p = table[idx]; v = data[p];</code> 这样后一步地址依赖前一步结果的串行链，每步 <code>n = 1</code>。此时单个 warp 会连续停在记分牌上，必须提前为下一轮预取地址表以增大 <code>n</code>。</p>
 <p>第二个条件是让 HBM 带宽跑满，它与发射槽不空是两个独立条件。第 2 章约 0.33 µs 的空载单请求 HBM 读取折合约 600 个周期（按 1.8 GHz 换算，满载排队时更长）。若想靠条件一的轮流发射来掩盖 HBM 延迟，每个 warp 每次只挂 1 条读取（<code>n = 4</code>）时，<code>600 ÷ 4</code> 需要 150 个 warp，远超单 SMSP 的 16 个上限。这说明靠 warp 轮流发射掩盖不了 HBM 长延迟，必须靠第 2 章的在途字节数（见第 2 章第 3 节）。程序要么让每个线程同时挂起多条独立的 16 字节向量读取，要么像第 3 章那样用 TMA 环形缓冲把在途字节装进 SMEM。</p>
-<p>回头看第 0.5 章的 <code>gemv_kernel</code>（v1）。每个线程每轮只从 HBM 挂起 1 条 2 字节的 <code>W</code> 读取（<code>x</code> 仅 16 KiB，被所有 CTA 重复读取时命中缓存）。即使单 SM 驻留满 16 个 CTA（每个 128 线程），不展开循环时全 SM 同时在途的 HBM 读取也只有 <code>16 × 128 × 2 B = 4.0 KiB</code>。要凑够第 2 章图 2-2 普通读取约 64 KiB 的拐点，每个线程须同时挂起 <code>64 ÷ 4 = 16</code> 轮 2 字节读取。在图 4-1 中选 v1，读数为“发射槽忙 17% 的周期 · no eligible（没有可发射的 warp） 83% · 本 SMSP 最多同时在途 1.0 KiB”（4 个 SMSP 合 4.0 KiB）。再选第 4 节的 v7（图 4-1 按每 SMSP 4 个 warp 取整建模，每轮连发 8 条 16 字节读取），读数变为“发射槽忙 19% 的周期 · no eligible（没有可发射的 warp） 81% · 本 SMSP 最多同时在途 16 KiB”。此时 4 个 SMSP 合计最多同时在途 <strong>64 KiB</strong>（实际每 SM 平均 17.45 个 warp，合 69.8 KiB），到达图 2-2 的 64 KiB 拐点。两种配置下调度器都有超过八成的周期处于 no eligible 空闲，但 v7 的峰值在途字节是 v1 的 16 倍。单 token decode 受 HBM 带宽限制，只要满足条件二把 HBM 喂饱，即使发射槽有大量 no eligible 空周期也不会损失显存吞吐。</p>
+<p>回头看第 0.5 章的 <code>gemv_kernel</code>（v1）。每个线程每轮只从 HBM 挂起 1 条 2 字节的 <code>W</code> 读取（<code>x</code> 仅 16 KiB，被所有 CTA 重复读取时命中缓存）。即使单 SM 驻留满 16 个 CTA（每个 128 线程），不展开循环时全 SM 同时在途的 HBM 读取也只有 <code>16 × 128 × 2 B = 4.0 KiB</code>。要凑够第 2 章图 2-2 普通读取约 64 KiB 的拐点，每个线程须同时挂起 <code>64 ÷ 4 = 16</code> 轮 2 字节读取。在图 4-1 中选 v1，读数为“发射槽忙 17% 的周期 · no eligible（没有可发射的 warp） 83% · 本 SMSP 最多同时在途 1.0 KiB”。再选第 4 节的 v7（图 4-1 按每 SMSP 4 个 warp 建模）。此时读数变为“发射槽忙 19% 的周期 · no eligible（没有可发射的 warp） 81% · 本 SMSP 最多同时在途 16 KiB”。此时 4 个 SMSP 合计最多同时在途 <strong>64 KiB</strong>（实际每 SM 平均 17.45 个 warp，合 69.8 KiB），到达图 2-2 的 64 KiB 拐点。两种配置下调度器都有超过八成的周期处于 no eligible 空闲，但 v7 的峰值在途字节是 v1 的 16 倍。单 token decode 受 HBM 带宽限制，只要满足条件二把 HBM 喂饱，即使发射槽有大量 no eligible 空周期也不会损失显存吞吐。</p>
 <hr />
 <h2>3. 条件掩码、branch divergence（分支分化）与锁步屏障规则</h2>
 <div class="slot">图 4-3（图还在画）</div>
@@ -293,13 +293,14 @@ gemv_v6&lt;&lt;&lt;2304, 32, 0, stream&gt;&gt;&gt;(W, x, y, K);
 <hr />
 <h2>4. gemv 演化（v6 → v7 → v8）：每线程挂起 8 条向量读取与 warp 洗牌归约</h2>
 <p>第 3 章的 <strong>v6</strong>（<code>&lt;&lt;&lt;2304, 32&gt;&gt;&gt;</code>）每 SM 平均驻留 17.45 个单 warp CTA，在途仅 8.7 KiB/SM。本章的 <strong>v7</strong> 让每个线程在首次乘加前先连发 8 条独立的 <code>uint4</code> 读取（单线程在途 <code>8 × 16 = 128</code> 字节）。v7 编译占 83 个寄存器（按 8 的倍数分配 88 个），寄存器池限制每 SM 最多放 <code>⌊65,536 ÷ (32 × 88)⌋ = 23</code> 个 CTA。每 SM 实际只需驻留 17.45 个（低于 23），所以全部行仍在一轮内同时驻留。全 SM 在途 <code>W</code> 字节跃升至 <code>17.45 × 32 × 128 B ≈</code> <strong>69.8 KiB/SM</strong>，跨过了图 2-2 的 64 KiB 拐点。H200 实测：<code>21.86 →</code> <strong>15.68 µs</strong>（<code>1.39×</code>），约为 7.9 µs 下界的 <code>50.2%</code>（实测显存带宽 <code>2,409 GB/s</code>，一举反超 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>）。</p>
-<p>接着 <strong>v8</strong> 引入 <strong>warp shuffle</strong>（线程束洗牌：同一 warp 的线程直接读对方寄存器，5 步折半把 32 个值归约为 1 个总和）。</p>
+<figure class="fig"><iframe src="figs/ch04-d.html" loading="lazy" title="图 4-4" onload="fit(this)"></iframe></figure>
+<p>接着 <strong>v8</strong> 引入图 4-4 所示的 <strong>warp shuffle</strong>（线程束洗牌：同一 warp 的线程直接读对方寄存器，5 层树形折半把 32 个值归约为 1 个总和）。在图 4-4 中选写法 1（v1），读数为“写法 1：128 次串行加法 + 1 次屏障”与“至少约 537 个周期 · 用到 SMEM”。再选写法 2（v8），读数变为“写法 2：5 层 shuffle”与“至少约 141 个周期 · 不用 SMEM”。</p>
 <pre><code class="language-cuda">// v7：每线程连发 8 条独立 uint4 读取（128 B 在途），随后再做乘加
 uint4 w0 = W_vec[k + 0], w1 = W_vec[k + 32], ..., w7 = W_vec[k + 224];
 // v8：单 warp 内用 __shfl_down_sync 5 步折半归约，无需 smem 与 __syncthreads()
 for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync(0xffffffff, acc, offset);
 </code></pre>
-<p>v6 已将每 CTA 缩为 1 个 warp（32 线程），所以 v8 用 5 条洗牌指令就完成了整行归约，省掉了 <code>smem</code> 与 <code>if (tid == 0)</code> 的 31 线程掩码等待。编译器在 v8 中保持每线程 7 条而非 8 条读取同时在途，全 SM 在途略降为 <code>17.45 × 32 × 112 B ≈ 61.1 KiB/SM</code>，紧贴图 2-2 的 64 KiB 拐点（4.49 TB/s），模型预测几乎不损失带宽。H200 实测：<code>15.68 →</code> <strong>15.62 µs</strong>（<code>1.00×</code>），约为 7.9 µs 下界的 <code>50.4%</code>。</p>
+<p>编译器在 v8 中保持每线程 7 条而非 8 条读取同时在途，全 SM 在途略降为 <code>17.45 × 32 × 112 B ≈ 61.1 KiB/SM</code>，紧贴图 2-2 的 64 KiB 拐点（4.49 TB/s）。H200 实测：<code>15.68 →</code> <strong>15.62 µs</strong>（<code>1.00×</code>，约为 7.9 µs 下界的 <code>50.4%</code>），因为整个 kernel 在等 HBM 返回数据，洗牌归约省下的几百个周期被藏在了显存等待里。</p>
 <hr />
 <p><strong>带走一句话：</strong> v7 靠每线程连发 8 条 16 字节读取把全 SM 在途量从 8.7 KiB 推到 69.8 KiB（跨过 64 KiB 拐点），将耗时从 21.86 µs 压到 15.68 µs。</p>
 <p><strong>下一章要回答的问题：</strong> 当调度器挑中一个 warp 发出指令后，指令会进入背后的哪条物理管线？怎样让所有管线同时忙碌以缩短总周期数？→ 进入 第 5 章 [第 4 级]：指令发出去后，在哪个物理管线里算？</p>
@@ -316,7 +317,7 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 <li><strong>SFU</strong>（Special Function Unit，特殊函数单元，发射间隔 8 周期）管线。共 4 条通道，执行快速指数 <code>exp2f</code>、倒数与平方根倒数 <code>rsqrtf</code> 等超越函数。</li>
 <li>LSU（见第 3 章）。执行全局与共享内存读写地址生成。</li>
 </ul>
-<p>调度器在前一周期把指令发给某条管线后，下一周期可立刻把另一条指令发给其他管线。当本 SMSP 上的 warp 向同一管线发指令的速度超过它的发射间隔时，管线队列排满，调度器就会因 <strong>back-pressure</strong>（回压）停发。因此一段循环的理论最短周期数由累计占用周期数最多的那条最慢管线（或每周期 1 条的共享发射槽上限）决定。在 <code>gemv</code> 的 v9 循环（见第 4 节）中，每处理 1 个装有两个 BF16 的 32 位字，需要 2 条 ALU 整数移位掩码指令拆包，再配 2 条 FMA 乘加指令。FMA、ALU 与 SFU 的发射间隔相差 <strong>1 : 2 : 8</strong>。每 2 个元素的 FMA 只占 2 个周期，而 2 条 ALU 拆包要占 <code>2 × 2 = 4</code> 个周期，使 ALU 成为该循环的最慢管线。同理，注意力采用 <strong>online Softmax</strong>（在线 Softmax，即边读分块边做指数归一化，FlashAttention 的做法）时，每个元素做 2 条 FMA 配 1 条 8 周期的 <code>exp2f</code>，SFU 就是最慢管线。</p>
+<p>调度器在前一周期把指令发给某条管线后，下一周期可立刻把另一条指令发给其他管线。当本 SMSP 上的 warp 向同一管线发指令的速度超过它的发射间隔时，管线队列排满，调度器就会因 <strong>back-pressure</strong>（回压）停发。因此一段循环的理论最短周期数由累计占用周期数最多的那条最慢管线（或每周期 1 条的共享发射槽上限）决定。在 <code>gemv</code> 的 v9 循环（见第 4 节）中，每处理 1 个装有两个 BF16 的 32 位字，需要 2 条 ALU 整数移位掩码指令拆包，再配 2 条 FMA 乘加指令。FMA、ALU 与 SFU 的发射间隔相差 <strong>1 : 2 : 8</strong>。每 2 个元素的 FMA 只占 2 个周期，而 2 条 ALU 拆包要占 <code>2 × 2 = 4</code> 个周期，使 ALU 成为该循环的最慢管线。注意力采用 <strong>online Softmax</strong>（在线 Softmax，即边读分块边做指数归一化，FlashAttention 的做法）。同理，其中每个元素做 2 条 FMA 配 1 条 8 周期的 <code>exp2f</code>，SFU 就是最慢管线。</p>
 <hr />
 <h2>2. 最宽的矩阵管线 Tensor Core：<code>mma.sync</code>（16 行）与 <code>wgmma</code>（64 行）</h2>
 <div class="slot">图 5-2（图还在画）</div>
@@ -335,13 +336,14 @@ for (int offset = 16; offset &gt; 0; offset &gt;&gt;= 1) acc += __shfl_down_sync
 <p>因此，程序必须用 <code>commit_group</code> 把已发出的 <code>wgmma</code> 打包成组。访问相关寄存器或向第 3 章的 <code>empty[s]</code> 报到前，程序必须调用 <strong><code>wait_group&lt;N&gt;</code></strong>（阻塞等待，直到在途未完成的 <code>wgmma</code> 组数不超过 <code>N</code>）。最后一条指令发出到结果写回累加器的尾延迟称为 <strong>drain latency</strong>（排空延迟）。如图 5-3 所示，<code>wait_group&lt;0&gt;</code> 每次都会暴露约 53 个周期的排空延迟。反之，在寄存器里准备两套交替使用的输入缓冲，发完前一组 <code>wgmma</code> 后立刻用 ALU 和 FMA 管线准备下一组数据。等下一组也提交后再调 <strong><code>wait_group&lt;1&gt;</code></strong>。这会等到最多剩 1 组在途（前一组已完成，最新 1 组在 Tensor Core 上算），使算术管线与 Tensor Core 并行重叠。</p>
 <hr />
 <h2>4. gemv 演化（v8 → v9）：ALU 整数位移拆包与 8 路独立累加链</h2>
-<p>在 <strong>v8</strong>（第 4 章，在途 61.1 KiB/SM）基础上，每条 <code>uint4</code> 装有 8 个 BF16（打包在 4 个 32 位字里）。BF16 正好是 FP32 的高 16 位（见第 6 章第 2 节）。本章的 <strong>v9</strong>（在途 61.1 KiB/SM）用 ALU 管线的左移（<code>&lt;&lt; 16</code>）与按位与（<code>&amp; 0xffff0000u</code>）把权重字 <code>w</code> 和输入字 <code>xv</code> 各自拆成两路 FP32，并分别加进 8 个独立的累加器变量 <code>acc0..acc7</code>。</p>
+<div class="slot">图 5-4（图还在画）</div>
+<p>如图 5-4 所示，在 <strong>v8</strong>（第 4 章，在途 61.1 KiB/SM）基础上，每条 <code>uint4</code> 装有 8 个 BF16（打包在 4 个 32 位字里）。BF16 正好是 FP32 的高 16 位（见第 6 章第 2 节）。本章的 <strong>v9</strong>（在途 61.1 KiB/SM）用 ALU 管线的左移（<code>&lt;&lt; 16</code>）与按位与（<code>&amp; 0xffff0000u</code>）把权重字 <code>w</code> 和输入字 <code>xv</code> 各自拆成两路 FP32，并分别加进 8 个独立的累加器变量 <code>acc0..acc7</code>。</p>
 <pre><code class="language-cuda">// v9：用 ALU 位运算把 32 位打包字 w 与 xv 各拆成两个 FP32，分 8 路独立累加器乘加
 float w_lo = __uint_as_float(w &lt;&lt; 16), w_hi = __uint_as_float(w &amp; 0xffff0000u);
 float x_lo = __uint_as_float(xv &lt;&lt; 16), x_hi = __uint_as_float(xv &amp; 0xffff0000u);
 acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 </code></pre>
-<p>warp 按程序顺序发射指令（见第 4 章），拆成 8 路独立累加链可避免单条串行累加链阻塞后续读取发射。H200 实测：剖析器显示全核执行的指令总数从 <code>2.67 M</code> 降到 <code>2.02 M</code>（减少 <code>24%</code>），但因单 token decode 受 HBM 带宽限制且 v8 在途已达 61.1 KiB/SM，实测耗时为 <code>15.62 →</code> <strong>15.58 µs</strong>（<code>1.00×</code>，约为 7.9 µs 下界的 <code>50.5%</code>），印证了第 1 节“总耗时由最慢资源决定”的结论。</p>
+<p>warp 按程序顺序发射指令（见第 4 章），拆成 8 路独立累加链可避免单条串行累加链阻塞后续读取发射。剖析器显示全核执行的指令总数从 <code>2.67 M</code> 降到 <code>2.02 M</code>（减少 <code>24%</code>）。但由于单 token decode 受 HBM 带宽限制，H200 实测耗时为 <code>15.62 →</code> <strong>15.58 µs</strong>（<code>1.00×</code>，约为 7.9 µs 下界的 <code>50.5%</code>），印证了总耗时由最慢资源决定。</p>
 <hr />
 <p><strong>带走一句话：</strong> FMA、ALU 与 SFU 按 <strong>1 : 2 : 8</strong> 的发射间隔并行工作，异步 <code>wgmma</code> 配合双缓冲与 <code>wait_group&lt;1&gt;</code> 可隐藏约 53 周期的排空延迟。</p>
 <p><strong>下一章要回答的问题：</strong> 编译器是怎样把一行代码变成底层机器指令与寄存器比特的，这一步会怎样毁掉或保住前五章的优化？→ 进入 第 6 章 [第 5 级]：一行代码如何变成机器指令与寄存器里的比特？</p>
@@ -372,13 +374,14 @@ acc0 += w_lo * x_lo; acc1 += w_hi * x_hi; // 共 8 路独立累加链
 </ul>
 <hr />
 <h2>4. gemv 演化（v9 → v10，排行榜提交版）：12 位无损打包与寄存器位运算解码</h2>
-<p>进入最终版前，先设对照版 <strong>v10c</strong>。排行榜提交内核为在单个 CTA 内合并处理 4 行输出并在尾声融合归一化，采用每 CTA 4 个 warp 各算 1 行的形状（启动 576 个 CTA，每 SM 驻留 17.45 个 warp）。v10c 只换这一形状并把每线程在途读取减为 4 条（在途降为 <code>34.9 KiB/SM</code>），同时保留 16 位 BF16 权重，用来单独隔离 12 位权重格式的收益。由于 <code>34.9 KiB/SM</code> 掉到了第 2 章图 2-2 拐点（64 KiB）以下，H200 实测 v10c 退化为 <code>15.58 →</code> <strong>20.00 µs</strong>（<code>0.78×</code>，约为 7.9 µs 下界的 <code>39.3%</code>）。</p>
-<p>最后，排行榜提交的 <strong>v10</strong> 利用了赛题权重分布的一个特殊性质：绝大多数 BF16 权重的指数高 7 位落在同一个 8 值窗口内（该性质只对本赛题给定的权重成立，不适用于任意模型）。预处理保留每个权重的低字节（最低 1 位指数与 7 位尾数），把符号与 3 位指数偏移压成半字节，合为 12 位 C12 无损格式。这把主权重从 37.7 MB 压到 <strong>28.3 MB</strong>（连同窗口外旁路表合计约 28.4 MB），按 4.8 TB/s 算出的理论下界从 7.9 µs 移至 <code>28.4 MB ÷ 4.8 TB/s ≈</code> <strong>5.9 µs</strong>。</p>
+<p>进入最终版前，先设对照版 <strong>v10c</strong>。排行榜提交内核在单个 CTA 内合并处理 4 行输出，并在尾声融合归一化。它采用每 CTA 4 个 warp 各算 1 行的形状（启动 576 个 CTA，每 SM 驻留 17.45 个 warp）。v10c 只换这一形状并把每线程在途读取减为 4 条（在途降为 <code>34.9 KiB/SM</code>），同时保留 16 位 BF16 权重，用来单独隔离 12 位权重格式的收益。由于 <code>34.9 KiB/SM</code> 掉到了第 2 章图 2-2 拐点（64 KiB）以下，H200 实测 v10c 退化为 <code>15.58 →</code> <strong>20.00 µs</strong>（<code>0.78×</code>，约为 7.9 µs 下界的 <code>39.3%</code>）。</p>
+<div class="slot">图 6-4（图还在画）</div>
+<p>如图 6-4 所示，最后排行榜提交的 <strong>v10</strong> 利用了赛题权重分布的一个特殊性质：绝大多数 BF16 权重的指数高 7 位落在同一个 8 值窗口内。该性质只对本赛题给定的权重成立，不适用于任意模型。预处理保留每个权重的低字节（最低 1 位指数与 7 位尾数），把符号与 3 位指数偏移压成半字节，合为 12 位 C12 无损格式。这把主权重从 37.7 MB 压到 <strong>28.3 MB</strong>（连同窗口外旁路表合计约 28.4 MB），按 4.8 TB/s 算出的理论下界从 7.9 µs 移至 <code>28.4 MB ÷ 4.8 TB/s ≈</code> <strong>5.9 µs</strong>。</p>
 <pre><code class="language-cuda">// v10（C12）：在寄存器中用按位与（0x87878787）、整数加法与漏斗移位把 12 位权重还原为 BF16/FP32
 asm(&quot;shf.r.wrap.b32 %0, %1, %2, 4;&quot; : &quot;=r&quot;(hi_nibbles) : &quot;r&quot;(packed), &quot;r&quot;(packed));
 uint32_t bf16_pair = (( hi_nibbles &amp; 0x87878787u ) + EXP_BASE) ...; // 再经异或补丁修正窗口外权重
 </code></pre>
-<p>但 v10 每线程只保持 3 条 16 字节 C12 平面在途，全 SM 在途进一步降至 <code>26.2 KiB/SM</code>。对照第 2 章图 2-2 在 16 与 32 KiB 之间的曲线（约 3.2 TB/s），少读 25% 字节的收益几乎被较低的在途带宽抵消。H200 实测印证了这笔账：v10 耗时为 <strong>15.49 µs</strong>（相对同形状的 v10c 提速 <code>1.29×</code>，但相对在途充足的 v9 仅快 <code>1.01×</code>，约为 7.9 µs BF16 下界的 <code>50.8%</code>、自身 5.92 µs C12 下界的 <code>38.2%</code>；同时 v10 还融合了 QK 归一化、RoPE 与写 KV 缓存尾声，且 v7–v10 均显著快于 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>）。</p>
+<p>但 v10 每线程只保持 3 条 16 字节 C12 平面在途，全 SM 在途进一步降至 <code>26.2 KiB/SM</code>。对照第 2 章图 2-2 在 16 与 32 KiB 之间的曲线（约 3.2 TB/s），少读 25% 字节的收益几乎被较低的在途带宽抵消。H200 实测印证了这笔账：v10 耗时为 <code>20.00 →</code> <strong>15.49 µs</strong>（相对同形状的 v10c 提速 <code>1.29×</code>，相对在途充足的 v9 为 <code>1.01×</code>）。这一成绩约为 7.9 µs BF16 下界的 <code>50.8%</code>、自身 5.92 µs C12 下界的 <code>38.2%</code>。同时 v10 融合了 QK 归一化、RoPE 与写 KV 缓存尾声，且 v7–v10 均显著快于 cuBLAS <code>torch.mv</code> 的 <code>21.12 µs</code>。</p>
 <hr />
 <p><strong>带走一句话：</strong> 12 位无损打包把 <code>qkv_gate</code> 理论下界从 7.9 µs 推到 5.9 µs，在 H200 上将端到端实测耗时推进到 15.49 µs（相对 v0 提速 44 倍，超越 cuBLAS 的 21.12 µs）。</p>
 <p><strong>下一章要回答的问题：</strong> 在真实的 P1–P5 竞赛演进与开源工业界内核中，第 0 级到第 5 级这六级机制是怎么组合起来一步步逼近理论下界的？→ 进入 第 7 章（第二部分 实战案例库上篇）：从时间线到比特位的实战优化与反例复盘</p>
