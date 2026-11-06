@@ -175,7 +175,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <g id="dots"></g><g id="focus"></g>
 <text class="lab" text-anchor="start" x="8.0" y="12.0">Hopper（sm_90a）</text><text class="lab" text-anchor="start" x="332.0" y="12.0">Blackwell（sm_100a）</text>
 <text class="lab" text-anchor="start" x="193.0" y="200.0">SMEM</text><text class="lab" text-anchor="start" x="231.9" y="183.4">Tensor Core</text><text class="lab" text-anchor="end" x="111.6" y="128.9">寄存器池 65,536 个</text><text class="lab" text-anchor="start" x="64.7" y="88.5">来自 L2 / HBM</text>
-<text class="lab" text-anchor="start" x="517.0" y="200.0">SMEM</text><text class="lab" text-anchor="start" x="555.9" y="183.4">Tensor Core</text><text class="lab" text-anchor="end" x="352.3" y="128.5">TMEM 256 KiB</text><text class="lab" text-anchor="start" x="388.7" y="88.5">来自 L2 / HBM</text>
+<text class="lab" text-anchor="start" x="517.0" y="200.0">SMEM</text><text class="lab" text-anchor="start" x="555.9" y="183.4">Tensor Core</text><text class="lab" text-anchor="start" x="367.4" y="148.1">TMEM 256 KiB</text><text class="lab" text-anchor="start" x="388.7" y="88.5">来自 L2 / HBM</text>
 </svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 134" role="img" aria-label="步骤顺序">
 <text class="lab2" x="132" y="14">步骤顺序（不是时间比例）</text>
 <text class="rl" x="124" y="43">Hopper</text><rect class="row" x="132" y="30" width="490" height="20"/>
@@ -187,7 +187,7 @@ const MODES={1:{ro:"累加器 D：Hopper 128 个寄存器 / 线程 · Blackwell 
 
 const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
 const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-const PALJ=["#3e63dd","#d9791f","#1a9a7a","#8a5fd0","#c2417a","#6b7280"];
+const PALJ=["#3e63dd","#d9791f","#1a9a7a","#8a5fd0","#c2417a","#6b7280","#0e7490","#a16207"];
 function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); segs.push(d); Lt+=d;} let s=Math.max(0,Math.min(1,u))*Lt; for(let i=0;i<segs.length;i++){ if(s<=segs[i]){const f=segs[i]?s/segs[i]:0; return [pts[i][0]+(pts[i+1][0]-pts[i][0])*f, pts[i][1]+(pts[i+1][1]-pts[i][1])*f];} s-=segs[i];} return pts[pts.length-1]; }
 const pd=(pts)=>"M"+pts.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join("L");
 function card(c){ $("stepT").textContent=c.s||""; const K=$("stepK");

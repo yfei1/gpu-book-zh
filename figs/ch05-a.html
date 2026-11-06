@@ -152,50 +152,53 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 </svg><div class="card"><div class="ch"><b id="stepN"></b><span id="stepT"></span></div><div id="cr"></div></div><svg class="flat" viewBox="0 0 640 158" role="img" aria-label="发射槽和三条管线的时间线">
 <defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" class="hl"/></pattern></defs>
 <text class="rl" x="104" y="39">发射槽</text><rect class="row" x="112" y="26" width="508" height="18"/><text class="rl" x="104" y="63">FMA 管线</text><rect class="row" x="112" y="50" width="508" height="18"/><text class="rl" x="104" y="87">ALU 管线</text><rect class="row" x="112" y="74" width="508" height="18"/><text class="rl" x="104" y="111">SFU 管线</text><rect class="row" x="112" y="98" width="508" height="18"/>
-<clipPath id="clipT"><rect id="clipR" x="112" y="22" width="0" height="104"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. v9 循环：ALU 与 FMA 交替发</label><label><input type="radio" name="mode" value="2">2. v9 循环：两条 ALU 挨着发</label><label><input type="radio" name="mode" value="3">3. 在线 Softmax 循环：缩放 FMA、exp2f、累加 FMA</label></div>
-<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="40" step="0.05" value="0"></label></div><div class="lg"><span><i class="kc" style="background:hsl(258 55% 46%)"></i>一条 warp 指令（数字 = 发射顺序，颜色 = 第几个字或元素）</span><span><i class="kt"></i>发射槽发出一条</span><span><i class="kw"></i>调度器空转（回压）</span><span><i class="kb"></i>深色部件 = 该管线正被占用</span><span>虚线框 = 结果还没写回</span><span>模型只算管线占用，不算结果等待</span></div><p class="cap">选一种发射顺序，看相邻两条指令发往不同管线还是同一条管线时，调度器是否空转。拖动时间，每一步的卡片写出公式、输入、输出、交给下一步和代价。</p></main><script type="module">
+<clipPath id="clipT"><rect id="clipR" x="112" y="22" width="0" height="104"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. v9 展开段：ALU 与 FMA 管线交替发</label><label><input type="radio" name="mode" value="2">2. v9 展开段：三条 ALU 挨着发</label><label><input type="radio" name="mode" value="3">3. 在线 Softmax 循环：缩放 FMA、exp2f、累加 FMA</label></div>
+<button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="40" step="0.05" value="0"></label></div><div class="lg"><span><i class="kc" style="background:hsl(258 55% 46%)"></i>一条 warp 指令（数字 = 发射顺序，颜色 = 第几对字或第几个元素）</span><span><i class="kt"></i>发射槽发出一条</span><span><i class="kw"></i>调度器空转（回压）</span><span><i class="kb"></i>深色部件 = 该管线正被占用</span><span>虚线框 = 结果还没写回</span><span>模型只算管线占用，不算结果等待</span></div><p class="cap">选一种发射顺序，看相邻两条指令发往不同管线还是同一条管线时，调度器是否空转。拖动时间，每一步的卡片写出公式、输入、输出、交给下一步和代价。</p></main><script type="module">
 const TL0=112,TL1=620,TY0=26,NROW=4,AXMAX=44,SPD=3,AX=70,AY=36;
 const PIPE={"ALU":[217.3,129.7],"FMA":[303.8,166.2],"SFU":[183.1,138.5]}, SRCP={"ALU":[239.9,101.4],"FMA":[331.9,131.6],"SFU":[219.2,94.7]}, SCHED=[368.3,112.8];
-const IV={FMA:1,ALU:2,SFU:8}, NAME={FMA:"FMA",ALU:"ALU",SFU:"SFU"}, LAT_SFU=17, NW=4;
+const IV={FMA:1,ALU:2,SFU:8}, NAME={FMA:"FMA",ALU:"ALU",SFU:"SFU"}, LAT_SFU=17; const NW=4;
 const PART={ALU:"int32",FMA:"fp32",SFU:"sfu"};
 const M={
- 1:{loop:"v9",order:[0,2,1,3],t:"v9 循环：ALU 与 FMA 交替发"},
- 2:{loop:"v9",order:[0,1,2,3],t:"v9 循环：两条 ALU 挨着发"},
+ 1:{loop:"v9",order:[0,1,2,4,3,5],t:"v9 展开段：ALU 与 FMA 管线交替发"},
+ 2:{loop:"v9",order:[0,2,3,1,4,5],t:"v9 展开段：三条 ALU 挨着发"},
  3:{loop:"sm",order:[0,1,2],t:"在线 Softmax 循环"}};
-const OPS={ v9:[{p:"ALU",n:"左移",d:"w 左移 16 位，得到 w_lo"},{p:"ALU",n:"掩码",d:"w 按位与 0xffff0000，得到 w_hi"},{p:"FMA",n:"乘加",d:"acc += w_lo × x_lo"},{p:"FMA",n:"乘加",d:"acc += w_hi × x_hi"}],
+const OPS={ v9:[{p:"ALU",n:"SHF",ds:"x 左移 · SHF.L.U32",d:"x 左移 16 位，得到 x_lo"},{p:"FMA",n:"IMAD",ds:"w 左移 · IMAD.U32 × 0x10000",d:"w 乘 2^16 = 左移 16 位，得到 w_lo"},{p:"ALU",n:"LOP3",ds:"x 掩码 · LOP3",d:"x 按位与 0xffff0000，得到 x_hi"},{p:"ALU",n:"LOP3",ds:"w 掩码 · LOP3",d:"w 按位与 0xffff0000，得到 w_hi"},{p:"FMA",n:"FFMA",ds:"乘加 lo · FFMA",d:"acc += w_lo × x_lo"},{p:"FMA",n:"FFMA",ds:"乘加 hi · FFMA",d:"acc += w_hi × x_hi"}],
   sm:[{p:"FMA",n:"缩放",d:"x × log2e − max，得到指数的输入"},{p:"SFU",n:"exp2f",d:"exp2f（快速指数）"},{p:"FMA",n:"累加",d:"和 += 指数结果"}] };
 let R=[];
 function sim(md){ const m=M[md], ops=OPS[m.loop], per=ops.length, free={FMA:0,ALU:0,SFU:0}; let prev=-1; R=[];
-  for(let w=0;w<NW;w++) for(const oi of m.order){ const o=ops[oi], n=R.length+1; const iss=Math.max(prev+1,free[o.p]); R.push({n,w,oi,p:o.p,nm:o.n,d:o.d,iss,stall:iss-(prev+1),st0:prev+1,iv:IV[o.p]}); free[o.p]=iss+IV[o.p]; prev=iss; }
+  for(let w=0;w<NW;w++) for(const oi of m.order){ const o=ops[oi], n=R.length+1; const iss=Math.max(prev+1,free[o.p]); R.push({n,w,oi,p:o.p,nm:o.n,ds:o.ds,d:o.d,iss,stall:iss-(prev+1),st0:prev+1,iv:IV[o.p]}); free[o.p]=iss+IV[o.p]; prev=iss; }
   const lastEnd=Math.max(...R.map(r=>r.iss+r.iv+(r.p==="SFU"?LAT_SFU-IV.SFU:0))); end=Math.max(lastEnd,R[R.length-1].iss+1); }
 const steady=()=>{ const per=R.length/NW; return (R[R.length-per].iss-R[R.length-2*per].iss); };
 function card(r,kind){ const v9=M[mode].loop==="v9", j=r.w, nx=(d)=>{ const q=R.find(x=>x.w===j&&x.oi===r.oi+d); return q?q.n:"?"; }, pr=(d)=>R.find(x=>x.w===j&&x.oi===r.oi-d).n;
-  const G=(v9?"字 ":"元素 ")+j+" · ";
+  const G=(v9?"字对 ":"元素 ")+j+" · ";
   let fm,i,o,nxt;
-  if(v9&&r.oi===0){ fm="w_lo = w"+j+" << 16"; i=["w"+j+"|uint32（2 个 BF16）4 B/线程|寄存器"]; o=["w_lo|FP32 4 B/线程|寄存器"]; nxt="w_lo → 第 "+nx(2)+" 条（acc"+2*j+" += w_lo · x_lo）"; }
-  else if(v9&&r.oi===1){ fm="w_hi = w"+j+" & 0xffff0000"; i=["w"+j+"|uint32（2 个 BF16）4 B/线程|寄存器"]; o=["w_hi|FP32 4 B/线程|寄存器"]; nxt="w_hi → 第 "+nx(2)+" 条（acc"+(2*j+1)+" += w_hi · x_hi）"; }
-  else if(v9){ const hi=r.oi===3, a=2*j+(hi?1:0), s=hi?"hi":"lo"; fm="acc"+a+" += w_"+s+" · x_"+s; i=["w_"+s+"|FP32 4 B/线程|寄存器（第 "+pr(2)+" 条写出）","x_"+s+"|FP32 4 B/线程|寄存器（x 的拆包不画）","acc"+a+"|FP32 4 B/线程|寄存器"]; o=["acc"+a+"|FP32 4 B/线程|寄存器"]; nxt="acc"+a+" 等下一个 uint4 的同一路乘加；整行扫完后 5 层 shuffle 求 y[r] = Σ partial"; }
+  const xin="xv"+j+"|uint32（2 个 BF16）4 B/线程|寄存器（x 的 uint4 经 LDG.E.EL.128 读入）", win="w"+j+"|uint32（2 个 BF16）4 B/线程|寄存器（W 的 uint4 经 LDG.E.EF.128 读入）";
+  if(v9&&r.oi===0){ fm="x_lo = xv"+j+" << 16"; i=[xin]; o=["x_lo|FP32 4 B/线程|寄存器"]; nxt="x_lo → 第 "+nx(4)+" 条（acc"+2*j+" += w_lo · x_lo）"; }
+  else if(v9&&r.oi===1){ fm="w_lo = w"+j+" · 0x10000（= w << 16）"; i=[win]; o=["w_lo|FP32 4 B/线程|寄存器"]; nxt="w_lo → 第 "+nx(3)+" 条（acc"+2*j+" += w_lo · x_lo）"; }
+  else if(v9&&r.oi===2){ fm="x_hi = xv"+j+" & 0xffff0000"; i=[xin]; o=["x_hi|FP32 4 B/线程|寄存器"]; nxt="x_hi → 第 "+nx(3)+" 条（acc"+(2*j+1)+" += w_hi · x_hi）"; }
+  else if(v9&&r.oi===3){ fm="w_hi = w"+j+" & 0xffff0000"; i=[win]; o=["w_hi|FP32 4 B/线程|寄存器"]; nxt="w_hi → 第 "+nx(2)+" 条（acc"+(2*j+1)+" += w_hi · x_hi）"; }
+  else if(v9){ const hi=r.oi===5, a=2*j+(hi?1:0), s=hi?"hi":"lo", ix=hi?pr(3):pr(4), iw=hi?pr(2):pr(3); fm="acc"+a+" += w_"+s+" · x_"+s; i=["w_"+s+"|FP32 4 B/线程|寄存器（第 "+iw+" 条写出）","x_"+s+"|FP32 4 B/线程|寄存器（第 "+ix+" 条写出）","acc"+a+"|FP32 4 B/线程|寄存器"]; o=["acc"+a+"|FP32 4 B/线程|寄存器"]; nxt="acc"+a+" 等下一个 uint4 的同一路乘加（展开后无循环）；整行扫完后 5 层 shuffle 求 y[r] = Σ partial"; }
   else if(r.oi===0){ fm="s = x · log2e − m"; i=["x"+j+"|FP32 4 B/线程（一个分数 q·k）|寄存器","m|FP32 4 B/线程（行最大值）|寄存器"]; o=["s|FP32 4 B/线程|寄存器"]; nxt="s → 第 "+nx(1)+" 条 exp2f"; }
   else if(r.oi===1){ fm="p = exp2f(s)"; i=["s|FP32 4 B/线程|寄存器（第 "+pr(1)+" 条写出）"]; o=["p|FP32 4 B/线程|寄存器（约 "+LAT_SFU+" 周期后写回）"]; nxt="p → 第 "+nx(1)+" 条累加 ℓ；p 也是 P·V 的 A 输入（RS 模式，图 5-2）"; }
   else { fm="ℓ += p"; i=["p|FP32 4 B/线程|寄存器（第 "+pr(1)+" 条写出）","ℓ|FP32 4 B/线程（行和）|寄存器"]; o=["ℓ|FP32 4 B/线程|寄存器"]; nxt="ℓ 留到整行扫完，用来归一化 P·V 的结果"; }
   if(kind==="stall") return {h:G+"第 "+r.n+" 条（"+r.nm+"）等 "+r.p+" 管线空出",fm:fm,i:i,o:["（尚未执行，无输出）"],nx:"管线空出后，第 "+r.iss+" 周期发出本条",cost:"空转 "+r.stall+" 周期（回压），这些周期什么也没发出去"};
   if(kind==="wb") return {h:G+"第 "+r.n+" 条 exp2f 结果写回",fm:fm,i:i,o:["p|FP32 4 B/线程|寄存器（此刻可读）"],nx:nxt,cost:"结果延迟约 "+LAT_SFU+" 周期，比 8 周期的占用时间还长"};
-  return {h:G+"第 "+r.n+" 条（"+r.nm+"）发往 "+r.p+" 管线",fm:fm,i:i,o:o,nx:nxt,cost:"占 1 个发射槽，"+NAME[r.p]+" 管线被占 "+r.iv+" 周期"};
+  return {h:G+"第 "+r.n+" 条（"+(r.ds||r.nm)+"）发往 "+r.p+" 管线",fm:fm,i:i,o:o,nx:nxt,cost:"占 1 个发射槽，"+NAME[r.p]+" 管线被占 "+r.iv+" 周期"};
 }
 function events(md){ const E=[]; const m=M[md];
   R.forEach(r=>{ if(r.stall>0) E.push({t:r.st0,f:[...PIPE[r.p],r.n,10],c:card(r,"stall")});
     E.push({t:r.iss,f:[...PIPE[r.p],r.n,10],c:card(r,"issue")});
     if(r.p==="SFU") E.push({t:r.iss+LAT_SFU,f:[...SRCP.SFU,r.n,10],c:card(r,"wb")}); });
   const stalls=R.reduce((a,r)=>a+r.stall,0), issueEnd=R[R.length-1].iss+1, v9=m.loop==="v9";
-  const slow=v9?"最慢管线是 ALU，每个字占 4 周期":"最慢管线是 SFU，每个元素占 8 周期";
-  const cost="共发 "+R.length+" 条，用 "+issueEnd+" 个周期发完，其中空转 "+stalls+" 周期，稳态每"+(v9?"个字":"个元素")+" "+steady()+" 周期；"+slow+(v9?"":"；最后一个结果要再等 "+LAT_SFU+" 周期");
-  E.push({t:end,c:v9?{h:"全部 "+R.length+" 条发完",fm:NW+" 字 × (2 ALU + 2 FMA) = "+R.length+" 条",i:["w0..w3|uint32 × 4 = 1 个 uint4，16 B/线程|寄存器","x 的同位置 4 个字|16 B/线程|寄存器"],o:["acc0..acc7|FP32 × 8，32 B/线程|寄存器"],nx:"整行 K=8192（每线程 32 个 uint4）扫完后：5 层 shuffle 归约，y[r] = Σ partial，写入 BF16 [2304] 的第 r 个",cost:"总代价："+cost}:{h:"全部 "+R.length+" 条发完",fm:NW+" 个元素 × (缩放 FMA + exp2f + 累加 FMA) = "+R.length+" 条",i:["x0..x3|FP32 × 4，16 B/线程|寄存器"],o:["p0..p3|FP32 × 4，16 B/线程|寄存器","ℓ|FP32 4 B/线程|寄存器"],nx:"p → P·V（RS wgmma）；ℓ 留到整行扫完后归一化",cost:"总代价："+cost}});
+  const slow=v9?"最慢管线是 ALU，每对占 6 周期（3 条 × 2）":"最慢管线是 SFU，每个元素占 8 周期";
+  const cost="共发 "+R.length+" 条，用 "+issueEnd+" 个周期发完，其中空转 "+stalls+" 周期，稳态每"+(v9?"对字":"个元素")+" "+steady()+" 周期；"+slow+(v9?"":"；最后一个结果要再等 "+LAT_SFU+" 周期");
+  E.push({t:end,c:v9?{h:"全部 "+R.length+" 条发完",fm:NW+" 对字 × (4 拆包 + 2 乘加) = "+R.length+" 条",i:["w0..w3|uint32 × 4 = 1 个 uint4，16 B/线程|寄存器","x 的同位置 uint4：4 个字|16 B/线程|寄存器"],o:["acc0..acc7|FP32 × 8，32 B/线程|寄存器"],nx:"整行 K=8192（每线程 32 个 uint4）扫完后：5 层 shuffle 归约，y[r] = Σ partial，写入 BF16 [2304] 的第 r 个",cost:"总代价："+cost}:{h:"全部 "+R.length+" 条发完",fm:NW+" 个元素 × (缩放 FMA + exp2f + 累加 FMA) = "+R.length+" 条",i:["x0..x3|FP32 × 4，16 B/线程|寄存器"],o:["p0..p3|FP32 × 4，16 B/线程|寄存器","ℓ|FP32 4 B/线程|寄存器"],nx:"p → P·V（RS wgmma）；ℓ 留到整行扫完后归一化",cost:"总代价："+cost}});
   return E.sort((a,b)=>a.t-b.t); }
 function setMode(md){ mode=md; sim(md); EV=events(md); const m=M[md], ops=OPS[m.loop];
   const stalls=R.reduce((a,r)=>a+r.stall,0), issueEnd=R[R.length-1].iss+1;
-  readout.textContent="FMA 32 通道 · ALU 16 通道 · SFU 4 通道 · 发射间隔 1 : 2 : 8\n"+(m.loop==="v9"?"每个字 "+steady()+" 周期 · "+NW+" 个字共空转 "+stalls+" 周期 · ALU 每字占 4 周期":"每个元素 "+steady()+" 周期 · "+NW+" 个元素共空转 "+stalls+" 周期 · SFU 结果延迟约 "+LAT_SFU+" 周期");
-  $("algT").textContent = m.loop==="v9" ? "算法：gemv v9 循环。每个 32 位字（2 个 BF16）发 4 条指令：ALU 拆包 2 条，FMA 乘加 2 条。" : "算法：在线 Softmax 循环。每个元素发 3 条指令：缩放 FMA、exp2f、累加 FMA。";
-  $("algT2").textContent = "颜色 = 第几个"+(m.loop==="v9"?"字":"元素")+"，数字 = 发射顺序。";
+  readout.textContent="FMA 32 通道 · ALU 16 通道 · SFU 4 通道 · 发射间隔 1 : 2 : 8\n"+(m.loop==="v9"?"每对字 "+steady()+" 周期 · "+NW+" 对字共空转 "+stalls+" 周期 · ALU 每对占 6 周期":"每个元素 "+steady()+" 周期 · "+NW+" 个元素共空转 "+stalls+" 周期 · SFU 结果延迟约 "+LAT_SFU+" 周期");
+  $("algT").textContent = m.loop==="v9" ? "算法：gemv v9（实测 879 条 SASS，完全展开，无循环）。W 与 x 各一个字，发 6 条：拆包 4 + 乘加 2。" : "算法：在线 Softmax 循环。每个元素发 3 条指令：缩放 FMA、exp2f、累加 FMA。";
+  $("algT2").textContent = m.loop==="v9" ? "移位实测 134 条 SHF（ALU）+ 122 条 IMAD.U32（FMA 管线）；这里每对画 1 条 IMAD。" : "颜色 = 第几个元素，数字 = 发射顺序。";
   let h=""; const y=(i)=>TY0+i*24, row={FMA:1,ALU:2,SFU:3};
   R.forEach(r=>{ if(r.stall>0) h+=bar(r.st0,r.iss,y(0),null,null,"wait"); h+=bar(r.iss,r.iss+1,y(0),col(r.w),r.n); h+=bar(r.iss,r.iss+r.iv,y(row[r.p]),col(r.w),r.n);
     if(r.p==="SFU") h+='<rect x="'+TX(r.iss+r.iv).toFixed(1)+'" y="'+(y(3)+2)+'" width="'+(TX(r.iss+LAT_SFU)-TX(r.iss+r.iv)).toFixed(1)+'" height="14" fill="none" stroke="'+col(r.w)+'" stroke-dasharray="3 2"/>'; });
@@ -207,7 +210,7 @@ function show(){ const m=M[mode], per=OPS[m.loop].length; let dots="", lit={int3
     if(r.p==="SFU" && u>=r.iv && u<LAT_SFU) dots+='<circle cx="'+SRCP.SFU[0]+'" cy="'+SRCP.SFU[1]+'" r="6" fill="none" stroke="'+col(r.w)+'" stroke-width="1.6" stroke-dasharray="3 2"/><text class="dn" style="fill:'+col(r.w)+'" x="'+SRCP.SFU[0]+'" y="'+(SRCP.SFU[1]+3.2)+'">'+r.n+'</text>'; });
   $("dots").innerHTML=dots; Object.keys(partEl).forEach(n=>partEl[n]&&partEl[n].classList.toggle("busy",lit[n])); schedEl&&schedEl.classList.toggle("issue",iss);
   const cw=(640-AX-20)/R.length; let ar="";
-  R.forEach((r,i)=>{ const x=AX+i*cw, st=t>=r.iss+r.iv?"done":(t>=r.iss?"fly":"wait"); ar+='<rect '+(st==="wait"?'class="wrow"':'fill="'+col(r.w)+'"'+(st==="done"?' class="wdone"':''))+' x="'+(x+1).toFixed(1)+'" y="'+AY+'" width="'+(cw-2).toFixed(1)+'" height="20"/><text class="bn" style="'+(st==="wait"?'fill:var(--anatomy-text)':'')+'" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+14)+'">'+r.n+'</text><text class="tn" text-anchor="middle" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+34)+'">'+r.nm+'</text><text class="tn" text-anchor="middle" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+46)+'">'+r.p+'</text>'; });
+  R.forEach((r,i)=>{ const x=AX+i*cw, st=t>=r.iss+r.iv?"done":(t>=r.iss?"fly":"wait"); ar+='<rect '+(st==="wait"?'class="wrow"':'fill="'+col(r.w)+'"'+(st==="done"?' class="wdone"':''))+' x="'+(x+1).toFixed(1)+'" y="'+AY+'" width="'+(cw-2).toFixed(1)+'" height="20"/><text class="bn" style="'+(st==="wait"?'fill:var(--anatomy-text)':'')+'" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+14)+'">'+r.n+'</text><text class="tn" style="font-size:'+(cw<26?8:10.5)+'px" text-anchor="middle" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+34)+'">'+r.nm+'</text><text class="tn" style="font-size:'+(cw<26?8:10.5)+'px" text-anchor="middle" x="'+(x+cw/2).toFixed(1)+'" y="'+(AY+46)+'">'+r.p+'</text>'; });
   $("algR").innerHTML=ar; finish(); }
 
 const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");

@@ -7,6 +7,7 @@
 ## 章节
 
 - [前言](book/preface.md)
+- [第 0.0 章（导引）：一句话怎样穿过 62 层大模型变成下一个词？](book/ch00_0.md)
 - [第 0 章：单层模型算什么，最快能跑多快？](book/ch00.md)
 - [第 0.5 章：一段最小的 CUDA 程序](book/ch00_5.md)
 - [第 1 章 [第 0 级]：一层模型在时间线上怎么排 kernel？](book/ch01.md)
@@ -25,6 +26,7 @@
 
 下载后用浏览器直接打开（单文件 HTML，无外部依赖）。
 
+- [图 0.0-1 一句话穿过 Muse Spark Open：Prefill、Decode、Verify](figs/ch00_0-a.html)
 - [图 0-1 一层模型的一步：数据怎么流过七个阶段](figs/ch00-a.html)
 - [图 0-2 单层各阶段在 roofline 上的位置](figs/ch00-b.html)
 - [图 0.5-1 gemv_kernel：一个线程怎样算出 y 的一个元素](figs/ch00_5-a.html)
@@ -67,4 +69,4 @@
 - [图 9-1 从第 0 级到第 5 级的六步诊断](figs/ch09-a.html)
 - [图 9-2 微扰删除实验](figs/ch09-b.html)
 - [图 A-1 Hopper 与 Blackwell 的一个 SM](figs/appA-a.html)
-- [图 0.0-1 一句话穿过 Muse Spark Open：Prefill、Decode、Verify](figs/ch00_0-a.html)
+- [图 B-1 从 CUDA C++ 到 PTX 再到 SASS](figs/appB-a.html)
