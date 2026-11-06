@@ -238,7 +238,7 @@ const M1=()=>{ // serial 3-hop chain
    st(3,REG[0],1,"块 1 回到寄存器，warp 0 用它算页号。","<code>页号 = f(n)</code>（页大小 1 时即 token 序号）","n：int32，4 B，在寄存器","页号：int32，4 B，在寄存器","页号 → 第 3 步，当 page_table 的下标","每跳只有 1 条独立指令，这段时间没有别的活可发"),
    st(3.4,HP[1],2,"warp 0 用页号读 page_table，块 2 出发。","<code>phys = page_table[b, 页号]</code>","<code>page_table</code> int32 [B, max_pages]，取 1 项 = 4 B，在 HBM；页号在寄存器","phys：int32，4 B，写进寄存器","phys → 第 5 步，当 cp.async 的源地址","1 条读指令；约 640 ns；上一跳没回来就发不了"),
    st(6.4,REG[0],2,"块 2 带回物理页号，寄存器就绪。","（无计算，等记分牌放行）","phys：int32，4 B，在寄存器","phys 已就绪","phys → 第 5 步","又等一次寄存器就绪，才能发第三跳"),
-   st(6.8,HP[2],3,"warp 0 发 cp.async，块 3 把 KV 页搬向 SMEM。","<code>smem_kv ← k_cache, v_cache [phys]</code>","<code>k_cache</code>、<code>v_cache</code> FP8 E4M3 [pages, 1, 2, 64]，取 1 页（页大小 1）：K 128 B + V 128 B = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → Q·K^T 与 P·V（见图 7-5、图 7-6）","1 条 cp.async；约 1,150 ns 才有第一块 KV 到位"),
+   st(6.8,HP[2],3,"warp 0 发 cp.async，块 3 把 KV 页搬向 SMEM。","<code>smem_kv ← k_cache, v_cache [phys]</code>","<code>k_cache</code>、<code>v_cache</code> FP8 E4M3 [pages, 1, 2, 64]，取 1 页（页大小 1）：K 128 B + V 128 B = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → Q·K^T 与 P·V（见图 7-7、图 7-9）","1 条 cp.async；约 1,150 ns 才有第一块 KV 到位"),
    st(10,DST[0],3,"块 3 已进 SMEM。","（无计算）","KV 页：256 B，在 SMEM","KV 页：256 B，在 SMEM","KV 页 → 主循环","总代价：3 跳串行，约 600 + 640 + 1,150 ≈ 2.4 µs（verify 1 请求全长算例实测 2,400 ns）；多驻留 warp 也盖不住这条链")]}; };
 const M2=()=>{ // speculation
   const bl=[{n:1,c:B1,route:pathA(0,0),t0:0,t1:3,home:1,stay:1,until:3.4},{n:2,c:B2,route:pathA(1,0),t0:0.15,t1:3.15,home:1,stay:1,until:3.4},{n:3,c:B3,route:[HP[2],L2C,LSU[0],DST[0]],t0:3.4,t1:6.4,home:1,stay:1}];
@@ -258,7 +258,7 @@ const M2=()=>{ // speculation
   steps:[
    st(0,HP[0],1,"warp 0 不等 seq_lens：按满长猜出页号，同时发出块 1 和块 2。","<code>页号' = f(满长)</code>（猜）；同时读 <code>seq_lens[b]</code> 与 <code>page_table[b, 页号']</code>","满长 = 页表数组宽度 = 最长历史 80,000 + 本次查询 token 数（二手记录写 80,008；decode 1 请求的确切宽度 UNKNOWN）；seq_lens int32 [B] 取 1 个 = 4 B；page_table 取 1 项 = 4 B；都在 HBM","n 与 phys'：各 int32，4 B，写进寄存器","n → 第 2 步校验；phys' → 第 3 步","2 条读指令连发；只付 1 次长记分牌等待"),
    st(3.1,REG[0],2,"块 1 与块 2 回到寄存器，warp 0 校验猜测。","<code>页号' == f(n) ?</code>","n、phys'：int32，在寄存器","校验结果：1 个谓词；猜对则 phys' 直接可用","phys' → 第 3 步","1 次比较；猜错才重读，实测猜错的代价为 0.000 [−0.016, +0.016] µs"),
-   st(3.4,HP[2],3,"warp 0 用 phys' 发 cp.async，块 3 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","<code>k_cache</code>、<code>v_cache</code> FP8 E4M3 [pages, 1, 2, 64]，取 1 页：K 128 B + V 128 B = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → Q·K^T 与 P·V（见图 7-5、图 7-6）","1 条 cp.async；约 1,150 ns 才有第一块 KV 到位"),
+   st(3.4,HP[2],3,"warp 0 用 phys' 发 cp.async，块 3 出发。","<code>smem_kv ← k_cache, v_cache [phys']</code>","<code>k_cache</code>、<code>v_cache</code> FP8 E4M3 [pages, 1, 2, 64]，取 1 页：K 128 B + V 128 B = 256 B，在 HBM","KV 页：256 B，写进 SMEM","KV 页 → Q·K^T 与 P·V（见图 7-7、图 7-9）","1 条 cp.async；约 1,150 ns 才有第一块 KV 到位"),
    st(6.6,DST[0],3,"块 3 已进 SMEM。","（无计算）","KV 页：256 B，在 SMEM","KV 页：256 B，在 SMEM","KV 页 → 主循环","总代价：长记分牌等待由 3 次降为 2 次；解码 1 请求全长算例实测省 0.26 µs")]}; };
 const M3=()=>{ // cross-round pipelining of page-table reads
   const B0=16, bl=[], bars=[], lights=[], steps=[];

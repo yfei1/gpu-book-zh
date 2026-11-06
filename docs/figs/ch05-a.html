@@ -240,7 +240,7 @@ function card(r,kind){ const v9=M[mode].loop==="v9", j=r.w, nx=(d)=>{ const q=R.
   else if(v9&&r.oi===3){ fm="w_hi = w"+j+" & 0xffff0000"; i=[win]; o=["w_hi|FP32 4 B/线程|寄存器"]; nxt="w_hi → 第 "+nx(2)+" 条（acc"+(2*j+1)+" += w_hi · x_hi）"; }
   else if(v9){ const hi=r.oi===5, a=2*j+(hi?1:0), s=hi?"hi":"lo", ix=hi?pr(3):pr(4), iw=hi?pr(2):pr(3); fm="acc"+a+" += w_"+s+" · x_"+s; i=["w_"+s+"|FP32 4 B/线程|寄存器（第 "+iw+" 条写出）","x_"+s+"|FP32 4 B/线程|寄存器（第 "+ix+" 条写出）","acc"+a+"|FP32 4 B/线程|寄存器"]; o=["acc"+a+"|FP32 4 B/线程|寄存器"]; nxt="acc"+a+" 等下一个 uint4 的同一路乘加（展开后无循环）；整行扫完后 5 层 shuffle 求 y[r] = Σ partial"; }
   else if(r.oi===0){ fm="s = x · log2e − m"; i=["x"+j+"|FP32 4 B/线程（一个分数 q·k）|寄存器","m|FP32 4 B/线程（行最大值）|寄存器"]; o=["s|FP32 4 B/线程|寄存器"]; nxt="s → 第 "+nx(1)+" 条 exp2f"; }
-  else if(r.oi===1){ fm="p = exp2f(s)"; i=["s|FP32 4 B/线程|寄存器（第 "+pr(1)+" 条写出）"]; o=["p|FP32 4 B/线程|寄存器（约 "+LAT_SFU+" 周期后写回）"]; nxt="p → 第 "+nx(1)+" 条累加 ℓ；p 也是 P·V 的 A 输入（RS 模式，图 5-2）"; }
+  else if(r.oi===1){ fm="p = exp2f(s)"; i=["s|FP32 4 B/线程|寄存器（第 "+pr(1)+" 条写出）"]; o=["p|FP32 4 B/线程|寄存器（约 "+LAT_SFU+" 周期后写回）"]; nxt="p → 第 "+nx(1)+" 条累加 ℓ；p 也是 P·V 的 A 输入（RS 模式，图 5-4）"; }
   else { fm="ℓ += p"; i=["p|FP32 4 B/线程|寄存器（第 "+pr(1)+" 条写出）","ℓ|FP32 4 B/线程（行和）|寄存器"]; o=["ℓ|FP32 4 B/线程|寄存器"]; nxt="ℓ 留到整行扫完，用来归一化 P·V 的结果"; }
   if(kind==="stall") return {h:G+"第 "+r.n+" 条（"+r.nm+"）等 "+r.p+" 管线空出",fm:fm,i:i,o:["（尚未执行，无输出）"],nx:"管线空出后，第 "+r.iss+" 周期发出本条",cost:"空转 "+r.stall+" 周期（回压），这些周期什么也没发出去"};
   if(kind==="wb") return {h:G+"第 "+r.n+" 条 exp2f 结果写回",fm:fm,i:i,o:["p|FP32 4 B/线程|寄存器（此刻可读）"],nx:nxt,cost:"结果延迟约 "+LAT_SFU+" 周期，比 8 周期的占用时间还长"};

@@ -59,7 +59,7 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-5 Prefill 路由专家 gemm1 的四步改造</title><style>
+})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-6 Prefill 路由专家 gemm1 的四步改造</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -212,7 +212,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
 .iso-plate-corner[data-corner="readout"]{max-width:100%;text-wrap:balance}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 8-5</span><span class="iso-plate-corner" data-corner="title">Prefill 路由专家 gemm1 的四步改造</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f5"><svg class="flat" viewBox="0 0 640 124" role="img" aria-label="算法：一个专家的分块、每有效对的 MMA 行数、gemm1 网格">
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 8-6</span><span class="iso-plate-corner" data-corner="title">Prefill 路由专家 gemm1 的四步改造</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f5"><svg class="flat" viewBox="0 0 640 124" role="img" aria-label="算法：一个专家的分块、每有效对的 MMA 行数、gemm1 网格">
 <text class="lab2" x="18" y="14">算法：专家 e 的一个分块 = 128 行 × K 步（只画前 8 步，颜色编号同下面所有位置）</text>
 <rect class="ac" data-ac="0" x="18" y="30" width="28" height="54"/><text class="an" x="32" y="45">1</text><rect class="ac" data-ac="1" x="46" y="30" width="28" height="54"/><text class="an" x="60" y="45">2</text><rect class="ac" data-ac="2" x="74" y="30" width="28" height="54"/><text class="an" x="88" y="45">3</text><rect class="ac" data-ac="3" x="102" y="30" width="28" height="54"/><text class="an" x="116" y="45">4</text><rect class="ac" data-ac="4" x="130" y="30" width="28" height="54"/><text class="an" x="144" y="45">5</text><rect class="ac" data-ac="5" x="158" y="30" width="28" height="54"/><text class="an" x="172" y="45">6</text><rect class="ac" data-ac="6" x="186" y="30" width="28" height="54"/><text class="an" x="200" y="45">7</text><rect class="ac" data-ac="7" x="214" y="30" width="28" height="54"/><text class="an" x="228" y="45">8</text>
 <text class="tn" x="18" y="100">每步 = x 行块（按 sorted 取）+ W 码块</text>

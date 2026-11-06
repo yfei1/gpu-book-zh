@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 0-2 单层各阶段在 roofline 上的位置</title><style>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 0-3 单层各阶段在 roofline 上的位置</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -147,7 +147,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .card .cr dt{margin:0;font-weight:700;color:var(--anatomy-text)}
 .card .cr dd{margin:0;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .card .cr dd.cost{font-family:inherit;font-size:12px}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 0-2</span><span class="iso-plate-corner" data-corner="title">单层各阶段在 roofline 上的位置</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f0"><svg class="flat" viewBox="0 0 640 124" role="img" aria-label="算法：同一批 token 的向量依次流过七个阶段，每个阶段是 roofline 上的一个点">
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 0-3</span><span class="iso-plate-corner" data-corner="title">单层各阶段在 roofline 上的位置</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f0"><svg class="flat" viewBox="0 0 640 124" role="img" aria-label="算法：同一批 token 的向量依次流过七个阶段，每个阶段是 roofline 上的一个点">
 <text class="lab2" x="18" y="14">算法：这一批 token 的向量依次流过七个阶段；每个阶段在下面的图上是一个点</text>
 <path class="rs" d="M12 40H640"/><g id="stripBoxes"></g><g id="blk"></g></svg><svg class="flat" viewBox="0 0 640 262" role="img" aria-label="roofline：横轴是算术强度，纵轴是可达算力">
 <text class="lab2" x="62" y="12">roofline：横轴每读 1 字节做多少 FLOP，纵轴最多能算多少 TFLOP/s（两轴都是对数）</text>
@@ -199,9 +199,9 @@ function stageCard(k){ const T=TV(), md=mode, sl=T<=8; const x=A("x","BF16",T+",
   switch(k){
   case 0: return {f:"qkv = x · Wqkvᵀ", i:[x, A("Wqkv","BF16","2304, 8192",37748736,"HBM")], o:[A("qkv","BF16",T+", 2304",T*4608,"写入 HBM")+"  (= q 1024 | k 128 | v 128 | gate 1024 列)"], n:"q、k、v、gate → ② attention"};
   case 1: { const kv = md===1 ? "KV cache  FP8 E4M3 [2048 token, 2 头, K+V, 64] = 0.52 MB · HBM（滑窗层；每 token 256 B）" : md===2 ? "KV cache  FP8 E4M3 · HBM · 每个请求读自己的：ctx × 256 B（滑窗 2048 token = 0.52 MB；全注意力约 80K token = 20.5 MB）" : "KV cache：本图不算 attention 的字节";
-    return {f:"out = rmsnorm( softmax(q·Kᵀ / 8) · V ) ⊙ σ(gate)", i:[A("q","BF16",T+", 16, 64",T*2048,"HBM")+"；gate 同形同大小", kv], o:[A("out","BF16",T+", 1024",T*2048,"写入 HBM"), "另把新 k、v 量化为 FP8 [" + T + ", 2, 64] 各 " + by(T*128) + " 写进 KV cache"], n:"out → ③ o 的输入"}; }
+    return {f:"out = rmsnorm( softmax(q·Kᵀ · 5.473 / 8) · V ) ⊙ σ(gate)   (q 已做 RMSNorm，5.473 在 softmax 的缩放里)", i:[A("q","BF16",T+", 16, 64",T*2048,"HBM")+"；gate 同形同大小", kv], o:[A("out","BF16",T+", 1024",T*2048,"写入 HBM"), "另把新 k、v 夹到 ±448 后转为 FP8 [" + T + ", 2, 64] 各 " + by(T*128) + " 写进 KV cache"], n:"out → ③ o 的输入"}; }
   case 2: return {f:"a = out · Woᵀ", i:[A("out","BF16",T+", 1024",T*2048,"HBM"), A("Wo","BF16","8192, 1024",16777216,"HBM")], o:[A("a","BF16",T+", 8192",T*16384,"写入 HBM")], n:"a → 残差 + RMSNorm（不在这 7 阶段里）→ h  BF16 ["+T+", 8192]；④ router 与 ⑤ pooler 都读 h"};
-  case 3: return {f:"s = σ(0.1768 · h·Rᵀ) ;  ids = top8(s + bias)", i:[A("h","BF16",T+", 8192",T*16384,"HBM"), A("R","FP32","256, 8192",8388608,"HBM")], o:[A("s","FP32",T+", 256",T*1024,"写入 HBM"), A("ids","int32",T+", 8",T*32,"")+"；权重 FP32 ["+T+", 8] = "+by(T*32)], n:"ids、权重 → ⑥ MoE 专家（选哪 8 个专家、怎样加权）"};
+  case 3: return {f:"logits = h·Rᵀ（GEMM 只写原始分数）;  路由核：s = σ(0.1768 · logits) ;  ids = top8(s + bias)", i:[sl?A("h 的 FP32 副本","FP32",T+", 8192",T*32768,"HBM"):A("h","BF16",T+", 8192",T*16384,"HBM")+"  (T > 8：R 拆成 BF16 高、低两半，两次 BF16 GEMM 累加成 FP32)", A("R","FP32","256, 8192",8388608,"HBM")], o:[A("logits","FP32",T+", 256",T*1024,"写入 HBM")+"  (原始分数，σ 在路由核里)", A("ids","int32",T+", 8",T*32,"")+"；权重 FP32 ["+T+", 8] = "+by(T*32)], n:"ids、权重 → ⑥ MoE 专家（选哪 8 个专家、怎样加权）"};
   case 4: return {f:"x₂ = h · Wpoolerᵀ   (之后 RMSNorm · (1 + w))", i:[A("h","BF16",T+", 8192",T*16384,"HBM"), A("Wpooler","BF16","4096, 8192",67108864,"HBM")], o:[A("x₂","BF16",T+", 4096",T*8192,"写入 HBM")], n:"x₂ → ⑥ MoE 专家的 hidden_states"};
   case 5: { const mb = md===1?"本批读 53 MB ≈ 1.87 个专家":md===2?"本批读 522.7 MB ≈ 18.5 个专家":"本批读 906 MB = 本 GPU 全部 32 个专家";
     return {f:"h13 = x₂·W13ᵀ ;  inter = silu(h13[:, :4096]) ⊙ h13[:, 4096:] ;  y = inter·W2ᵀ ;  m = Σ wₑ · norm(yₑ)", i:[A("x₂","BF16",T+", 4096",T*8192,"HBM"), "W13  uint8 [E, 8192, 2048] (E2M1 ×2) + 缩放 FP8 [E, 8192, 256] · HBM；E = 32（本 GPU 的专家）", "W2  uint8 [E, 4096, 2048] + 缩放 FP8 [E, 4096, 256] · HBM；每个专家 28.3 MB；"+mb], o:[A("m","BF16",T+", 4096",T*8192,"写入 HBM"), "中间量 h13、inter 放在哪一级存储：本图不算"], n:"m → ⑦ unpooler"}; }

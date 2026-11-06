@@ -167,9 +167,9 @@ function cardSet(title,c,cost){ document.getElementById("stepT").textContent=tit
 const splitCost=(s)=>{ const i=s.indexOf("代价："); return i<0?[s,""]:[s.slice(0,i).replace(/[。；;s]*总?$/,""),s.slice(i+3)]; };
 const SI=[
  {f:"qkv = x · Wqkvᵀ", i:["x  BF16 [1, 8192] = 16.4 KB · HBM","Wqkv  BF16 [2304, 8192] = 37.7 MB · HBM"], o:["qkv  BF16 [1, 2304] = 4.6 KB · 写入 HBM"], n:"qkv → attention"},
- {f:"out = rmsnorm( softmax(q·Kᵀ / 8) · V ) ⊙ σ(gate)", i:["qkv  BF16 [1, 2304] · HBM","KV cache  FP8 E4M3 [2048, 2, 2, 64] = 0.52 MB · HBM（滑窗层）"], o:["out  BF16 [1, 1024] = 2.0 KB · 写入 HBM；新 k、v 写进 KV cache"], n:"out → o"},
+ {f:"out = rmsnorm( softmax(q·Kᵀ · 5.473 / 8) · V ) ⊙ σ(gate)", i:["qkv  BF16 [1, 2304] · HBM","KV cache  FP8 E4M3 [2048, 2, 2, 64] = 0.52 MB · HBM（滑窗层）"], o:["out  BF16 [1, 1024] = 2.0 KB · 写入 HBM；新 k、v 夹到 ±448 后转 FP8 写进 KV cache"], n:"out → o"},
  {f:"a = out · Woᵀ", i:["out  BF16 [1, 1024] = 2.0 KB · HBM","Wo  BF16 [8192, 1024] = 16.8 MB · HBM"], o:["a  BF16 [1, 8192] = 16.4 KB · 写入 HBM"], n:"a → 残差 + RMSNorm → h → router、pooler"},
- {f:"s = σ(0.1768 · h·Rᵀ) ;  ids = top8(s + bias)", i:["h  BF16 [1, 8192] = 16.4 KB · HBM","R  FP32 [256, 8192] = 8.4 MB · HBM"], o:["s  FP32 [1, 256] = 1.0 KB；ids  int32 [1, 8] = 32 B · 写入 HBM"], n:"ids → 专家"},
+ {f:"logits = h·Rᵀ（GEMM 只写原始分数） ;  路由核：s = σ(0.1768 · logits) ;  ids = top8(s + bias)", i:["h 的 FP32 副本  FP32 [1, 8192] = 32.8 KB · HBM（T ≤ 8）","R  FP32 [256, 8192] = 8.4 MB · HBM"], o:["logits  FP32 [1, 256] = 1.0 KB（原始分数，σ 在路由核里）；ids  int32 [1, 8] = 32 B · 写入 HBM"], n:"ids → 专家"},
  {f:"x₂ = h · Wpoolerᵀ   (之后 RMSNorm · (1 + w))", i:["h  BF16 [1, 8192] = 16.4 KB · HBM","Wpooler  BF16 [4096, 8192] = 67.1 MB · HBM"], o:["x₂  BF16 [1, 4096] = 8.2 KB · 写入 HBM"], n:"x₂ → 专家"},
  {f:"h13 = x₂·W13ᵀ ; inter = silu(gate) ⊙ up ; y = inter·W2ᵀ ; m = Σ wₑ · norm(yₑ)", i:["x₂  BF16 [1, 4096] = 8.2 KB · HBM","W13、W2  NVFP4（uint8 E2M1 ×2 + 缩放 FP8），每个专家 28.3 MB；本层约 53 MB ≈ 1.87 个专家 · HBM"], o:["m  BF16 [1, 4096] = 8.2 KB · 写入 HBM"], n:"m → unpooler"},
  {f:"f = m · Wunpoolerᵀ", i:["m  BF16 [1, 4096] = 8.2 KB · HBM","Wunpooler  BF16 [1024, 4096]（T ≤ 8 只读前 1024 行）= 8.4 MB · HBM"], o:["f  BF16 [1, 1024] = 2.0 KB（其余 7168 列为 0）· 写入 HBM"], n:"f → 残差 + RMSNorm → 下一层的 x"}];

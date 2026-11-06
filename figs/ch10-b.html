@@ -1,65 +1,4 @@
-<!doctype html><html lang="en"><head><script>(()=>{
-// Shared figure controls: playback speed, click-to-seek on the timeline, click a box to jump to its step, step buttons.
-const R=window.requestAnimationFrame.bind(window);
-let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
-const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
-window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
-const SPEEDS=[0.1,0.25,0.5,1];
-const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
-  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
-addEventListener("DOMContentLoaded",()=>{
-  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
-  if(!play||!tIn) return;
-  const st=document.createElement("style");
-  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
-  document.head.appendChild(st);
-  const box=document.createElement("span"); box.className="spd";
-  box.innerHTML='<button type="button" data-k="-1" title="上一步">◀ 上一步</button><button type="button" data-k="1" title="下一步">下一步 ▶</button><span class="sep"></span>速度 '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
-  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
-  const isPlaying=()=>play.textContent.trim()==="暂停";
-  const pause=()=>{ if(isPlaying()) play.click(); };
-  const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
-  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
-  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
-  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
-  let map=null, mapKey="";
-  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
-  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
-  const stripBoxes=()=>{ const out=[]; document.querySelectorAll("#algO *, .ao, .sb.on, text.st.on").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width&&r.height) out.push([r.left,r.top,r.right,r.bottom]); }); return out; };
-  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
-    const probe=t=>{ setT(t); return stepOf(); };
-    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
-      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
-        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers(),a:stripBoxes()}); } prevK=k; }
-      prevT=t; }
-    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
-    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
-  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
-  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi();
-    for(const f of [0.3,0.5,0.7,0.9,1]){ setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*f))); if(stepOf()===k) return; } setT(Math.min(hi(), t0+(t1-t0)*0.3)); };
-  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
-    if(b.dataset.s) return setSpeed(+b.dataset.s);
-    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
-    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
-  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
-  const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
-  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
-    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
-  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const X=e.clientX, Y=e.clientY;
-    let cand=[...new Set(m.filter(([k,v])=>(v.a||[]).some(b=>X>=b[0]&&X<=b[2]&&Y>=b[1]&&Y<=b[3])).map(x=>x[0]))];
-    if(!cand.length){ let bd=Infinity; const near=[];
-      m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-X,y-Y); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
-      cand=[...new Set(near)]; }
-    cand.sort((a,b)=>a-b); if(!cand.length) return false;
-    const k0=stepOf(), i0=cand.indexOf(k0); const k= i0<0 ? cand[0] : cand[(i0+1)%cand.length]; goStep(k); return true; };
-  const tl=cur?cur.ownerSVGElement:null;
-  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
-    svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
-      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
-      pause(); jumpToBox(e); }); });
-  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
-});
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 9-2 微扰删除实验</title><style>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 10-2 微扰删除实验</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -212,7 +151,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate{padding-bottom:58px}
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 9-2</span><span class="iso-plate-corner" data-corner="title">微扰删除实验：区分真瓶颈与被掩盖的支路</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 100" role="img" aria-label="算法：主轨道和待测支路">
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 10-2</span><span class="iso-plate-corner" data-corner="title">微扰删除实验：区分真瓶颈与被掩盖的支路</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 100" role="img" aria-label="算法：主轨道和待测支路">
 <text class="lab2" x="8" y="14" id="algT"></text>
 <defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
 <g id="algM1"><rect x="8" y="26" width="118" height="54" rx="5" fill="#3e63dd" opacity="0.13" stroke="#3e63dd" stroke-width="1"/><circle cx="21" cy="39" r="8" fill="#3e63dd"/><text class="bn" x="21" y="42.4">1</text><text class="txs" x="34" y="43">主轨道</text><text class="tx" x="16" y="60">w13 分块 → SMEM</text><text class="tx" style="font-size:9.5px" x="16" y="74">TMA，uint8 E2M1×2</text><path d="M127 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="140" y="26" width="118" height="54" rx="5" fill="#d9791f" opacity="0.13" stroke="#d9791f" stroke-width="1"/><circle cx="153" cy="39" r="8" fill="#d9791f"/><text class="bn" x="153" y="42.4">2</text><text class="txs" x="166" y="43">主轨道</text><text class="tx" x="148" y="60">h += x · W13ᵀ</text><text class="tx" style="font-size:9.5px" x="148" y="74">Tensor Core · FP32</text><path d="M259 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="272" y="26" width="118" height="54" rx="5" fill="#1a9a7a" opacity="0.13" stroke="#1a9a7a" stroke-width="1" stroke-dasharray="4 3"/><circle cx="285" cy="39" r="8" fill="#1a9a7a"/><text class="bn" x="285" y="42.4">3</text><text class="txs" x="298" y="43">支路</text><text class="tx" x="280" y="60">inter = silu(g) ⊙ u</text><text class="tx" style="font-size:9.5px" x="280" y="74">尾声：MUFU.TANH</text><path d="M391 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="404" y="26" width="118" height="54" rx="5" fill="#999" opacity="0.08" stroke="#999" stroke-width="1"/><text class="txs" x="430" y="43">主轨道</text><text class="tx" x="412" y="60">y = inter · W2ᵀ</text><text class="tx" style="font-size:9.5px" x="412" y="74">第二次矩阵乘（后续）</text></g><g id="algM2"><rect x="8" y="26" width="118" height="54" rx="5" fill="#3e63dd" opacity="0.13" stroke="#3e63dd" stroke-width="1"/><circle cx="21" cy="39" r="8" fill="#3e63dd"/><text class="bn" x="21" y="42.4">1</text><text class="txs" x="34" y="43">主轨道</text><text class="tx" x="16" y="60">x、W 的 k 段 → SMEM</text><text class="tx" style="font-size:9.5px" x="16" y="74">TMA，BF16</text><path d="M127 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="140" y="26" width="118" height="54" rx="5" fill="#d9791f" opacity="0.13" stroke="#d9791f" stroke-width="1"/><circle cx="153" cy="39" r="8" fill="#d9791f"/><text class="bn" x="153" y="42.4">2</text><text class="txs" x="166" y="43">主轨道</text><text class="tx" x="148" y="60">partial = x_s · W_sᵀ</text><text class="tx" style="font-size:9.5px" x="148" y="74">wgmma · 每个 CTA 一段 k</text><path d="M259 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="272" y="26" width="118" height="54" rx="5" fill="#1a9a7a" opacity="0.13" stroke="#1a9a7a" stroke-width="1" stroke-dasharray="4 3"/><circle cx="285" cy="39" r="8" fill="#1a9a7a"/><text class="bn" x="285" y="42.4">3</text><text class="txs" x="298" y="43">支路</text><text class="tx" x="280" y="60">out = Σ partial</text><text class="tx" style="font-size:9.5px" x="280" y="74">尾步 · 跨 CTA 归约</text><path d="M391 53h12" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/><rect x="404" y="26" width="118" height="54" rx="5" fill="#999" opacity="0.08" stroke="#999" stroke-width="1"/><text class="txs" x="430" y="43">主轨道</text><text class="tx" x="412" y="60">out BF16 [256, 4096]</text><text class="tx" style="font-size:9.5px" x="412" y="74">写回 HBM</text></g>
@@ -260,4 +199,4 @@ document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("cha
 const q=new URLSearchParams(location.search); const m0=+(q.get("m")||1);
 document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
 t = q.has("t") ? +q.get("t") : (still ? STILL_T : 0); show(); if(playing) start(); else play.textContent="播放";
-</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
+</script></body></html>

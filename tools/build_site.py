@@ -10,7 +10,7 @@ SRC_BOOK = Path("/Users/yufanfei/GolandProjects/open-kernel-challenge-triad/audi
 SRC_FIGS = SRC_BOOK / "figs"
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
-ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "appA", "appB"]
+ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB"]
 FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*[A-Z\d.]+-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
 PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
@@ -21,12 +21,13 @@ main{max-width:760px;margin:40px auto 120px;padding:0 24px}
 h1{font-size:26px;line-height:1.4;margin:36px 0 12px}
 h2{font-size:20px;line-height:1.5;margin:34px 0 10px}
 code{font:13.5px ui-monospace,Menlo,monospace;background:#e8e8e4;padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+td code,th code{overflow-wrap:normal}
 h1 code,h2 code,h3 code{font-size:.85em;padding:0 3px}
 pre{background:#fbfbfa;border:1px solid #ddd;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 pre code{background:none;padding:0;font-size:inherit}
 blockquote{margin:14px 0;padding:8px 16px;border-left:3px solid #8a8a8f;background:#fbfbfa}
-table{display:block;overflow-x:auto;border-collapse:collapse;font-size:14px;margin:14px 0}
-td,th{border:1px solid #ccc;padding:5px 8px}
+table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;border-collapse:collapse;font-size:13px;margin:14px -40px}
+td,th{border:1px solid #ccc;padding:5px 8px;vertical-align:top;line-height:1.6}
 hr{border:none;border-top:1px solid #ddd;margin:30px 0}
 ul,ol{padding-left:1.5em}
 li{margin:4px 0}
@@ -39,8 +40,8 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 .map .here{color:#2a2a2e;font-weight:600}
 .fig{margin:22px -40px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .fig iframe{display:block;width:100%;height:900px;border:0}
-@media(max-width:860px){.fig{margin:22px 0}main{padding:0 14px}}
-@media(max-width:600px){.fig iframe{min-width:640px}pre{font-size:11.5px}}
+@media(max-width:860px){.fig,table{margin:22px 0}main{padding:0 14px}}
+@media(max-width:600px){.fig iframe{min-width:640px}pre{font-size:11.5px}table{font-size:12.5px}td,th{min-width:8em}}
 """
 TMPL = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GPU 是怎么工作的，以及怎么优化 GPU 性能</title><style>{css}</style>

@@ -259,7 +259,7 @@ function render(){
 const FR=(x,y,n,r,inside)=>'<circle class="fr" cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'"/>'+(n?'<text class="fn" x="'+x.toFixed(1)+'" y="'+(inside?y+4:y-r-3).toFixed(1)+'">'+n+'</text>':"");
 function setRing(a,b,num,w){ if(b<=a){ $("focus").innerHTML=""; $("stripF").innerHTML=""; return; } let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(let s=a;s<b;s++){ const c=TC[s]; x0=Math.min(x0,c[0]); x1=Math.max(x1,c[0]); y0=Math.min(y0,c[1]); y1=Math.max(y1,c[1]); }
   x0-=9; y0-=9; x1+=9; y1+=9;
-  $("focus").innerHTML='<rect class="rr" x="'+x0.toFixed(1)+'" y="'+y0.toFixed(1)+'" width="'+(x1-x0).toFixed(1)+'" height="'+(y1-y0).toFixed(1)+'" rx="8"/>'+FR((x0+x1)/2,(y0+y1)/2,num,8,false);
+  $("focus").innerHTML='<rect class="rr" x="'+x0.toFixed(1)+'" y="'+y0.toFixed(1)+'" width="'+(x1-x0).toFixed(1)+'" height="'+(y1-y0).toFixed(1)+'" rx="8"/>'+FR(x0,y0,num,9,true);
   const segW=(SX1-SX0)/m.n, sa=w*SMS, sb=Math.min(m.n,(w+1)*SMS);
   $("stripF").innerHTML=FR(SX0+(sa+sb)/2*segW,SY+8,num,9,true); }
 function show(){

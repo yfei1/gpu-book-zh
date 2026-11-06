@@ -59,7 +59,7 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 2-5 PDL 提前进场：后继 kernel 的 CTA 按 blockIdx.x 顺序填进空出来的 SM</title><style>
+})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 2-3 PDL 提前进场：后继 kernel 的 CTA 按 blockIdx.x 顺序填进空出来的 SM</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -204,7 +204,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
 .iso-plate-corner[data-corner="readout"]{max-width:100%;text-wrap:balance}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 2-5</span><span class="iso-plate-corner" data-corner="title">PDL 提前进场：后继 kernel 的 CTA 按 blockIdx.x 顺序填进空出来的 SM</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f5"><svg class="flat" viewBox="0 0 640 128" role="img" aria-label="算法：A 阶段先做完，B 阶段的 132 个块按编号分到 SM">
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 2-3</span><span class="iso-plate-corner" data-corner="title">PDL 提前进场：后继 kernel 的 CTA 按 blockIdx.x 顺序填进空出来的 SM</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f5"><svg class="flat" viewBox="0 0 640 128" role="img" aria-label="算法：A 阶段先做完，B 阶段的 132 个块按编号分到 SM">
 <text class="lab2" x="40" y="14">算法：先做完所有 A（h = x·W13ᵀ，inter = silu(h_gate) ⊙ h_up），再由 132 个 B 块做 y = inter·W2ᵀ</text>
 <rect class="bx" x="40" y="24" width="150" height="34" rx="4"/><text class="tn" x="115" y="38" text-anchor="middle">A 阶段</text><text class="tn" x="115" y="51" text-anchor="middle">h、inter</text>
 <path class="ar" d="M190 41H230"/><path class="ah" d="M230 41l-6 -3v6z"/>

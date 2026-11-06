@@ -59,7 +59,7 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 5-x T = 1…256 时 CUDA core 与 Tensor Core 的实测耗时</title><style>
+})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 5-2 T = 1…256 时 CUDA core 与 Tensor Core 的实测耗时</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -219,7 +219,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .fg .ut{font-size:10px;fill:var(--anatomy-strong);paint-order:stroke;stroke:var(--anatomy-card);stroke-width:2.5px}
 .lg .kf{background:repeating-linear-gradient(45deg,var(--anatomy-faint) 0 1px,transparent 1px 4px)}.lg .kg{background:var(--anatomy-green);opacity:.6}.lg .ke{background:var(--anatomy-red);opacity:.45}
 .lg .ka{background:#c2410c}.lg .kbb{background:var(--anatomy-blue)}.lg .kww{background:#3f3f46;width:11px;height:11px;border-radius:2px}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 5-x</span><span class="iso-plate-corner" data-corner="title">T = 1…256 时 CUDA core 与 Tensor Core 的实测耗时</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 332" role="img" aria-label="T = 1 到 256 时两种做法的实测耗时，以及 x 与 W 的分块">
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 5-2</span><span class="iso-plate-corner" data-corner="title">T = 1…256 时 CUDA core 与 Tensor Core 的实测耗时</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 332" role="img" aria-label="T = 1 到 256 时两种做法的实测耗时，以及 x 与 W 的分块">
 <text class="lab2" x="14" y="12">算法：y_t = W · x_t，t = 1…T。W 是 [2304, 8192] BF16（37,748,736 B），读一次，T 个词元共用。</text><text class="lab2" x="14" y="26">FLOP = 2·T·2304·8192 = T × 37,748,736。</text>
 
 <rect class="xb" x="200.0" y="46" width="65.0" height="180"/>
