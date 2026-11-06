@@ -156,13 +156,13 @@ const REGC=[345,96.9], ALUC=[234,93.8], FMAC=[308.2,121.5], HBMIN=[202.9,56];
 const HUE=(j)=>(212+j*47)%360; const L0=100,L1=540,TY0=26,SX=100;
 const MODE0=2; let mode=2, t=0, end=1, EV=[];
 const VER=[ // name, us, GB/s, %floor, KiB in flight per SM, lever, chips label
- ["v0",675.71,56,1.2,0.2,"-"],["v1",58.88,642,13.4,4.0,"a"],["v3",48.26,783,16.3,4.0,"c"],["v4",43.94,860,17.9,4.0,"a"],["v5",17.76,2127,44.3,32.0,"a"],["v6",21.86,1728,36.0,8.7,"c"],
+ ["v0",675.71,56,1.2,0.2,"-"],["v1",58.88,642,13.4,4.0,"a"],["v3",48.26,783,16.3,4.0,"c"],["v4",43.94,860,17.9,4.0,"假象"],["v5",17.76,2127,44.3,32.0,"a"],["v6",21.86,1728,36.0,8.7,"c"],
  ["v7",15.68,2409,50.2,69.8,"a"],["v8",15.62,2419,50.4,61.1,"c"],["v9",15.58,2424,50.5,61.1,"c"],["v10c",20.00,1889,39.3,34.9,"-"],["v10",15.49,1834,50.8,26.2,"b"]];
 const VHUE=(i)=>(212+i*30)%360;
 const M={
  1:{ro:"v9：BF16，16 位 / 权重，主权重 37.7 MB\n实测 15.58 µs · 每 SM 在途 61.1 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
  2:{ro:"v10：C12，12 位 / 权重，主权重 28.3 MB\n实测 15.49 µs · 每 SM 在途 26.2 KiB",tt:"同一个线程的数据路径，时间轴只表示先后",rows:["HBM → 寄存器","ALU","FMA"]},
- 3:{ro:"v0 → v10：675.71 → 15.49 µs（约 44 倍）\n实测，冷 L2 中位数，同一块 H200",tt:"每个版本的实测耗时（µs，对数轴），一次加一个版本"}};
+ 3:{ro:"v0 → v10：675.71 → 15.49 µs（约 44 倍）\n实测，冷 L2 中位数（写 512 MiB 清 L2），同一块 H200 · v4 一步是测法的假象",tt:"每个版本的实测耗时（µs，对数轴），一次加一个版本"}};
 const stillT=()=>mode===3?end*0.85:end*0.55;
 function ev1(){ const E=[];
  E.push({s:"每个线程发 7 条 LDG.128，各读 16 B（8 个 BF16），共 112 B 在途。代价：7 条指令；全 SM 的 W 在途字节为 61.1 KiB（RESIDENCY）",p:HBMIN,part:"ld"});
@@ -185,7 +185,7 @@ const TXT3=[
  "最朴素：每线程算一行，标量读；网格只有 18 个 CTA，所以只有 18 个 SM 有活。代价：675.71 µs，读到 56 GB/s，占 4.8 TB/s 的 1.2%",
  "一行一个 CTA（128 线程），网格 2304 个 CTA，132 个 SM 都有活。代价：58.88 µs，642 GB/s（13.4%）",
  "尾部 192 行拆成两半，由两个 CTA 合并（第 2 章）。代价：48.26 µs，783 GB/s（16.3%）",
- "L2 缓存提示：W 用 evict_first，x 用 evict_last（第 2 章）。代价：43.94 µs，860 GB/s（17.9%）",
+ "L2 缓存提示：W 用 evict_first，x 用 evict_last（第 2 章）。冷缓存测法的假象：干净清空后不再变快（H200 实测：读 512 MiB 清 L2，v3 42.88 µs，v4 43.49 µs；NCU 下 41.25 / 42.59 µs）。代价：43.94 µs，860 GB/s（17.9%）；这 1.10 倍来自写 512 MiB 清 L2 留下的脏行（推断：W 的 evict_first 避免脏行写回挤占读带宽），不是 L2 命中率，也不是在途字节",
  "合并的 16 B 读（第 3 章）：每条 warp 指令读 16 个扇区。代价：17.76 µs，2127 GB/s（44.3%）",
  "32 线程一行，一轮跑完，没有尾部；但每 SM 在途字节从 32 KiB 降到 8.7 KiB。代价：21.86 µs，1728 GB/s（36.0%），比 v5 慢",
  "每条通道先发 8 条独立的 16 B 读（第 4 章）。代价：15.68 µs，2409 GB/s（50.2%）；每 SM 在途 69.8 KiB",
@@ -214,7 +214,7 @@ const CARDS=[[
  {f:"<code>y[r] = Σₖ W[r,k]·x[k]</code>；1 线程 1 行，标量读", i:WT+"：每次读 1 个 BF16（2 B）；"+XT+" · HBM / L2<br>网格 18 CTA × 128 线程 = 2304 线程 = 2304 行", o:YF, h:"→ v1：一行交给一个 CTA（128 线程）"},
  {f:"<code>part[t] = Σ_{k∈线程 t} W[r,k]·x[k]</code>；<code>y[r] = Σₜ part[t]</code>，t < 128", i:"<code>W</code> 第 r 行 · HBM，由 128 线程分担；<code>part</code> FP32 × 128 = 512 B · SMEM", o:"<code>y[r]</code>：tid 0 串行加完写出 · HBM", h:"→ v3：尾部 192 行拆成两半"},
  {f:"<code>y[r] = y_lo + y_hi</code>；<code>y_lo = Σ_{k<4096}</code>，<code>y_hi = Σ_{k≥4096}</code>", i:"尾部 192 行 → 384 个半 K CTA，每个读 4096 个 BF16 = 8 KiB / 行 · HBM", o:"两个半和 FP32 · L2；最后到的 CTA（acq_rel 原子）相加后写 <code>y[r]</code>", h:"→ v4：给 W 和 x 加 L2 缓存提示"},
- {f:"公式不变：<code>y[r] = Σₖ W[r,k]·x[k]</code>", i:"<code>W</code> 37.7 MB：evict_first（只流过一次）；<code>x</code> 16 KiB：evict_last（所有 CTA 都读）· L2", o:"<code>y</code> 不变；x 留在 L2，不被 W 挤走", h:"→ v5：每条加载读得更宽"},
+ {f:"公式不变：<code>y[r] = Σₖ W[r,k]·x[k]</code>", i:"<code>W</code> 37.7 MB：evict_first（只流过一次）；<code>x</code> 16 KiB：evict_last（所有 CTA 都读）· L2", o:"<code>y</code> 不变；L2 命中率几乎不变（x 本来就全部命中，W 本来就全部不命中）", h:"→ v5：每条加载读得更宽"},
  {f:"<code>w[0…7] ← W[r, 8j…8j+7]</code>（uint4）", i:"<code>W</code> · HBM：每线程 16 B；每条 warp 指令 32 × 16 B = 512 B = 16 个 sector（v4 是 2 个）", o:"每线程 4 个 32 位寄存器 = 8 个 BF16 · 寄存器堆；在途 32 KiB / SM", h:"→ v6：改 CTA 形状，去掉尾部"},
  {f:"一行 = 1 个 warp：每 lane 读 K / 32 = 256 个权重", i:"grid 2304 CTA × 32 线程；每 SM 17.45 个 warp（2304 / 132）· HBM → 寄存器", o:"<code>y[r]</code> FP32 · HBM；在途降到 8.7 KiB / SM", h:"→ v7：每 lane 同时多发几条读"},
  {f:"<code>w[0…7][uint4] ← W</code>：先发 8 条读，再用", i:"<code>W</code> · HBM：每 lane 8 × 16 B = 128 B 在途；83 个寄存器 / 线程", o:"寄存器堆里 8 组 uint4；在途 69.8 KiB / SM", h:"→ v8：换归约方式"},
@@ -230,7 +230,7 @@ function setMode(md){ mode=md; readout.textContent=M[md].ro; $("tTitle").textCon
   let h="", fr="";
   if(md===3){ [10,100,1000].forEach(u=>{ fr+='<path class="gl" d="M'+lx(u)+' '+(LY0-6)+'V'+(LY0+11*LR+2)+'"/><text class="vt" x="'+lx(u)+'" y="'+(LY0+11*LR+14)+'" text-anchor="middle">'+u+' µs</text>'; });
     [[7.86,"7.86 BF16 下界"],[5.92,"5.92 C12 下界"]].forEach(([u,tx],j)=>{ fr+='<path class="fl" d="M'+lx(u)+' '+(LY0-6)+'V'+(LY0+11*LR+2)+'"/><text class="vt" x="'+(j?lx(u)-4:lx(u)+4)+'" y="'+(LY0-9)+'" text-anchor="'+(j?"end":"start")+'" style="fill:var(--anatomy-green)">'+tx+'</text>'; });
-    VER.forEach((v,i)=>{ fr+='<text class="rl" x="'+(LX0-8)+'" y="'+(LY0+i*LR+11)+'">'+v[0]+'</text>'; h+='<rect x="'+LX0+'" y="'+(LY0+i*LR+1)+'" width="'+(lx(v[1])-LX0).toFixed(1)+'" height="12" fill="'+hsl(VHUE(i),55,46)+'"/><text class="vt" x="'+(lx(v[1])+5).toFixed(1)+'" y="'+(LY0+i*LR+11)+'">'+v[1].toFixed(2)+' µs</text>'; });
+    VER.forEach((v,i)=>{ fr+='<text class="rl" x="'+(LX0-8)+'" y="'+(LY0+i*LR+11)+'">'+v[0]+'</text>'; h+='<rect x="'+LX0+'" y="'+(LY0+i*LR+1)+'" width="'+(lx(v[1])-LX0).toFixed(1)+'" height="12" fill="'+hsl(VHUE(i),i===3?20:55,i===3?72:46)+'"'+(i===3?' stroke="var(--anatomy-red)" stroke-dasharray="3 2"':'')+'/><text class="vt" x="'+(lx(v[1])+5).toFixed(1)+'" y="'+(LY0+i*LR+11)+'">'+v[1].toFixed(2)+' µs'+(i===3?'　冷缓存测法的假象：干净清空后不再变快':'')+'</text>'; });
     fr+='<text class="tn" x="'+LX1+'" y="'+(LY0+11*LR+26)+'" text-anchor="end">v2 是 CUDA graph 的启动链，不改 gemv 本身，未列出</text>';
   } else { const rows=M[md].rows; rows.forEach((r,i)=>{ fr+='<text class="rl" x="'+(L0-8)+'" y="'+(TY0+i*24+13)+'">'+r+'</text><rect class="row" x="'+L0+'" y="'+(TY0+i*24)+'" width="'+(L1-L0)+'" height="18"/>'; });
     const TXs=(x)=>L0+(L1-L0)*x/end; const lanes={ld:0,reg:0,alu:1,fma:2};
@@ -256,8 +256,8 @@ function stripA(k_){ /* modes 1-2 */ const st=EV[Math.max(k_,0)]; const stage=mo
   return r; }
 function stripC(k_){ $("algsvg").setAttribute("viewBox","0 0 640 160"); $("aTitle").textContent="算法：同一个 qkv_gate 矩阵向量乘（W 为 2304 × 8192），每个版本只改一件事。方块是版本，下方字母是改动的目的"; let r="";
   VER.forEach((v,i)=>{ const x=10+i*57, on=k_===i, past=k_>i; r+='<rect x="'+x+'" y="40" width="53" height="40" fill="'+(on||past?hsl(VHUE(i),55,on?46:70):"var(--anatomy-face)")+'" stroke="'+(on?"var(--anatomy-red)":"var(--anatomy-faint)")+'" stroke-width="'+(on?2.2:1)+'"/><text class="cc" fill="'+(on||past?"#fff":"var(--anatomy-text)")+'" x="'+(x+26.5)+'" y="58" style="font-size:12px;font-weight:700">'+v[0]+'</text><text class="cc" fill="'+(on||past?"#fff":"var(--anatomy-text)")+'" x="'+(x+26.5)+'" y="73">'+(v[5]==="-"?(i===0?"起点":"对照"):v[5])+'</text>'; });
-  r+='<text class="tn" x="10" y="104">a：更多字节同时在途，更接近 4.8 TB/s    b：少读字节    c：少付固定开销（启动、尾部、串行求和）    起点 / 对照：不是优化步骤</text>';
-  if(k_>=0){ const v=VER[k_]; r+='<text class="lab" x="10" y="128">当前：'+v[0]+'　'+v[1].toFixed(2)+' µs　'+v[2]+' GB/s　每 SM 在途 '+v[4]+' KiB</text>'; }
+  r+='<text class="tn" x="10" y="104">a：更多字节同时在途，更接近 4.8 TB/s    b：少读字节    c：少付固定开销（启动、尾部、串行求和）    起点 / 对照：不是优化步骤</text><text class="tn" x="10" y="118">假象：冷缓存测法造成，干净清空后不再变快</text>';
+  if(k_>=0){ const v=VER[k_]; r+='<text class="lab" x="10" y="140">当前：'+v[0]+'　'+v[1].toFixed(2)+' µs　'+v[2]+' GB/s　每 SM 在途 '+v[4]+' KiB</text>'; }
   return r; }
 function show(){ let k=-1; for(let i=0;i<EV.length;i++) if(EV[i].t<=t+1e-9) k=i;
   let r="", dots="", lk="";

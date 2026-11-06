@@ -145,7 +145,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .lg .k4{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}.lg .k5{background:color-mix(in srgb,var(--anatomy-red) 22%,transparent)}
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
 .iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
-.iso-plate{padding-bottom:58px}
+.iso-plate{padding-bottom:78px}
 </style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 4-2</span><span class="iso-plate-corner" data-corner="title">scoreboard 与轮流发射：多少个 warp 才能盖住读取延迟</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fb"><svg class="flat" viewBox="0 0 640 152" role="img" aria-label="程序按顺序发射，每个 warp 停在哪一行，scoreboard 的状态">
 <text class="lab2" x="8" y="14" id="progT"></text><text class="lab2" x="486" y="14">scoreboard（登记目的寄存器）</text>
 <g id="prog"></g><g id="sb"></g></svg><svg class="isov" viewBox="0 0 520 300" role="img" aria-label="一个 SM：SMSP 0 的 warp 槽位、LSU、寄存器与共享内存">
@@ -182,7 +182,7 @@ const SB=(w,r)=>w;
 let mode=1, R=null, PR=null, W=1, EV=[], t=0, end=CYC;
 function setMode(md){ mode=md; const m=MODES[md-1]; W=m.W; PR=PROGS[m.prog]; R=sim(PR,W,CYC,LAT);
   const pct=Math.round(100*R.busy/CYC);
-  readout.textContent=m.name+"\n发射槽忙 "+pct+"% · no eligible "+R.none+" 个周期 · 前 "+CYC+" 个周期内读取返回 "+R.ret+" 次";
+  readout.textContent=m.name+"\n发射槽忙 "+pct+"% · no eligible "+R.none+" 个周期 · 前 "+CYC+" 个周期内读取返回 "+R.ret+" 次\nLDS 延迟取 H200 实测 23.06 个周期（模型取整 23）";
   let rows=""; for(let w=0;w<NW;w++){ const y=TY0+w*RH; rows+='<rect class="row" x="'+TL0+'" y="'+y+'" width="'+(TL1-TL0)+'" height="'+(RH-2)+'"'+(w>=W?' opacity=".25"':'')+'/>'+(w<W?'<text class="rl" x="'+(TL0-6)+'" y="'+(y+11)+'">warp '+(w+1)+'</text>':''); }
   rows+='<rect class="row" x="'+TL0+'" y="'+(TY0+NW*RH+4)+'" width="'+(TL1-TL0)+'" height="'+(RH-2)+'"/><text class="rl" x="'+(TL0-6)+'" y="'+(TY0+NW*RH+15)+'">发射槽</text>';
   $("rows").innerHTML=rows;
@@ -213,7 +213,7 @@ function events(){ const E=[]; const L1=R.lds.filter(x=>x.w===0&&x.it===0), chai
       j===0 ? "<code>"+src+"</code>：LDS 读 "+V+"，在 SMEM；地址 i 在 warp 1 的寄存器" : rn(PROGS.chain[j-1].dst)+"已就绪，"+V+"，在 warp 1 的寄存器堆；<code>"+src+"</code>："+V+"，在 SMEM",
       rn(ld.dst)+"："+V+"，"+LAT+" 个周期后经 LSU 写入 warp 1 的寄存器；此前 scoreboard 位为未就绪",
       use,
-      j===0 ? "1 条指令；"+rn(ld.dst)+"被占住，数据要 "+LAT+" 个周期后才回来（LDS 实测 23.021 个周期）" : "1 条指令；这一步又要等 "+LAT+" 个周期")});
+      j===0 ? "1 条指令；"+rn(ld.dst)+"被占住，数据要 "+LAT+" 个周期后才回来（H200 实测 LDS 延迟 23.06 个周期，模型取 23）" : "1 条指令；这一步又要等 "+LAT+" 个周期")});
     if(j===0 && W>1){ const l2=R.lds.find(x=>x.w===1); E.push({t:l2.t,s:"周期 "+l2.t+"："+(W===2?"warp 2":"warp 2 到 warp "+W)+" 依次各发出 1 条读取，每个 warp 各占 1 个 R4",ring:{k:"slot",w:W-1},
       cd:cd("v = smem[i]（每个 warp 各一条）","每个 warp：<code>smem[i]</code> "+V+"，在 SMEM；共 "+W+" 份","每个 warp 的 v（R4）："+V+"，"+LAT+" 个周期后写入各自的寄存器；共占 "+W+" 个 R4","各 warp 的 v 交给各自第 5 行 acc += v * x","共 "+W+" 条读取、占 "+W+" 个 R4；发射槽每个周期仍只发 1 条")}); }
     if(!chain && j===0){ const o=R.issue.findIndex(x=>x&&x.w===0&&x.i===1);
@@ -236,7 +236,7 @@ function events(){ const E=[]; const L1=R.lds.filter(x=>x.w===0&&x.it===0), chai
   });
   const lds2=R.lds.find(x=>x.w===0&&x.it===1); if(lds2) E.push({t:lds2.t,s:"周期 "+lds2.t+"：warp 1 开始下一轮，再发读取，后面各轮同样重复",ring:{k:"slot",w:0},
        cd:cd("循环：回到第 1 行 "+PR[0].c.replace(";",""),"上一轮的 acc，在 warp 1 的寄存器","新一轮的第 1 条读取发出","本轮读取同样要 "+LAT+" 个周期返回","每轮 "+PR.length+" 条指令，"+(W===1&&!chain?"约每 24 个周期一轮":"本轮不改变上面的周期数"))});
-  const tot= chain ? "只有 1 个 warp，3 步读取串成一条链：前 "+CYC+" 个周期发出 "+R.busy+" 条指令，发射槽有 "+R.none+" 个周期空着，读取返回 "+R.ret+" 次，每次查找要 69 个周期"
+  const tot= chain ? "只有 1 个 warp，3 步读取串成一条链：前 "+CYC+" 个周期发出 "+R.busy+" 条指令，发射槽有 "+R.none+" 个周期空着，读取返回 "+R.ret+" 次，每次查找要 69 个周期（3 × 23.06 = 69.2，H200 实测）"
      : W===1 ? "1 个 warp 每 24 个周期完成 1 轮：前 "+CYC+" 个周期发出 "+R.busy+" 条指令，发射槽空 "+R.none+" 个周期，读取返回 "+R.ret+" 次"
      : W===4 ? "4 个 warp 的 4 × 4 = 16 条指令盖不住 "+LAT+" 个周期。前 "+CYC+" 个周期发出 "+R.busy+" 条指令，发射槽空 "+R.none+" 个周期，读取返回 "+R.ret+" 次，占 4 个 R4"
      : "6 个 warp 的 6 × 4 = 24 条指令盖住 "+LAT+" 个周期。前 "+CYC+" 个周期发出 "+R.busy+" 条指令，发射槽空 "+R.none+" 个周期，读取返回 "+R.ret+" 次，占 6 个 R4";

@@ -157,7 +157,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <text class="lab3" x="115.7" y="368.6">0</text><text class="lab3" x="200.5" y="384">8</text><text class="lab3" x="285.2" y="399.5">16</text><text class="lab3" x="370" y="414.9">24</text><text class="lab3" x="444.2" y="428.3">31</text><text class="lab" text-anchor="middle" x="279.9" y="416.5">bank 号（每格 4 字节，共 32 个）</text><text class="lab" text-anchor="end" x="136.1" y="300.6">分块的 8 行</text>
 <text class="lab" text-anchor="middle" x="360.0" y="217.1">柱高：本拍每个 bank 的请求数</text><text class="lab" text-anchor="end" x="243.0" y="101.3">LSU</text><text class="lab" text-anchor="end" x="278.1" y="72.7">寄存器</text><text class="lab" text-anchor="end" x="240.0" y="127.6">TMA 单元</text><text class="lab" text-anchor="start" x="398.0" y="148.1">SMEM（下方放大）</text>
 </svg><div class="nar"><b id="stepN"></b><div id="stepT" class="cd"></div></div><svg class="flat" viewBox="0 0 640 132" role="img" aria-label="读取时间线，横轴是 wavefront 个数">
-<text class="lab2" x="166" y="17">横轴：wavefront 个数（每个占 1 个周期）；左端“写”不按周期计</text>
+<text class="lab2" x="166" y="17">横轴：wavefront 个数（H200 实测约 2 个周期 / 个）；“写”不按周期计</text>
 <text class="rl" x="142" y="47">每个 wavefront 读哪一行</text><rect class="row" x="150" y="34" width="470" height="18"/><text class="rl" x="142" y="77">每次读最忙 bank 的请求数</text><rect class="row" x="150" y="64" width="470" height="18"/><text class="rl" x="142" y="107">累计读到的字节</text><rect class="row" x="150" y="94" width="470" height="22"/>
 <clipPath id="clipT"><rect id="clipR" x="150" y="22" width="0" height="112"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. 无交错（原样存放）</label><label><input type="radio" name="mode" value="2">2. XOR Swizzle（128 字节交错）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="-1" max="64" step="0.05" value="-1"></label></div><div class="lg"><span>每行 128 字节横跨 32 个 bank，一个 bank 宽 4 字节</span><span>颜色和圆里的数字是分块的行号，三处相同</span><span>柱高 = 本拍某个 bank 被请求的次数（红 = 冲突，绿 = 无冲突）</span></div>
@@ -168,8 +168,8 @@ const TX=(u)=>TL0+XB+(TL1-TL0-XB)*u/WF;
 const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
 const hc=(r,l)=>"hsl("+HUES[r]+" 55% "+(l||48)+"%)";
 const MODES={
- 1:{n:8,swz:false,speed:5,ro:"无交错：每次读 8 路冲突，8 个 wavefront，每周期送出 16 字节\n读完 8 列块（1024 字节）共 64 个 wavefront · 不多占 SMEM"},
- 2:{n:1,swz:true,speed:1.1,ro:"XOR Swizzle：每次读无冲突，1 个 wavefront，每周期送出 128 字节\n读完 8 列块（1024 字节）共 8 个 wavefront · 不多占 SMEM"}};
+ 1:{n:8,swz:false,speed:5,ro:"无交错：每次读 8 路冲突，8 个 wavefront，按峰值每周期送出 16 字节\n读完 8 列块（1024 字节）共 64 个 wavefront · 不多占 SMEM\nH200 实测 LDS：8 路冲突延迟 37.06 个周期（无冲突 23.06），连发每条 16.31（无冲突 4.30）"},
+ 2:{n:1,swz:true,speed:1.1,ro:"XOR Swizzle：每次读无冲突，1 个 wavefront，按峰值每周期送出 128 字节\n读完 8 列块（1024 字节）共 8 个 wavefront · 不多占 SMEM\nH200 实测 LDS：无冲突延迟 23.06 个周期，连发每条 4.30"}};
 let mode=1, M=MODES[1], end=64, t=-1, EV=[];
 const ph=(r,c)=> M.swz ? (c^r) : c;
 const cellsOf={}; document.querySelectorAll("[data-ph]").forEach(e=>cellsOf[e.dataset.ph]=e);
@@ -192,13 +192,13 @@ function events(){ const E=[], sw=M.swz;
       i:"SMEM 里 8 行的列块 "+c+"：8 × 16 B = 128 B，字节偏移 "+off.join("、")+"；"+(sw? "位置 "+pos.join("、")+"，互不相同，32 个 bank 各 1 个请求" : "都落在 bank "+4*c+" … "+(4*c+3)+"，每个 bank 8 个请求"),
       o:"128 B（8 × 16 B）经 LSU 进寄存器，行号 1…8",
       g: c<7? "交给矩阵乘硬件；下一次读列块 "+(c+1) : "交给矩阵乘硬件；8 个列块读完",
-      c: sw? "1 个 wavefront，这一拍送出 128 B" : "8 路冲突，8 个 wavefront，每个周期只送出 16 B"}}); }
+      c: sw? "1 个 wavefront，这一拍送出 128 B。H200 实测（LDS.u32，一个 warp）：无冲突延迟 23.06 个周期，连发每条 4.30 个周期" : "8 路冲突，8 个 wavefront，每个周期只送出 16 B。H200 实测（LDS.u32，一个 warp）：8 路冲突延迟 37.06 个周期（比无冲突多 14），连发每条 16.31 个周期（无冲突 4.30）"}}); }
   E.push({t:end,at:"e",s:"8 次读完，共读到 1024 字节",
     cd:{f: sw? "1024 B ÷ 8 个 wavefront = 128 B / 周期" : "1024 B ÷ 64 个 wavefront = 16 B / 周期",
      i:"SMEM 里的 1024 B 分块（8 行 × 128 B）已被 8 个列块读完",
      o:"1024 B 在寄存器（分 8 次到达，每次 128 B）",
      g:"1024 B 交给矩阵乘硬件（第 5 章）",
-     c: sw? "8 个 wavefront，平均每周期 128 B；不多占 SMEM，描述符里多选一项" : "64 个 wavefront，平均每周期 16 B，只有峰值 128 B 的 1/8；不多占 SMEM"}});
+     c: sw? "8 个 wavefront，平均每周期 128 B；不多占 SMEM，描述符里多选一项。H200 实测 LDS.128：一个 warp 的 128 位访问分 4 个 8 线程阶段处理，这里的 8 个 16 B 块和一个阶段（8 线程 × 16 B）一样大；LDS.128 无冲突延迟 32.06 个周期" : "64 个 wavefront，平均每周期 16 B，只有峰值 128 B 的 1/8；不多占 SMEM。H200 实测 LDS.128：冲突只在每个 8 线程阶段内判断（阶段内 2 路冲突多 8 个周期）；ldmatrix、wgmma 没测"}});
   return E; }
 function setMode(md){ mode=md; M=MODES[md]; end=8*M.n; t=Math.max(-1,Math.min(t,end));
   for(const key in cellsOf){ const [r,p]=key.split("-").map(Number); const c=M.swz?(p^r):p; cellsOf[key].dataset.c=String(c); }

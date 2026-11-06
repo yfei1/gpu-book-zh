@@ -54,25 +54,25 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 <p><strong>下一章要回答的问题：</strong> Muse Spark Open 的单层模型对数据做了哪几步计算，怎样算出它在 H200 上的理论最短时间？</p>
 </section><section id="ch00_0"><h1>第 0.0 章（导引）：一句话怎样穿过 62 层大模型变成下一个词？</h1>
 <ul class="map"><li>前言</li><li class="here">第 0.0 章：一句话穿过 62 层模型</li><li>第 0 章</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7–9 章</li></ul>
-<p>承接前言的问题（从整网闭环到单层入口）：当用户输入一句话时，大模型到底经历了哪几步计算、张量形状与数据类型怎样变化、每一层算完如何把结果交给下一层，又为什么必然分裂成 <strong>prefill</strong>（预填充）、<strong>decode</strong>（逐词解码）与 <strong>verify</strong>（投机解码检验）三种工作模式？</p>
+<p>承接前言的问题（从整网闭环到单层入口）：当用户输入一句话时，大模型经历了哪几步计算、张量形状与数据类型怎样变化、每一层算完如何把结果交给下一层，又为什么必然分裂成 <strong>prefill</strong>（预填充）、<strong>decode</strong>（逐词解码）与 <strong>verify</strong>（投机解码检验）三种工作模式？</p>
 <hr />
 <h2>1. 入站（步骤 1–2）：从一句话到词元编号，再查表变成 8,192 维向量</h2>
 <figure class="fig"><iframe src="figs/ch00_0-a.html" loading="lazy" title="图 0.0-1"></iframe></figure>
-<p>GPU 的算术单元只认识固定宽度的数字数组，不认识原始文本。如图 0.0-1 的步骤 1 与步骤 2 所示，一句话进入 <code>Muse Spark Open</code> 后，先经历两步入站转换，把变长字符串变成第 0 层能直接相乘的浮点数矩阵。</p>
+<p>GPU 的算术单元只处理固定宽度的数字数组，不直接处理原始文本。如图 0.0-1 的步骤 1 与步骤 2 所示，一句话进入 <code>Muse Spark Open</code> 后，先经历两步入站转换，把文本变成第 0 层能直接相乘的浮点数矩阵。本书五个计时赛题只截取第 0 层至第 61 层的单层计算，入站与出站步骤按模型配置与图 0.0-1 示意闭合全流程。</p>
 <ul>
-<li>步骤 1（分词与取词编号，<code>Tokenize</code>）。分词器把用户输入的文本切成 <code>L</code> 个基本词元（称为 <strong>token</strong>，图 0.0-1 示例提示词取 <code>L = 5</code>）。每个词元对应词表（共 <code>202,048</code> 个词项）里的一个整数编号。
+<li>步骤 1（分词与取词编号，<code>Tokenize</code>）。分词器把用户输入的文本切成 <code>L</code> 个基本词元（称为 <strong>token</strong>，图 0.0-1 示例提示词取 <code>L = 5</code>）。每个词元对应词表（共 <code>202,048</code> 个词项）里的一个整数编号（分词算法与编号的字节位宽不在赛题文件中规定）。
 <ul>
 <li>公式：<code>ids = Tokenizer(text)</code>。</li>
-<li>输入：用户文本字符串（在自回归循环的后续步中，直接取上一步采样出的整数编号）。</li>
-<li>输出：词元编号数组 <code>ids</code>，形状为 <code>[L]</code>，类型为 32 位整数（<code>int32</code>，每词 4 字节，<code>L = 5</code> 时共 20 字节），写入 GPU 的 <strong>HBM</strong>（高带宽显存）。</li>
-<li>交给下一步：<code>ids [L]</code> 通过 HBM 显存地址交给步骤 2 的词表嵌入查表。</li>
+<li>输入：用户文本字符串（在自回归循环的后续步中，直接取上一步已选出的词元编号）。</li>
+<li>输出：长度为 <code>L</code> 的词元编号序列 <code>ids</code>（形状 <code>[L]</code>），送入 GPU 的 <strong>HBM</strong>（高带宽显存）。</li>
+<li>交给下一步：<code>ids [L]</code> 交给步骤 2 的词表嵌入查表。</li>
 </ul>
 </li>
-<li>步骤 2（词表嵌入查表，<code>Embedding Lookup</code>）。模型在 HBM 中常驻一张巨大的词嵌入矩阵 <code>W_embed</code>。程序拿 <code>ids</code> 里的 <code>L</code> 个整数当作行号，从 <code>W_embed</code> 中直接取出对应的 <code>L</code> 行向量。
+<li>步骤 2（词表嵌入查表，<code>Embedding Lookup</code>）。模型权重索引包含词嵌入表 <code>W_embed</code>（<code>model.language_model.embed_tokens.weight</code>）。程序拿 <code>ids</code> 里的 <code>L</code> 个编号当作行号，从 <code>W_embed</code> 中取出对应的 <code>L</code> 行向量，形成第 0 层的两个入口数组。
 <ul>
-<li>公式：<code>stream_0[t, :] = Float32(W_embed[ids[t], :])</code>，并算出首层入口归一化激活 <code>x_0[t, :] = RMSNorm(stream_0[t, :]) * (1 + w_norm0)</code>。</li>
-<li>输入：词元编号 <code>ids</code>（<code>[L]</code>，<code>int32</code>，位于 HBM）与词嵌入表 <code>W_embed</code>。<code>W_embed</code> 的形状为 <code>[202048, 8192]</code>，类型为 <strong>BF16</strong>（脑浮点，每元素 2 字节），整张表占 <code>202,048 × 8,192 × 2 B =</code> <strong>3.31 GB</strong>（位于 HBM）。</li>
-<li>输出：两条贯穿全网的初始张量。第一条是高精度主干 <strong>residual stream</strong>（残差流）<code>stream_0</code>（形状 <code>[L, 8192]</code>）。它的类型为 <strong>FP32</strong>（单精度浮点，每元素 4 字节，每词占 <code>32 KiB</code>，写回 HBM）。第二条是第 0 层入口激活 <code>x_0</code>，形状为 <code>[L, 8192]</code>，类型为 BF16（每词占 <code>16 KiB</code>，写回 HBM）。</li>
+<li>公式：从 <code>W_embed[ids[t], :]</code> 取出第 <code>t</code> 个词的向量转为单精度初始残差流 <code>stream_0[t, :]</code>（转换细节未公开）。进入第 0 层前，按单层参考实现做无权重的均方根归一化得到 <code>x_0 = RMSNorm(stream_0)</code>（首层前是否另带归一化权重未知）。</li>
+<li>输入：词元编号 <code>ids</code>（<code>[L]</code>，位于 HBM）与词嵌入表 <code>W_embed</code>（完整形状 <code>[202048, 8192]</code>）。按模型默认 <strong>BF16</strong>（脑浮点，每元素 2 字节）推算，整张表占 <code>202,048 × 8,192 × 2 B =</code> <strong>3.31 GB</strong>（位于 HBM）。词表是否跨 8 卡切分未知，图 0.0-1 按单卡持有完整词表示意。</li>
+<li>输出：进入第 0 层的两条初始张量。第一条是高精度主干 <strong>residual stream</strong>（残差流）<code>stream_0</code>（形状 <code>[L, 8192]</code>）。它的类型为 <strong>FP32</strong>（单精度浮点，每元素 4 字节，每词占 <code>32 KiB</code>，写回 HBM）。第二条是第 0 层注意力入口激活 <code>x_0</code>（形状 <code>[L, 8192]</code>），类型为 BF16（每词占 <code>16 KiB</code>，写回 HBM）。</li>
 <li>交给下一步：<code>(x_0, stream_0)</code> 通过 HBM 全局指针交给步骤 3 的第 0 层（<code>layers.0</code>）。</li>
 <li>本步硬件代价：GPU 无需读取整张 3.31 GB 的 <code>W_embed</code>，只需按行号从 HBM 收集 <code>L</code> 行。每词读取 <code>16 KiB</code>、写出 <code>32 + 16 = 48 KiB</code>（当 <code>L = 5</code> 时共读 <code>80 KiB</code>、写 <code>240 KiB</code>）。</li>
 </ul>
@@ -83,74 +83,73 @@ section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
 <p>拿到初始的 <code>(x_0, stream_0)</code> 后，数据流要依次穿过模型躯干的 <strong>62 层</strong>解码器层（<code>layers.0</code> 到 <code>layers.61</code>）。这 62 层的接口形状完全相同，但在注意力视野与专家量化精度上有两处规律性的排布。</p>
 <ul>
 <li>第一处是 <strong>46 个滑窗层</strong>与 <strong>16 个全长层</strong>按 <code>3 : 1</code> 交替排布。下标为 <code>1, 5, 9, ..., 61</code>（即每 4 层中的最后 1 层，<code>l % 4 == 1</code>）的 16 层是全长注意力层。在这些层上，每个词要回顾从第 0 个位置到当前位置的全部历史上下文（上限 <code>1,048,576</code> 个位置），且不施加旋转位置编码（<code>RoPE</code>）。其余 46 层是滑动窗口注意力层，每个词只回顾最近 <code>2,048</code> 个位置，并在注意力前对查询与键施加 <code>RoPE</code>。</li>
-<li>第二处是 <strong>60 个 NVFP4 量化专家层</strong>与 <strong>2 个首尾非 NVFP4 层</strong>。每层内部都包含一个 256 选 8 的混合专家（MoE）半区。中间 60 层（<code>layers.1</code> 至 <code>layers.60</code>）的专家权重压缩为 4 位浮点 <strong>NVFP4</strong>（平均每权重 <code>0.5625</code> 字节，单专家 <code>28.3 MB</code>）。首尾第 0 层与第 61 层则被排除在 NVFP4 量化之外。</li>
+<li>第二处是 <strong>60 个 NVFP4 量化专家层</strong>与 <strong>2 个首尾非 NVFP4 层</strong>。全部 62 层都包含一个 256 选 8 的混合专家（MoE）半区。中间 60 层（<code>layers.1</code> 至 <code>layers.60</code>）的专家权重压缩为 4 位浮点 <strong>NVFP4</strong>（平均每权重 <code>0.5625</code> 字节，单专家 <code>28.3 MB</code>）。首尾第 0 层与第 61 层则被排除在 NVFP4 量化之外（这两层的具体权重格式未知）。</li>
 </ul>
 <p>在图 0.0-1 的步骤 3 中，点开任意第 <code>l</code> 层（<code>l = 0 .. 61</code>），它与前后层及未来时间步之间的契约都可以精确写为以下四项。</p>
 <ul>
-<li>公式：<code>(x_{l+1}, stream_{l+1}, K_cache[l], V_cache[l]) = Layer_l(x_l, stream_l, K_cache[l], V_cache[l], pos)</code>。</li>
-<li>输入：本层入口激活 <code>x_l</code>（<code>[L, 8192]</code>，BF16，HBM）与本层残差流 <code>stream_l</code>（<code>[L, 8192]</code>，FP32，HBM）。第三个输入是第 <code>l</code> 层专属的分页 <strong>KV cache</strong>（键值缓存）<code>K_cache[l], V_cache[l]</code>。该缓存类型为 <strong>FP8</strong>（<code>E4M3</code>，每元素 1 字节，位于 HBM）。在 8 卡张量并行下，单张 H200 负责 2 个键值头、每头宽 64，因此每个词在每一层的缓存格大小固定为 <code>2 (K与V) × 2 (头) × 64 (宽) × 1 B =</code> <strong>256 字节</strong>。</li>
-<li>输出：更新后的残差流 <code>stream_{l+1}</code>（<code>[L, 8192]</code>，FP32，每词 <code>32 KiB</code>，HBM）与顺手为下一层算好的预归一化激活 <code>x_{l+1} = RMSNorm(stream_{l+1}) * (1 + w_next_pre_attn)</code>（<code>[L, 8192]</code>，BF16，每词 <code>16 KiB</code>，HBM）。同时输出原地写入第 <code>l</code> 层缓存页的新键值 <code>K_new, V_new</code>（每新词 <code>256 B</code>，FP8 <code>E4M3</code>，HBM）。</li>
+<li>公式：<code>(x_{l+1}, stream_{l+1}, K_cache[l], V_cache[l]) = Layer_l(x_l, stream_l, K_cache[l], V_cache[l], pos)</code>（其中第 61 层只向步骤 4 输出 <code>stream_62</code>，是否同时算出 <code>x_62</code> 未知）。</li>
+<li>输入：本层入口激活 <code>x_l</code>（<code>[L, 8192]</code>，BF16，HBM）与本层残差流 <code>stream_l</code>（<code>[L, 8192]</code>，FP32，HBM）。第三个输入是第 <code>l</code> 层专属的分页 <strong>KV cache</strong>（键值缓存）<code>K_cache[l], V_cache[l]</code>，类型为 <strong>FP8</strong>（<code>E4M3</code>，每元素 1 字节，位于 HBM）。在 8 卡张量并行（TP8）下，单张 H200 负责 2 个键值头、每头宽 64，因此每个词在每一层的缓存格大小固定为 <code>2 (K与V) × 2 (头) × 64 (宽) × 1 B =</code> <strong>256 字节</strong>。</li>
+<li>输出：更新后的残差流 <code>stream_{l+1}</code>（<code>[L, 8192]</code>，FP32，每词 <code>32 KiB</code>，HBM），对 <code>l = 0 .. 60</code> 还输出顺手为下一层算好的预归一化激活 <code>x_{l+1} = RMSNorm(stream_{l+1}) * (1 + w_next_pre_attn)</code>（<code>[L, 8192]</code>，BF16，每词 <code>16 KiB</code>，HBM）。同时输出原地写入第 <code>l</code> 层缓存页的新键值 <code>K_new, V_new</code>（每新词 <code>256 B</code>，FP8 <code>E4M3</code>，HBM）。</li>
 <li>交给下一步（两条正交的交接路径）：
 <ol>
-<li>纵向跨层交接（<code>Layer l → Layer l + 1</code>）。只有 <code>(x_{l+1}, stream_{l+1})</code> 沿网络深度传给第 <code>l + 1</code> 层（第 61 层的输出传给步骤 4 的最终归一化）。因为第 <code>l</code> 层的收尾操作已经把第 <code>l + 1</code> 层的入口归一化算好写进 <code>x_{l+1}</code>，第 <code>l + 1</code> 层一进场就能直接启动矩阵乘，省去了一次独立的跨层归一化读写。</li>
+<li>纵向跨层交接（<code>Layer l → Layer l + 1</code>）。对 <code>l = 0 .. 60</code>，只有 <code>(x_{l+1}, stream_{l+1})</code> 沿网络深度传给第 <code>l + 1</code> 层。因为第 <code>l</code> 层的收尾操作已经把第 <code>l + 1</code> 层的入口归一化算好写进 <code>x_{l+1}</code>，第 <code>l + 1</code> 层一进场就能直接启动矩阵乘，省去了一次独立的跨层归一化读写。到了最后一层 <code>l = 61</code>，其输出的 <code>stream_62</code> 交给步骤 4 的最终归一化。</li>
 <li>横向跨时间步留存（留在 <code>Layer l</code> 原地）。第 <code>l</code> 层写入 HBM 的 <code>K_cache[l], V_cache[l]</code> <strong>绝不传给第 <code>l + 1</code> 层</strong>。它留在第 <code>l</code> 层自己的显存页里，专门等后续生成第 <code>t + 1, t + 2, ...</code> 个新词再次路过第 <code>l</code> 层时，作为历史上下文被第 <code>l</code> 层的注意力直接读取。</li>
 </ol>
 </li>
-<li>本步单层与 62 层总代价：当单趟词数 <code>L ≤ 8</code> 时，单层 5 个稠密投影矩阵必读权重为 <code>37.7 + 16.8 + 67.1 + 8.4 + 8.4 =</code> <strong>138.4 MB</strong>。62 层稠密权重合计 <code>62 × 138.4 MB =</code> <strong>8.58 GB</strong>（每个被激活的本地 NVFP4 专家另加 <code>28.3 MB</code>）。单层稠密投影每词运算 <strong>0.134 GFLOP</strong>（62 层每词合计 <code>8.31 GFLOP</code>）。</li>
+<li>本步单卡单层与 62 层总代价：在单张 TP8/EP8 H200 上，当单趟词数 <code>L ≤ 8</code> 时，单层 5 个稠密投影矩阵必读权重为 <code>37.7 + 16.8 + 67.1 + 8.4 + 8.4 =</code> <strong>138.4 MB</strong>。62 层稠密权重合计 <code>62 × 138.4 MB = 8,580.8 MB =</code> <strong>8.58 GB</strong>（不含专家；每个被激活的本地 NVFP4 专家另加 <code>28.3 MB</code>）。单层稠密投影每词运算 <code>2 × 67,108,864 = 0.1342 GFLOP</code>（约 <strong>0.134 GFLOP</strong>；62 层每词合计 <code>8.32 GFLOP</code>，5 词合计 <code>41.6 GFLOP</code>，8 词合计 <code>66.6 GFLOP</code>）。</li>
 </ul>
 <hr />
 <h2>3. 出站与回流（步骤 4–8）：最终归一化、词表投影、软上限与采样闭环</h2>
-<p>当数据穿完第 61 层（吐出 <code>stream_62</code>）后，模型还要走完图 0.0-1 右侧的步骤 4 至步骤 8。这五步把 8,192 维的浮点向量还原成下一个词的整数编号，并闭环送回第 0 层。</p>
+<p>当数据穿完第 61 层（吐出 <code>stream_62</code>）后，完整推理还要走完图 0.0-1 右侧的步骤 4 至步骤 8。这五步把 8,192 维向量还原成下一个词的编号并送回第 0 层。这五步位于单层赛题 P1–P5 之外，以下按模型配置与图 0.0-1 示意说明其数据流。</p>
 <ul>
-<li>步骤 4（最终归一化，<code>Final Norm</code>）。生成下一个新词时，只需要最后一个位置（下标 <code>L - 1</code>，即行数 <code>R = 1</code>）的隐状态去预测未来；而在投机检验 8 个草稿词时，则取全部 <code>R = 8</code> 行。
+<li>步骤 4（最终归一化，<code>Final Norm</code>）。模型权重索引包含最终归一化向量 <code>model.language_model.norm.weight</code>（具体权重形式与公式未知）。按常见做法，生成单个新词时只取最后一个位置（下标 <code>L - 1</code>，即 <code>R = 1</code> 行）的残差流；投机检验 8 个词时则取全部 <code>R = 8</code> 行。
 <ul>
-<li>公式：<code>h = RMSNorm(stream_62[rows, :]; w_norm)</code>。</li>
-<li>输入：<code>stream_62</code> 的目标行（<code>[R, 8192]</code>，FP32，每行 <code>32 KiB</code>，HBM）与最终归一化权重 <code>w_norm</code>（<code>[8192]</code>，BF16，HBM）。</li>
+<li>公式：<code>h = RMSNorm(stream_62[rows, :])</code>（权重形式未知）。</li>
+<li>输入：<code>stream_62</code> 的目标行（<code>[R, 8192]</code>，FP32，每行 <code>32 KiB</code>，HBM）。</li>
 <li>输出：归一化后的特征 <code>h</code>（<code>[R, 8192]</code>，BF16，每行 <code>16 KiB</code>，写回 HBM），交给步骤 5。</li>
 </ul>
 </li>
-<li>步骤 5（词表线性投影，<code>lm_head</code>）。把 8,192 维特征乘上独立的输出词表矩阵 <code>W_lm_head</code>（在 <code>Muse Spark Open</code> 中不与 <code>W_embed</code> 共享权重，且保持未量化的 BF16），为词表里的 <code>202,048</code> 个候选词逐一打分。
+<li>步骤 5（词表线性投影，<code>lm_head</code>）。把 8,192 维特征乘上独立的输出词表矩阵 <code>W_lm_head</code>（配置文件中 <code>tie_word_embeddings = false</code>，即不与 <code>W_embed</code> 共享权重，且排除在量化之外），为词表里的 <code>202,048</code> 个候选词逐一打分。
 <ul>
 <li>公式：<code>z = h @ W_lm_head.T</code>。</li>
-<li>输入：<code>h</code>（<code>[R, 8192]</code>，BF16，HBM）与 <code>W_lm_head</code>（形状 <code>[202048, 8192]</code>，BF16，占 <code>202,048 × 8,192 × 2 B =</code> <strong>3.31 GB</strong>，HBM）。</li>
+<li>输入：<code>h</code>（<code>[R, 8192]</code>，BF16，HBM）与 <code>W_lm_head</code>（完整形状 <code>[202048, 8192]</code>，按默认 BF16 推算占 <code>202,048 × 8,192 × 2 B =</code> <strong>3.31 GB</strong>，位于 HBM）。词表是否跨 8 卡切分未知，图 0.0-1 设单张 GPU 读取完整 3.31 GB。</li>
 <li>输出：原始词表打分 <code>z</code>（形状 <code>[R, 202048]</code>，写回 HBM），交给步骤 6。</li>
-<li>本步代价：从 HBM 读取 <strong>3.31 GB</strong> 权重（按 H200 的 <code>4.8 TB/s</code> 峰值带宽计算，单是读完 <code>W_lm_head</code> 至少就要 <strong>0.69 ms</strong>）。每行执行 <code>2 × 202,048 × 8,192 =</code> <strong>3.31 GFLOP</strong> 乘加运算（算术强度仅 <code>R FLOP/B</code>）。</li>
+<li>本步代价：若单卡读取完整 <strong>3.31 GB</strong> 权重，按 H200 的 <code>4.8 TB/s</code> 峰值带宽计算，单是读完 <code>W_lm_head</code> 至少就要 <strong>0.69 ms</strong>。每行执行 <code>2 × 202,048 × 8,192 =</code> <strong>3.31 GFLOP</strong> 乘加运算（算术强度仅 <code>R FLOP/B</code>）。</li>
 </ul>
 </li>
-<li>步骤 6（对数几率软上限，<code>Logit Softcapping</code>）。为防止极端打分导致数值不稳定，模型用双曲正切函数把打分平滑限制在 <code>(-20, +20)</code> 区间内。
+<li>步骤 6（对数几率软上限，<code>Logit Softcapping</code>）。模型配置文件设有 <code>final_logit_softcapping = 20.0</code>（五个单层赛题均不执行此步）。
 <ul>
-<li>公式：<code>logits = 20.0 * tanh(z / 20.0)</code>（配置常数 <code>final_logit_softcapping = 20.0</code>）。</li>
+<li>公式：按常见定义记为 <code>logits = 20.0 * tanh(z / 20.0)</code>。</li>
 <li>输入与输出：输入 <code>z [R, 202048]</code>，输出限幅后的 <code>logits [R, 202048]</code>（HBM），交给步骤 7。</li>
 </ul>
 </li>
-<li>步骤 7（概率归一化与采样，<code>Sample</code>）。把 <code>202,048</code> 个打分转为概率分布并挑出下一个词。
+<li>步骤 7（采样选词，<code>Sample</code>）。根据 <code>202,048</code> 个候选词的打分选出下一个词的编号（具体采样规则与温度参数未知）。
 <ul>
-<li>公式：<code>p = softmax(logits / T_temp)</code>，<code>next_id = sample(p)</code>（贪心解码时直接取最大值下标 <code>argmax(logits)</code>）。</li>
-<li>输入与输出：输入 <code>logits [R, 202048]</code>，输出新生成的词元编号 <code>next_id</code>（形状 <code>[R]</code>，<code>int32</code>，每词 4 字节，HBM），交给步骤 8。</li>
+<li>输入与输出：输入 <code>logits [R, 202048]</code>，输出选出的词元编号 <code>next_id</code>（交给步骤 8）。</li>
 </ul>
 </li>
 <li>步骤 8（自回归回流，<code>Feedback</code>）。
 <ul>
 <li>公式：<code>ids_next = [next_id]</code>，位置游标 <code>pos ← pos + 1</code>。</li>
-<li>交接闭环：刚刚采出的单个 <code>next_id</code>（4 字节）拉回步骤 2 的入口，作为下一趟前向计算的唯一输入词元去查 <code>W_embed</code>，从而启动生成下一个词的循环。</li>
+<li>交接闭环：刚刚选出的单个 <code>next_id</code> 拉回步骤 2 的入口，作为下一趟前向计算的输入词元去查 <code>W_embed</code>，从而启动生成下一个词的循环。</li>
 </ul>
 </li>
 </ul>
 <hr />
 <h2>4. 为什么必然分裂成 Prefill、Decode 与 Verify 三种走法？</h2>
-<p>切换图 0.0-1 顶部的三个模式按钮，观察同一个 62 层模型在处理“5 个提示词”、“生成第 7 个词”与“检验 8 个草稿词”时的顶部读数。这三种工作模式不是人为规定的软件分支，而是自回归因果律作用在 HBM 带宽上的必然结果。</p>
+<p>切换图 0.0-1 顶部的三个模式按钮，观察同一个 62 层模型在三种走法下的顶部读数。这三种工作模式不是人为规定的软件分支，而是自回归因果律作用在 HBM 带宽上的必然结果。</p>
 <ul>
-<li>第一阶段：<strong>prefill</strong>（预填充，对应本书赛题 P5）。用户刚提交整句提示词时（图 0.0-1 示例取 <code>L = 5</code>；真实服务首轮按 <code>L = 16,384</code> 分块，或多轮在 <code>80,000</code> 历史词上追加 <code>L = 753</code>），这 <code>L</code> 个词在计算前全部已知。因此它们可以叠成 <code>[L, 8192]</code> 矩阵，一次性并排流过全部 62 层（每层注意力用下三角因果掩码保证第 <code>j</code> 个词只看自己及之前的词）。这一趟顺手把每层的 <code>L</code> 格新键值写进 KV 缓存，最后只取第 <code>L - 1</code> 行特征送入 <code>lm_head</code> 采出第 1 个新词（即第 6 个词）。图 0.0-1 在该模式下的读数为：<code>本趟 5 个词同时流过 62 层 · 每层写入 KV 5 格 · 产出第 6 个词</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 2.38 GB · 带宽下界 2.48 ms</code>。
-算清这笔总账：62 层稠密权重（<code>8.58 GB</code>）加上 <code>lm_head</code>（<code>3.31 GB</code>）共需从 HBM 读取 <strong>11.89 GB</strong>（不含专家）。按 H200 的 <code>4.8 TB/s</code> 带宽上限，光读完这 11.89 GB 至少需要 <strong>2.48 ms</strong>（全网写 KV 共 <code>62 × 5 × 256 B = 79,360 B</code>，稠密加 <code>lm_head</code> 共 <code>41.5 + 3.31 = 44.81 GFLOP</code>）。因为 5 个词共享同一次权重读取，平均每个词只分摊 <strong>2.38 GB</strong>。当真实预填充块达到 <code>L = 16,384</code> 个词时，权重被一万六千个词共享，瓶颈彻底从 HBM 读权重翻转为 Tensor Core 算力。</li>
-<li>第二阶段：<strong>decode</strong>（逐词解码，对应赛题 P1–P4 的单词档）。一旦第 6 个词在步骤 7 被采样出来，要去生成第 7 个词、第 8 个词时，处境就彻底变了。因为第 8 个词依赖第 7 个词的采样结果，在算完第 7 个词之前，第 8 个词根本不存在。于是从这一刻起，每一趟前向计算的输入被迫退化为只有刚吐出的那 <strong>1 个新词</strong>（<code>L = 1</code>）。前 5 个词的键值已经在预填充时留在了各层的 KV 缓存里。本趟每层只需写入第 6 个词的 <strong>1 格</strong> KV（<code>256 B</code>），并连同已缓存的 5 格一起读出 <strong>6 格</strong> KV（每层 <code>1,536 B</code>，62 层共读 <code>95,232 B</code>、写 <code>15,872 B</code>）。图 0.0-1 在该模式下的读数为：<code>本趟 1 个词流过 62 层 · 每层读 KV 6 格、写 1 格 · 产出第 7 个词</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 11.89 GB · 带宽下界 2.48 ms</code>。
-对比两行读数就能看到单请求 decode 的根本痛点。虽然稠密运算量降到了 <code>8.3 + 3.31 = 11.61 GFLOP</code>，但为了算这 1 个词，GPU 依然要把 62 层稠密权重和 <code>lm_head</code> 共 <strong>11.89 GB</strong> 从 HBM 重读一遍（带宽下界仍是 <strong>2.48 ms</strong>）。结果每个词都独自背负全部 11.89 GB 的权重读取。</li>
-<li>第三阶段：<strong>verify</strong>（投机解码检验，对应赛题 P1–P4 的 8 词档）。既然在 decode 下花 2.48 ms 读一遍权重只算 1 个词让算力单元几乎全程空等，SGLang 默认打开投机解码。它先让一个极快的轻量草稿模型连猜 <strong>8 个候选词</strong>（位置 <code>6..13</code>，<code>L = 8</code>），再把这 8 个草稿词拼成 <code>[8, 8192]</code> 一次性送进 62 层大模型同时检验。每层写入 8 格 KV，并连同原有 5 格共读出 <code>5 + 8 =</code> <strong>13 格</strong>（<code>3,328 B</code>）KV（62 层共读 <code>206,336 B</code>、写 <code>126,976 B</code>；末尾全取 <code>R = 8</code> 行送入 <code>lm_head</code> 一次算出 8 个位置的打分）。图 0.0-1 在该模式下的读数为：<code>本趟 8 个草稿词一次流过 62 层 · 每层读 KV 13 格、写 8 格</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 1.49 GB · 带宽下界 2.48 ms</code>。
-这一趟同样读取 <strong>11.89 GB</strong> 权重（带宽下界同为 <strong>2.48 ms</strong>，稠密加 <code>lm_head</code> 运算增至 <code>66.5 + 26.48 = 92.98 GFLOP</code>）。8 个候选词把平均每词分摊的权重读取压低了 8 倍至 <strong>1.49 GB</strong>。只要草稿猜中前几个词，就能用一趟前向的时间吐出多个词。</li>
+<li>第一阶段：<strong>prefill</strong>（预填充，对应本书赛题 P5）。用户刚提交整句提示词时（图 0.0-1 示例取 <code>L = 5</code>；真实服务首轮按 <code>L = 16,384</code> 分块，或多轮在 <code>80,000</code> 历史词上追加 <code>L = 753</code>），这 <code>L</code> 个词在计算前全部已知。因此它们可以叠成 <code>[L, 8192]</code> 矩阵，一次性并排流过全部 62 层（每层注意力用下三角因果掩码保证第 <code>j</code> 个词只看自己及之前的词）。这一趟顺手把每层的 <code>L</code> 格新键值写进 KV 缓存，最后按常见做法只取最后一行（<code>R = 1</code>）送入 <code>lm_head</code> 产出第 6 个词。图 0.0-1 在该模式下的读数为：<code>本趟 5 个词同时流过 62 层 · 每层写入 KV 5 格 · 产出第 6 个词</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 2.38 GB · 带宽下界 2.48 ms</code>。
+算清这笔总账：62 层稠密权重（<code>8.58 GB</code>）加上完整 <code>lm_head</code>（<code>3.31 GB</code>）共需从 HBM 读取 <strong>11.89 GB</strong>（不含专家）。按 H200 的 <code>4.8 TB/s</code> 带宽上限，光读完这 11.89 GB 至少需要 <strong>2.48 ms</strong>（全网写 KV 共 <code>62 × 5 × 256 B = 79,360 B</code>，稠密部分约 <code>41.6 GFLOP</code> 加 <code>lm_head</code> <code>3.31 GFLOP</code> 共 <code>44.92 GFLOP</code>，不含专家与注意力）。因为 5 个词共享同一次权重读取，平均每个词只分摊 <strong>2.38 GB</strong>。在多轮对话追加 <code>L = 753</code> 个词时，每个本地专家平均分到约 24 个词，尚未跨过算力平衡点。而当首轮分块达到 <code>L = 16,384</code> 个词（每专家平均 512 个词）时，瓶颈就从 HBM 读权重彻底翻转为 Tensor Core 算力。</li>
+<li>第二阶段：<strong>decode</strong>（逐词解码，对应赛题 P1–P4 的单词档）。一旦第 6 个词在步骤 7 被选出来，要去生成第 7 个词、第 8 个词时，处境就彻底变了。因为第 8 个词依赖第 7 个词的结果，在算完第 7 个词之前，第 8 个词根本不存在。于是从这一刻起，每一趟前向计算的输入被迫退化为只有刚产出的第 6 个词这 <strong>1 个词</strong>（<code>L = 1</code>）。前 5 个词的键值已经在预填充时留在了各层的 KV 缓存里。本趟每层只需写入第 6 个词的 <strong>1 格</strong> KV（<code>256 B</code>），并连同已缓存的 5 格一起读出 <strong>6 格</strong> KV（每层 <code>1,536 B</code>，62 层共读 <code>95,232 B</code>、写 <code>15,872 B</code>）。图 0.0-1 在该模式下的读数为：<code>本趟 1 个词流过 62 层 · 每层读 KV 6 格、写 1 格 · 产出第 7 个词</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 11.89 GB · 带宽下界 2.48 ms</code>。
+对比两行读数就能看到单请求 decode 的根本痛点。虽然稠密加 <code>lm_head</code> 运算降到了约 <code>8.32 + 3.31 = 11.63 GFLOP</code>（图 0.0-1 显示 <code>8.3 + 3.31 GFLOP</code>，不含专家与注意力）。但为算这 1 个词，GPU 仍要把 <strong>11.89 GB</strong> 权重从 HBM 重读一遍（带宽下界仍是 <strong>2.48 ms</strong>）。结果每个词都独自背负全部 11.89 GB 的权重读取，算术强度仅约 <code>1 FLOP/B</code>，远低于 H200 的 <code>206 FLOP/B</code> 平衡点。</li>
+<li>第三阶段：<strong>verify</strong>（投机解码检验，对应赛题 P1–P4 的 8 词档）。既然在 decode 下花 2.48 ms 读一遍权重只算 1 个词让算力严重闲置，SGLang 默认打开投机解码。它把预填充刚产出的第 6 个已知词，连同位置 <code>7..13</code> 的 <strong>7 个草稿词</strong>合在一起，凑成 <strong>8 个输入词</strong>（<code>L = 8</code>，保持在 <code>T ≤ 8</code> 档位）。这 8 个词拼成 <code>[8, 8192]</code> 一次性送进 62 层同时检验（块内带因果掩码，草稿来源与接受规则不展开）。在图 0.0-1 中，这 8 个词（位置 <code>6..13</code>）接在 5 格已缓存词之后。每层写入 8 格 KV，并连同原有 5 格共读出 <code>5 + 8 =</code> <strong>13 格</strong>（<code>3,328 B</code>）KV（62 层共读 <code>206,336 B</code>、写 <code>126,976 B</code>，末尾取全部 <code>R = 8</code> 行送入 <code>lm_head</code>）。图 0.0-1 在该模式下的读数为：<code>本趟 8 个词（第 6 个已知 + 7 个草稿）一次流过 62 层 · 每层读 KV 13 格、写 8 格</code>；<code>读权重 11.89 GB（不含专家）· 平均每个词摊 1.49 GB · 带宽下界 2.48 ms</code>。
+这一趟同样读取 <strong>11.89 GB</strong> 稠密与 <code>lm_head</code> 权重（不含专家的带宽下界同为 <strong>2.48 ms</strong>，稠密部分约 <code>66.6 GFLOP</code> 加 <code>lm_head</code> <code>26.48 GFLOP</code> 共 <code>93.05 GFLOP</code>）。8 个词把平均每词分摊的稠密权重读取压低了 8 倍至 <strong>1.49 GB</strong>，只要草稿猜中前几个词，就能用一趟前向的时间产出多个词。</li>
 </ul>
-<p>看清了整座 62 层大模型的全貌后，为什么本书接下来的所有章节都只拆开其中 <strong>1 层</strong>？因为这 62 层就像 62 节接口完全一致的流水线：每一层都从 HBM 接过上一层留下的 <code>(x_l BF16 [T, 8192], stream_l FP32 [T, 8192])</code>，读写本层自己的 FP8 KV 缓存，再把 <code>(x_{l+1}, stream_{l+1})</code> 交给下一层。只要把这 <strong>1 层</strong>内部的全部计算与硬件交接压到物理极限，62 层合起来就达到了整网极限。</p>
+<p>看清了整座 62 层大模型的全貌后，为什么本书接下来的所有章节都只拆开其中 <strong>1 层</strong>？因为这 62 层具有完全一致的接口契约。每一层都从 HBM 接过上一层留下的 <code>(x_l BF16 [T, 8192], stream_l FP32 [T, 8192])</code>，读写本层自己的 FP8 KV 缓存，再把更新后的状态交给下一层。只要把这 <strong>1 层</strong>内部的全部计算与硬件交接压到物理极限，就能把重复 62 次的主体解码器推到极限（整网耗时还包含词表嵌入、<code>lm_head</code> 及线上 8 卡通信）。</p>
 <hr />
 <p><strong>带走一句话：</strong> 一句话穿过 <code>Muse Spark Open</code> 的 62 层时，纵向靠 <code>(x_l BF16, stream_l FP32)</code> 跨层交接、横向靠留在各层原地的 <code>256 B/词</code> FP8 KV 缓存跨时间步复用，而“已知提示词可并排共享 <code>11.89 GB</code> 权重、未知生成词只能逐个重读权重”的因果差异，把推理必然劈成了 <code>prefill</code>、<code>decode</code> 与 <code>verify</code> 三种模式。</p>
-<p><strong>下一章要回答的问题：</strong> 点开图 0.0-1 步骤 3 里的任意 <strong>1 层</strong>（<code>Layer_l</code>），它在单张 H200 上究竟包含哪 8 个具体计算阶段、各阶段之间怎么交接，为什么同一层在 <code>decode</code> 下全卡在 HBM 带宽（40.0 µs 下界）而在 <code>prefill</code> 下全卡在 Tensor Core 算力（5.5–9.8 ms 下界）？→ 进入 第 0 章：拆开一层模型——它在 Decode 与 Prefill 下算什么、最快能跑多快？</p>
+<p><strong>下一章要回答的问题：</strong> 点开图 0.0-1 步骤 3 里的任意 <strong>1 层</strong>（<code>Layer_l</code>），它在单张 H200 上究竟包含哪 8 个具体计算阶段、各阶段之间怎么交接，为什么同一层在单请求 <code>decode</code> 下全卡在 HBM 带宽（滑窗层下界 40.0 µs、全长层下界 44.2 µs），而在首轮 16,384 词分块 <code>prefill</code> 下全卡在 Tensor Core 算力（单层下界 5.5–9.8 ms）？→ 进入 第 0 章：拆开一层模型——它在 Decode 与 Prefill 下算什么、最快能跑多快？</p>
 </section><section id="ch00"><h1>第 0 章：单层模型算什么，最快能跑多快？</h1>
 <ul class="map"><li class="here">第 0 章：单层模型算什么</li><li>第 0.5 章</li><li>第 1 章 [第 0 级]</li><li>第 2 章 [第 1 级]</li><li>第 3 章 [第 2 级]</li><li>第 4 章 [第 3 级]</li><li>第 5 章 [第 4 级]</li><li>第 6 章 [第 5 级]</li><li>第 7–8 章</li><li>第 9 章</li></ul>
 <p>承接前言末尾的问题（准备章：工作负载）：全书以单层模型为优化对象。Muse Spark Open 的单层模型对数据做了哪几步计算，怎样算出它在 H200 上的理论最短时间？</p>
