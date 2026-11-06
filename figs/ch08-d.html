@@ -186,9 +186,9 @@ const M2=()=>{ const A0=0,B0=21,bl=[],bars=[],lights=[],steps=[]; const raiseA=[
    st(12,PT.sfu,5,"块 4、5 又抬高最大值，再各调一次。","<code>O ← O · exp2f(m_old − m_new)</code>","同上","O 已重缩放","O → 继续累加 P·V","累计 3 次 SFU 调用（哪几块抬高最大值是示意）"),
    st(B0+3,PT.sfu,"2,4,5","惰性重缩放：块 2、4、5 的最大值没超过基准加 T，跳过 exp2f。","若 <code>m_tile ≤ m_ref + T</code>（T = 4..8）：不调 exp2f，不乘 O","m_tile、m_ref：每行 1 个 fp32；O：fp32 累加器，在寄存器","O 保持不变","O → 继续累加 P·V","0 次 SFU 调用",11),
    st(B0+18,PT.sfu,"末","循环结束，补做一次。","<code>O ← O · exp2f(m_ref − m_final)</code>","O、m_ref、m_final：同上","O 已按最终最大值缩放","O → 除以 l 后写出","1 次 SFU 调用"),
-   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 0 次，结尾 1 次（标准 3 次，本例为示意）；P1 的 32 请求全长 verify 算例：T = 4 省 8.77 µs，双 warpgroup 内核调到 T = 6 再省 1.42 µs；单 warpgroup 内核 T = 8 在 verify 32 请求滑窗算例省 0.83 µs"));
+   st(B0+19.6,PT.sfu,"末","全部分块处理完。","（无计算）","O 在寄存器","O 在寄存器","O → 输出","总代价：循环内 0 次，结尾 1 次（标准 3 次，本例为示意）；P1 实测：双 warpgroup 全长内核（vw2）把 T 从 4 放宽到 6，verify 32 / 16 请求全长省 1.42 / 0.46 µs；单 warpgroup 滑窗内核（vws）取 T = 8，verify 32 请求滑窗省 0.83 µs"));
   return {end:B0+21,speed:2.4,shot:B0+9,
-   ro:"惰性重缩放：减少 exp2f 的调用次数，而不是改指令\nP1 32 请求全长 verify：T = 4 省 8.77 µs；T = 6 再省 1.42 µs",
+   ro:"惰性重缩放：减少 exp2f 的调用次数，而不是改指令\nP1 vw2 T = 4 → 6 省 1.42 / 0.46 µs（verify 32 / 16 全长）；vws T = 8 省 0.83 µs（verify 32 滑窗）",
    axis:"时间（只表示先后；分块数和哪几块抬高最大值是示意）",
    strip:{title:"算法：P1 在线 Softmax 依次读入 6 个 KV 分块（示意）",cells:TC6.map((c,i)=>({a:String(i+1),b:["分块 "+(i+1),(raiseA[i]?"m_tile > m_old":"未超过")],c,t0:i*3,t1:i*3+3}))},
    blocks:bl,lights,cells:[],links:[[PT.reg,PT.sfu,PT.reg]],rows:["SFU：exp2f 重缩放","Tensor Core：Q·K^T"],bars,steps,divs:[B0-1]}; };

@@ -1,31 +1,60 @@
 <!doctype html><html lang="en"><head><script>(()=>{
-// Playback-speed control and click-to-seek, shared by every figure page.
+// Shared figure controls: playback speed, click-to-seek on the timeline, click a box to jump to its step, step buttons.
 const R=window.requestAnimationFrame.bind(window);
-let speed=+(localStorage.getItem("figSpeed")||0.5), baseN=null, baseV=0, lastN=0;
+let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
 const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
 window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
-const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed",String(s));
-  document.querySelectorAll(".spd button").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
+const SPEEDS=[0.1,0.25,0.5,1];
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
 addEventListener("DOMContentLoaded",()=>{
-  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur");
-  if(!play||!tIn||!cur) return;
+  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
+  if(!play||!tIn) return;
   const st=document.createElement("style");
-  st.textContent=".spd{display:inline-flex;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}svg.seekable{cursor:pointer}";
+  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
   document.head.appendChild(st);
-  const box=document.createElement("span"); box.className="spd"; box.innerHTML="速度 "+[0.25,0.5,1].map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
-  play.after(box); box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) setSpeed(+b.dataset.s); }); setSpeed(speed);
+  const box=document.createElement("span"); box.className="spd";
+  box.innerHTML='<button type="button" data-k="-1" title="上一步">◀ 上一步</button><button type="button" data-k="1" title="下一步">下一步 ▶</button><span class="sep"></span>速度 '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
+  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
+  const isPlaying=()=>play.textContent.trim()==="暂停";
+  const pause=()=>{ if(isPlaying()) play.click(); };
   const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
+  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
+  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
+  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
+  let map=null, mapKey="";
+  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
+  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
+    const probe=t=>{ setT(t); return stepOf(); };
+    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
+      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers()}); } prevK=k; }
+      prevT=t; }
+    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
+    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
+  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
+  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi(); setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*0.3))); };
+  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.s) return setSpeed(+b.dataset.s);
+    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
+    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
+  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
   const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
-  const seek=clientX=>{ const lo=+(tIn.min||0), hi=+(tIn.max||100), keep=+tIn.value;
-    setT(lo); const x0=curX(); setT(hi); const x1=curX();
-    if(Math.abs(x1-x0)<1){ setT(keep); return; }
-    const step=+(tIn.step)||0; let v=lo+(clientX-x0)/(x1-x0)*(hi-lo); v=Math.max(lo,Math.min(hi,v)); if(step>0) v=lo+Math.round((v-lo)/step)*step; setT(v); };
-  const tl=cur.ownerSVGElement;
-  document.querySelectorAll("svg").forEach(svg=>{ if(svg.closest(".spd")) return; svg.classList.add("seekable");
+  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
+    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const tb=e.target.getBoundingClientRect(); const small=tb.width<400&&tb.height<400;
+    const hit=new Set(); let bd=Infinity; const near=new Set();
+    m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ if(small && x>=tb.left-2&&x<=tb.right+2&&y>=tb.top-2&&y<=tb.bottom+2) hit.add(k);
+      const d=Math.hypot(x-e.clientX,y-e.clientY); if(d<bd-0.5){ bd=d; near.clear(); near.add(k); } else if(Math.abs(d-bd)<=0.5) near.add(k); }));
+    const cand=[...(hit.size?hit:near)].sort((a,b)=>a-b); if(!cand.length) return false;
+    const k0=stepOf(); const k=cand.find(k=>k>k0) ?? cand[0]; goStep(k); return true; };
+  const tl=cur?cur.ownerSVGElement:null;
+  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
     svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
-      if(svg===tl){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ seek(e.clientX); return; } }
-      play.click(); }); });
-  window.__player={seek,setSpeed,get speed(){return speed;}};
+      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
+      pause(); jumpToBox(e); }); });
+  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
 })();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 9-2 微扰删除实验</title><style>
 .iso{

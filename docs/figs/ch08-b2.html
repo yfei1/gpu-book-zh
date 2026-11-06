@@ -1,31 +1,60 @@
 <!doctype html><html lang="en"><head><script>(()=>{
-// Playback-speed control and click-to-seek, shared by every figure page.
+// Shared figure controls: playback speed, click-to-seek on the timeline, click a box to jump to its step, step buttons.
 const R=window.requestAnimationFrame.bind(window);
-let speed=+(localStorage.getItem("figSpeed")||0.5), baseN=null, baseV=0, lastN=0;
+let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
 const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
 window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
-const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed",String(s));
-  document.querySelectorAll(".spd button").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
+const SPEEDS=[0.1,0.25,0.5,1];
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
 addEventListener("DOMContentLoaded",()=>{
-  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur");
-  if(!play||!tIn||!cur) return;
+  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
+  if(!play||!tIn) return;
   const st=document.createElement("style");
-  st.textContent=".spd{display:inline-flex;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}svg.seekable{cursor:pointer}";
+  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
   document.head.appendChild(st);
-  const box=document.createElement("span"); box.className="spd"; box.innerHTML="速度 "+[0.25,0.5,1].map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
-  play.after(box); box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) setSpeed(+b.dataset.s); }); setSpeed(speed);
+  const box=document.createElement("span"); box.className="spd";
+  box.innerHTML='<button type="button" data-k="-1" title="上一步">◀ 上一步</button><button type="button" data-k="1" title="下一步">下一步 ▶</button><span class="sep"></span>速度 '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
+  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
+  const isPlaying=()=>play.textContent.trim()==="暂停";
+  const pause=()=>{ if(isPlaying()) play.click(); };
   const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
+  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
+  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
+  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
+  let map=null, mapKey="";
+  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
+  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
+    const probe=t=>{ setT(t); return stepOf(); };
+    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
+      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers()}); } prevK=k; }
+      prevT=t; }
+    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
+    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
+  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
+  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi(); setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*0.3))); };
+  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.s) return setSpeed(+b.dataset.s);
+    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
+    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
+  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
   const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
-  const seek=clientX=>{ const lo=+(tIn.min||0), hi=+(tIn.max||100), keep=+tIn.value;
-    setT(lo); const x0=curX(); setT(hi); const x1=curX();
-    if(Math.abs(x1-x0)<1){ setT(keep); return; }
-    const step=+(tIn.step)||0; let v=lo+(clientX-x0)/(x1-x0)*(hi-lo); v=Math.max(lo,Math.min(hi,v)); if(step>0) v=lo+Math.round((v-lo)/step)*step; setT(v); };
-  const tl=cur.ownerSVGElement;
-  document.querySelectorAll("svg").forEach(svg=>{ if(svg.closest(".spd")) return; svg.classList.add("seekable");
+  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
+    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const tb=e.target.getBoundingClientRect(); const small=tb.width<400&&tb.height<400;
+    const hit=new Set(); let bd=Infinity; const near=new Set();
+    m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ if(small && x>=tb.left-2&&x<=tb.right+2&&y>=tb.top-2&&y<=tb.bottom+2) hit.add(k);
+      const d=Math.hypot(x-e.clientX,y-e.clientY); if(d<bd-0.5){ bd=d; near.clear(); near.add(k); } else if(Math.abs(d-bd)<=0.5) near.add(k); }));
+    const cand=[...(hit.size?hit:near)].sort((a,b)=>a-b); if(!cand.length) return false;
+    const k0=stepOf(); const k=cand.find(k=>k>k0) ?? cand[0]; goStep(k); return true; };
+  const tl=cur?cur.ownerSVGElement:null;
+  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
     svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
-      if(svg===tl){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ seek(e.clientX); return; } }
-      play.click(); }); });
-  window.__player={seek,setSpeed,get speed(){return speed;}};
+      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
+      pause(); jumpToBox(e); }); });
+  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
 })();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 7-6 FP8 QGMMA 与跨管线异步重叠</title><style>
 .iso{
@@ -204,9 +233,9 @@ const M1=()=>{ const bl=[],bars=[],lights=[],steps=[],cells=[]; const W=20, B0=5
    st(37,PT.tc,3,"转置完才发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：转成 FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价（原来）：17 条指令（1 LDSM + 8 PRMT + 8 STS）全部露在 Q·K^T 之后"),
    st(B0,PT.tc,2,"改后：发出 Q·K^T（块 2）并 commit_group，不等它，Tensor Core 在后台算。","<code>S = Q·Kᵀ</code>（wgmma，异步）","同上","S：fp32 累加器，在寄存器","S → softmax 得 P","1 条 wgmma 加 1 次 commit_group；warp 不被占住"),
    st(B0+1,PT.alu,1,"在 commit_group 与 wait_group<0> 之间，用 LSU 和 ALU 转置当前分块的 V（块 1）。","<code>V' = Vᵀ</code>：LDSM + 8 × PRMT + 8 × STS","V 分块：FP8 E4M3，在 SMEM","V'：FP8 E4M3，行主序，在 SMEM","V' → 第 8 步 P·V","同样 17 条指令，但与 Q·K^T 重叠"),
-   st(B0+W,PT.tc,3,"wait_group<0> 返回时 V 已转置好，直接发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价：17 条指令全藏进 Q·K^T 的运行期；转置单项的收益文档未拆出；它与跨轮 wait_group<1>（模式 2）合计，32 请求全长 verify 算例再省 1.79 µs；FP8 的 P·V 本身在 verify 32 请求滑窗算例省 0.74–0.77 µs"));
+   st(B0+W,PT.tc,3,"wait_group<0> 返回时 V 已转置好，直接发 P·V（块 3）。","<code>O += P · V'</code>（FP8 QGMMA）","P：FP8 E4M3，在寄存器；V'：在 SMEM","O：fp32 累加器，在寄存器","O → 下一分块 / 最终归一化","总代价：17 条指令全藏进 Q·K^T 的运行期；verify 32 请求全长只开这一项（QKS），省 1.79 µs；P·V 改用 FP8 QGMMA：双 warpgroup 全长内核（vw2）省 8.77 µs（verify 32 请求全长）和 3.04 µs（verify 16 请求全长），滑窗内核（vws）省 0.74–0.77 µs（verify 32 请求滑窗）"));
   return {end:B0+W+12,speed:3.3,shot:B0+8,
-   ro:"V 转置：1 条 LDSM + 8 条 PRMT + 8 条 STS，插在 commit_group 与 wait_group<0> 之间\n与 wait_group<1> 合计再省 1.79 µs（32 请求全长）；FP8 P·V 省 0.74–0.77 µs（32 请求滑窗）",
+   ro:"V 转置（QKS）：1 条 LDSM + 8 条 PRMT + 8 条 STS，插在 commit_group 与 wait_group<0> 之间\nverify 32 全长（仅 QKS）省 1.79 µs；FP8 QGMMA P·V：vw2 省 8.77 / 3.04 µs（verify 32 / 16 全长），vws 省 0.74–0.77 µs（verify 32 滑窗）",
    axis:"时间（只表示先后；Q·K^T 的宽度是示意，17 条指令各画 1 格）",
    strip:{title:"算法：P1 一个 KV 分块的三步：Q·K^T → 转置 V → P·V（FP8 wgmma 要求 V 按行主序）",cells:[{a:"2",b:["Q·K^T","wgmma，异步"],c:BL,t0:0,t1:20},{a:"1",b:["V 分块转置","17 条指令"],c:MA,t0:20,t1:B0},{a:"3",b:["P·V","FP8 QGMMA"],c:TE,t0:37,t1:B0+W+12}]},
    blocks:bl,lights,cells,links:[vroute],rows:["Tensor Core","ALU：PRMT ×8","LSU：LDSM、STS"],bars,steps,divs:[B0-3]}; };
@@ -227,9 +256,9 @@ const M2=()=>{ const bl=[],bars=[],lights=[],steps=[]; const B0=30; const Q1=[26
    st(A.q2,PT.tc,4,"下一轮的 Q·K^T（块 4）这才发出。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<0>）：每轮 P·V 与下一轮 Q·K^T 之间有 1 段空档"),
    st(Bq.p1,PT.tc,3,"改后：P·V（块 3）发出并 commit_group，下一步不等它。","<code>O += P · V'</code>","P、V'：同上","O：fp32 累加器","O → 下一轮","1 条 QGMMA 加 1 次 commit_group"),
    st(Bq.p1+0.5,PT.sch,null,"wait_group<1>：允许最近的 1 组（P·V）继续在途，立刻发下一轮的 Q·K^T。","<code>wgmma.wait_group 1</code>：最多 1 个组未完成","未完成的组：P·V（i），允许在途","返回时 ≤ 1 个组在途","→ 下一轮 Q·K^T","warp 不再等 P·V；Tensor Core 里 P·V 与 Q·K^T 首尾相接"),
-   st(Bq.qi,PT.tc,4,"下一轮的 Q·K^T（块 4）在 P·V（i）还在算时就发出，排在它后面。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<1>）：两轮之间的空档消失；与图 7-6 模式 1 的转置合计，32 请求全长 verify 算例再省 1.79 µs"));
+   st(Bq.qi,PT.tc,4,"下一轮的 Q·K^T（块 4）在 P·V（i）还在算时就发出，排在它后面。","<code>S' = Q·K'ᵀ</code>","下一分块的 K：FP8 E4M3，在 SMEM","S'：fp32 累加器","S' → softmax","总代价（wait_group<1>，PVW1）：两轮之间的空档消失；PVW1 只在 verify 16 请求全长启用，与模式 1 的 QKS 合计省 1.71 µs（verify 32 请求全长溢出 20 B，不启用 PVW1）"));
   return {end:B0+22,speed:3.2,shot:B0+11,
-   ro:"wait_group<1>：P·V 跨入下一轮，与下一轮的 Q·K^T 在途重叠\n与 V 转置合计，32 请求全长 verify 算例再省 1.79 µs（空档宽度不按比例）",
+   ro:"wait_group<1>（PVW1）：P·V 跨入下一轮，与下一轮的 Q·K^T 在途重叠\n只用于 verify 16 请求全长：QKS + PVW1 合计省 1.71 µs（空档宽度不按比例）",
    axis:"时间（只表示先后；空档的宽度是示意）",
    strip:{title:"算法：P1 相邻两轮的 Q·K^T 与 P·V",cells:[{a:"2",b:["Q·K^T（i）","wgmma"],c:BL,t0:0,t1:B0},{a:"3",b:["P·V（i）","FP8 QGMMA"],c:TE,t0:0,t1:B0},{a:"4",b:["Q·K^T（i+1）","下一轮"],c:Q1,t0:0,t1:B0+22}]},
    blocks:bl,lights,cells:[{i:16,t:0,c:BL},{i:8,t:0,c:TE},{i:17,t:0,c:Q1}],links:[],rows:["Tensor Core","warp：等待 wait_group","warp 发出 wgmma"],bars,steps,divs:[B0-3]}; };

@@ -81,12 +81,12 @@ README = """# GPU 是怎么工作的，以及怎么优化 GPU 性能
 {figures}
 """
 
-def write_readme(chapters, built, page):
+def write_readme(chapters, built, page, nums):
     figs = []
     for nm, p in built.items():
         m = re.search(r"<title>(.*?)</title>", p.read_text())
-        if m:
-            figs.append((html.unescape(m.group(1)), nm))
+        if m and nm in nums:
+            figs.append((nums[nm] + " " + re.sub(r"^图 [A-Z\d.]+-\d+\s*", "", html.unescape(m.group(1))), nm))
     order = [m.group(1) for m in re.finditer(r'src="figs/([^"]+)\.html"', page)]
     figs.sort(key=lambda x: order.index(x[1]) if x[1] in order else len(order))
     (REPO / "README.md").write_text(README.format(
@@ -106,9 +106,11 @@ def main():
             t = h.read_text()
             (DOCS / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + POST_H + "</body>"))
             shutil.copy2(h, REPO / "figs" / h.name)
+    nums = {}
     def fig_rep(m):
         nm, num = m.group(1).strip(), m.group(2)
         if nm in built:
+            nums[nm] = num
             return f'\n\n<figure class="fig"><iframe src="figs/{nm}.html" loading="lazy" title="{num}"></iframe></figure>\n\n'
         missing.append(num)
         return "\n\n"
@@ -123,7 +125,7 @@ def main():
         t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
         chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, fix_stray_bold(md.render(t)))}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title)}</a></li>')
     (DOCS / "index.html").write_text(TMPL.format(css=CSS, toc="".join(toc), secs="".join(secs)))
-    write_readme(chapters, built, (DOCS / "index.html").read_text())
+    write_readme(chapters, built, (DOCS / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
     print(f"chapters {len(secs)}, figures embedded {sum(1 for _ in re.finditer('<iframe', (DOCS/'index.html').read_text()))}")
