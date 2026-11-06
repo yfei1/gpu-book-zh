@@ -13,6 +13,7 @@ DOCS = REPO / "docs"
 ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "appA", "appB"]
 FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*[A-Z\d.]+-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
+PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
 FIG_FIX = "<style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style>"
 CSS = """
 body{margin:0;background:#f2f2ef;color:#2a2a2e;font:16px/1.85 -apple-system,"PingFang SC",system-ui,sans-serif}
@@ -103,7 +104,7 @@ def main():
         if d.is_dir() and not d.name.startswith("_") and h.exists():
             built[d.name] = h
             t = h.read_text()
-            (DOCS / "figs" / h.name).write_text(t.replace("</body>", FIG_FIX + POST_H + "</body>"))
+            (DOCS / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + POST_H + "</body>"))
             shutil.copy2(h, REPO / "figs" / h.name)
     def fig_rep(m):
         nm, num = m.group(1).strip(), m.group(2)
