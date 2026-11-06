@@ -139,7 +139,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
 .iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
 .iso-plate{padding-bottom:58px}
-.fc .nar{margin:2px 8px 8px;min-height:2.6em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fc .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
+.fc .nar{margin:2px 8px 8px;min-height:4.2em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fc .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
 </style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 3-2</span><span class="iso-plate-corner" data-corner="title">一条 warp 读指令取回几个扇区</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fc"><svg class="flat" viewBox="0 0 640 214" role="img" aria-label="算法：这条读指令读 W 的哪些元素">
 <text class="lab2" x="70" y="16" id="algT"></text>
 <rect class="wbg" x="70" y="34" width="512" height="128"/>
@@ -186,10 +186,11 @@ const R=(x,y,w,h,c,extra)=>'<rect class="'+(c||"")+'" x="'+x.toFixed(1)+'" y="'+
 function laneCells(md,l){ // W cells [row, col0, ncols] read by lane l in this instruction
   if(md===1) return [l,0,1]; if(md===2) return [0,l,1]; return [0,8*l,8]; }
 
-function events(md){ const E=[{t:0,s:(md===1?"warp 0 发出 1 条读指令：32 个线程各读一行 W 的第 k 列（2 字节），地址相隔一整行":md===2?"warp 0 发出 1 条读指令：32 个线程读同一行 W 上相邻的 32 个元素，共 64 字节":"warp 0 发出 1 条读指令：每个线程读 16 字节，32 个线程连起来是同一行 W 上连续的 512 字节")}];
-  E.push({t:0.6,s:"LSU 把 32 个地址合并成 "+Sx.length+" 个扇区请求，发往 L2 / HBM"});
-  Sx.forEach(c=>E.push({t:c.arr,i:c.i,s:"第 "+(c.i+1)+" 个扇区到达：32 字节里有 "+(md===1?"2":"32")+" 字节有用，交给线程 "+(c.lanes.length>2?c.lanes[0]+"–"+c.lanes[c.lanes.length-1]:c.lanes.join("、"))}));
-  E.push({t:end-1.5,s:"32 个线程都拿到数据，可以做乘加了；这条指令一共搬了 "+(Sx.length*32)+" 字节"});
+function events(md){ const n=Sx.length, useful=M[md].useful;
+  const E=[{t:0,s:(md===1?"warp 0 发出 1 条读指令：32 个线程各读一行 W 的第 k 列（2 字节），地址相隔一整行":md===2?"warp 0 发出 1 条读指令：32 个线程读同一行 W 上相邻的 32 个元素，共 64 字节":"warp 0 发出 1 条读指令：每个线程读 16 字节，32 个线程连起来是同一行上连续的 512 字节")+"。代价：1 条指令"}];
+  E.push({t:0.6,s:"LSU 把 32 个地址合成 "+n+" 个扇区请求。代价：每个扇区从 HBM 搬 32 字节，不管用到几字节"});
+  Sx.forEach(c=>E.push({t:c.arr,i:c.i,s:"第 "+(c.i+1)+" 个扇区到达，交给线程 "+(c.lanes.length>2?c.lanes[0]+"–"+c.lanes[c.lanes.length-1]:c.lanes.join("、"))+"。代价：32 字节带宽，换来 "+(md===1?"2":"32")+" 字节有用数据"}));
+  E.push({t:end-1.5,s:"32 个线程都拿到数据。总代价：1 条指令搬 "+(n*32)+" 字节，有用 "+useful+" 字节"+(md===1?"；同样的有用数据要花 16 倍带宽":md===2?"；带宽不浪费，但读满一行要 256 条指令":"；带宽不浪费，读满一行只要 32 条指令")});
   return E.sort((a,b)=>a.t-b.t); }
 let EV=[];
 function narrate(){ let k=-1; for(let i=0;i<EV.length;i++){ if(EV[i].t<=t+1e-9) k=i; else break; }
