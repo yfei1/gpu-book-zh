@@ -49,7 +49,7 @@
 - [图 2-8 K-halves：尾部一行切成两半，两个 SM 各算一半](figs/ch02-d.html)
 - [图 3-1 一个 SM 能同时放下几个 CTA](figs/ch03-a.html)
 - [图 3-2 一条 warp 读指令取回几个扇区](figs/ch03-coal.html)
-- [图 3-3 把 16 KiB 的 W 搬进 SMEM 的四条通路，和反方向的写回](figs/ch03-b.html)
+- [图 3-3 把 16 KiB 的 W 搬进 SMEM 的四条通路](figs/ch03-b.html)
 - [图 3-4 环形缓冲：几个 16 KiB 的槽才能一边搬一边算](figs/ch03-c.html)
 - [图 3-5 一个槽的两圈交接：full[s] / empty[s] 两个 mbarrier](figs/ch03-war.html)
 - [图 3-6 生产者与消费者的寄存器分工](figs/ch07-c1.html)
