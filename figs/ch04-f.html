@@ -237,7 +237,7 @@ MODES[2]=()=>{ const moves=[], bars=[]; const L=SH+AD;
   const lv=(tt)=>Math.min(5,Math.floor(tt/L));
   return {end:5*L+1,rows:["洗牌 / 加法","同色线程数占比"],bars,moves,algY:35,algH:38,
     tlT:"时间轴 = 周期（SHFL 24.0 为实测，FADD 4 为估算，所以是下限）",
-    algT:"算法：32 个部分和（颜色 = 线程号）；每层相差 o 的两个线程互换并相加，加完两者手里是同一个和，同色",
+    algT:"算法：32 个部分和（颜色 = 线程号）；每层相差 o 的两个线程互换并相加，加完两者手里是同一个和",
     paint:(tt)=>{ const gs=2**lv(tt); lane.forEach((el,i)=>paintLane(el,1,laneHue(Math.floor(i/gs)*gs))); },
     alg:(tt)=>{ const l=lv(tt), gs=2**l; let h=""; for(let i=0;i<32;i++) { const g=Math.floor(i/gs); h+=cell(i,CX+i*CW,36,34,col(laneHue(g*gs),g%2?58:40),i); }
       h+='<text class="tn" x="'+CX+'" y="88">'+(l===0?"还没有互换：每个线程手里只有自己的部分和":(l===5?"5 层之后：32 个线程手里都是总和":"第 "+l+" 层之后：每 "+gs+" 个线程手里是同一个和"))+'</text>'; return h; },

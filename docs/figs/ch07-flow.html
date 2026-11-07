@@ -280,5 +280,5 @@ document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode
 t = q.has("t") ? +q.get("t")*end : (still ? end*0.5 : 0); show(); if(playing) start(); else play.textContent="播放";
 </script><script type="module">const LS=[1,8,1024],lIn=document.getElementById("lIn"),lOut=document.getElementById("lOut"),ro=document.querySelector("[data-readout]");
 const f=(n)=>n.toLocaleString("en-US");
-function upd(){const L=LS[+lIn.value],I=16*L;lOut.textContent="L = "+f(L);ro.textContent="L = "+f(L)+" · R = 8L = "+f(8*L)+"\n强度 16L = "+f(I)+" FLOP/B（Tensor Core 平衡点 206 FLOP/B）\n受限于："+(I<206?"读 KV 带宽":"算力");}
+function upd(){const L=LS[+lIn.value],I=16*L;lOut.textContent="L = "+f(L);ro.textContent="L = "+f(L)+" · n_q = 8L = "+f(8*L)+"（共用一行 KV 的查询行数）\n强度 16L = "+f(I)+" FLOP/B（Tensor Core 平衡点 206 FLOP/B）\n受限于："+(I<206?"读 KV 带宽":"算力");}
 lIn.addEventListener("input",upd);document.querySelectorAll("input[name=mode]").forEach((r)=>r.addEventListener("change",upd));upd();</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

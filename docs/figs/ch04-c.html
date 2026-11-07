@@ -279,7 +279,7 @@ function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i
     E.push({t:a(4),s:"第 3 到第 31 组同样只有 lane 0 在干活（图中压缩）",ring:{k:"lane",l:0},
       cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=8}^{123}\\mathrm{smem}[j]$","$\\shape{\\mathrm{smem}[8{:}124]}{116}{FP32}$ = 464 B，在 SMEM；"+lp,"<code>sum</code> = smem[0..123] 之和，在 lane 0 的寄存器","sum 交给第 32 组","再 145 条指令（29 组 × 5），累计 "+c(4)+" 条；ptxas 不重排 FADD，仍是依赖链")});
     E.push({t:a(5),s:"第 32 组：读 smem[124..127]，最后 4 条 FADD",ring:{k:"lane",l:0},
-      cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=124}^{127}\\mathrm{smem}[j]$，得 $\\mathrm{sum}=\\sum_{i<128}\\mathrm{smem}[i]$","$\\shape{\\mathrm{smem}[124{:}128]}{4}{FP32}$ = 16 B，在 SMEM；"+lp,"<code>sum</code> = 128 个部分和之和，float 4 B，在 lane 0 的寄存器","sum 交给 STG","共 32 条 LDS.128 + 128 条 FADD = 160 条；128 次依赖加法：128 × 4 + 23 = 535，加上起头和写出的约 2 个周期，至少约 537 个周期")});
+      cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=124}^{127}\\mathrm{smem}[j]$，得 $\\mathrm{sum}=\\sum_{i<128}\\mathrm{smem}[i]$","$\\shape{\\mathrm{smem}[124{:}128]}{4}{FP32}$ = 16 B，在 SMEM；"+lp,"<code>sum</code> = 128 个部分和之和，float 4 B，在 lane 0 的寄存器","sum 交给 STG","共 32 条 LDS.128 + 128 条 FADD = 160 条；128 次依赖加法：128 × 4 + 23 = 535 个周期（加首尾约 537；用合并 LDS.128 首读为 32 个周期）")});
     E.push({t:a(6),s:"STG.E：lane 0 把 sum 写进 y[row]",ring:{k:"lane",l:0},
       cd:cd("$y[\\mathrm{row}]\\leftarrow\\mathrm{sum}$",lp+"；地址（第 2 步算好）","<code>y[row]</code> float 4 B，写入全局内存（经 L2）","<code>y[row]</code> 留给后续 kernel 读取；warp 0 接着 EXIT","1 条指令，累计 "+c(6)+" 条")});
     E.push({t:a(7),s:"EXIT：kernel 结束",ring:{k:"sch"},

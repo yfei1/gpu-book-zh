@@ -1,5 +1,6 @@
 """Build-time chart blocks: a fenced ```chart block with YAML becomes an inline SVG figure. No JS."""
 import html
+import re
 import yaml
 
 W = 640
@@ -51,15 +52,22 @@ def est(text, size):
 
 
 def wrap(text, size, width):
+    """Greedy line fill. Latin words, numbers and "T = 128"-style units stay whole; CJK breaks anywhere."""
+    tokens = re.findall(r"[A-Za-z0-9_.\-+/%×:<>≤≥→]+(?: ?= ?[A-Za-z0-9_.\-+/%×]+)?|\s+|.", str(text))
     lines, cur = [], ""
-    for ch in str(text):
-        if cur and est(cur + ch, size) > width:
-            lines.append(cur)
-            cur = ch
+    for tok in tokens:
+        if tok.isspace() and not cur:
+            continue
+        if cur and est(cur + tok, size) > width:
+            lines.append(cur.rstrip())
+            cur = "" if tok.isspace() else tok
         else:
-            cur += ch
-    return lines + ([cur] if cur else [])
-
+            cur += tok
+        while est(cur, size) > width * 1.05 and len(cur) > 1:
+            k = max(1, int(len(cur) * width / est(cur, size)))
+            lines.append(cur[:k])
+            cur = cur[k:]
+    return lines + ([cur.rstrip()] if cur.strip() else [])
 
 def fit(labels, pitch, size, floor, bold=False):
     """Font size that lets every label fit in pitch, and whether the labels must also alternate in height."""

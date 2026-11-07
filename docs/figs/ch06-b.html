@@ -270,14 +270,14 @@ function panel3(k_){ let h="", rg="";
   if(k_>=3) h+='<text class="tn" x="'+(X0+4*CW)+'" y="'+(R1+82)+'" text-anchor="middle">d = (e≫1) − 54 = 60 − 54 = 6</text>';
   if(k_>=5) h+='<path d="M'+X0+' '+(R2+44)+'H'+(X0+12*CW-1)+'" stroke="var(--anatomy-strong)" stroke-width="1.2"/><text class="tn" x="'+(X0+6*CW)+'" y="'+(R2+57)+'" text-anchor="middle" fill="var(--anatomy-strong)" font-weight="700">4 + 8 = 12 位 / 权重</text>';
   /* histogram of e>>1 */
-  if(k_>=3){ const HT=HB-84; h+='<text class="lab2" x="8" y="'+(HT-12)+'">e≫1 的直方图（示意）：窗口 [54, 61] 共 8 格，对应 d = 0 … 7</text>';
+  if(k_>=3){ const HT=HB-84; h+='<text class="lab2" x="8" y="'+(HT-12)+'">随机权重 N(0, 1/√K) 实测窗口 [54, 61]（示意）：e≫1 直方图，8 格对应 d = 0 … 7</text>';
     h+='<path d="M'+HX0+' '+HB+'H'+(HX0+NB*BW)+'" stroke="var(--anatomy-lo)"/>';
     for(let v=WIN0;v<=WIN1;v++){ const hh=HGT[v], on=(v===60); h+='<rect x="'+(hx(v)+2)+'" y="'+(HB-hh)+'" width="'+(BW-4)+'" height="'+hh+'" fill="'+CB+'"'+(on?' stroke="var(--anatomy-strong)" stroke-width="1.6"':'')+'/><text class="tw" x="'+(hx(v)+BW/2)+'" y="'+(HB-hh-3)+'">'+(on?"":"")+'</text>'; }
     for(let v=BIN0;v<BIN0+NB;v++) h+='<text class="tw" x="'+(hx(v)+BW/2)+'" y="'+(HB+11)+'">'+v+'</text>';
     for(let v=WIN0;v<=WIN1;v++) h+='<text class="tw" x="'+(hx(v)+BW/2)+'" y="'+(HB+22)+'" style="fill:'+CB+';font-weight:700">d='+(v-WIN0)+'</text>';
     h+='<path d="M'+(hx(WIN0)+2)+' '+(HB+28)+'H'+(hx(WIN1+1)-2)+'" stroke="'+CB+'" stroke-width="2"/><text class="tn" x="'+((hx(WIN0)+hx(WIN1+1))/2)+'" y="'+(HB+40)+'" text-anchor="middle" fill="'+CB+'" font-weight="700">窗口</text>';
     h+='<text class="tn" x="'+(hx(60)+BW/2)+'" y="'+(HB-HGT[60]-20)+'" text-anchor="middle" fill="var(--anatomy-strong)" font-weight="700">权重 0</text><path d="M'+(hx(60)+BW/2)+' '+(HB-HGT[60]-16)+'V'+(HB-HGT[60]-3)+'" stroke="var(--anatomy-strong)" stroke-width="1.2"/>';
-    h+='<text class="tn" x="'+(HX0+NB*BW+8)+'" y="'+(HB+11)+'" >e≫1</text><text class="tn" x="'+(HX0-8)+'" y="'+(HT+4)+'" text-anchor="end">个数</text><text class="tn" x="'+(HX0+NB*BW)+'" y="'+(HT-12)+'" text-anchor="end" fill="var(--anatomy-red)" font-weight="700">示意</text>'; }
+    h+='<text class="tn" x="'+(HX0+NB*BW+8)+'" y="'+(HB+11)+'" >e≫1</text><text class="tn" x="'+(HX0-8)+'" y="'+(HT+4)+'" text-anchor="end">个数</text>'; }
   if(k_>=4){ h+='<rect class="drop" x="'+(hx(ESC)+2)+'" y="'+(HB-9)+'" width="'+(BW-4)+'" height="9"/><text class="tn" x="'+(hx(ESC)+BW/2)+'" y="'+(HB-34)+'" text-anchor="middle" fill="var(--anatomy-red)" font-weight="700">窗口外：1 个</text>'; }
   /* rings (red, numbered) */
   if(k_===0) rg+=ringRect(X0-4,R1-4,16*CW+8,28,1);

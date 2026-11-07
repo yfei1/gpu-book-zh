@@ -238,7 +238,7 @@ const M2=()=>{
   const bl=[{n:1,c:B1,route:pathA(0,0),t0:0,t1:3,home:1,stay:1,until:3.4},{n:2,c:B2,route:pathA(1,0),t0:0.15,t1:3.15,home:1,stay:1,until:3.4},{n:3,c:B3,route:[HP[2],L2C,LSU[0],DST[0]],t0:3.4,t1:6.4,home:1,stay:1}];
   return {end:7.2,speed:0.8,shot:3.7,
   ro:"B = 1：头两跳同时发出，长记分牌等待从 3 次变 2 次\n解码 1 请求全长省约 0.26 µs；seq_lens 回来后核对一次，实测不花时间",
-  axis:"时间（只表示先后，每跳画成一样长；0.26 µs 是整个内核的实测差）",
+  axis:"时间（只表示先后，每跳画成一样长；0.26 µs 是整个 kernel 的实测差）",
   strip:{title:"算法：B = 1 时，1 和 2 不再等对方",cells:[{a:"1",b:["seq_lens[0]","与 2 同时发出"],c:B1,t0:0,t1:3.4},{a:"2",b:["page_table[0, 0..3]","不等 1"],c:B2,t0:0,t1:3.4},{a:"3",b:["cp.async","KV 页进共享内存"],c:B3,t0:3.4,t1:7.2}]},
   blocks:bl,
   links:[pathA(0,0),pathA(1,0),[HP[2],L2C,LSU[0],DST[0]]],
