@@ -18,7 +18,7 @@ CSS = """
 .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .chart-legend i.dash{width:16px;height:0;border-radius:0;border-top:1.5px dashed #5b5b63;vertical-align:3px}
 .chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.chart svg{display:block;width:100%;min-width:520px;height:auto;font-variant-numeric:tabular-nums}
+.chart svg{display:block;width:100%;min-width:400px;height:auto;font-variant-numeric:tabular-nums}
 .chart-notes{margin:6px 0 0;padding-left:1.2em;font-size:13px;line-height:1.6;color:#5b5b63}
 .chart-notes li{margin:1px 0}
 .chart-note{margin:6px 0 0;font-size:13px;line-height:1.6;color:#5b5b63}

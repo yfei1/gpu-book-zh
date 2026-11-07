@@ -2,7 +2,7 @@
 
 **本书地图：** 前言 → 导引一 → 导引二 → 导引三 → 第 1 章 [第 1 级] → 第 2 章 [第 2 级] → 第 3 章 [第 3 级] → 第 4 章 [第 4 级] → 第 5 章 [第 5 级] → 第 6 章 [第 6 级] → 第 7–9 章 → 第 10 章 → **【附录 B：速查】**
 
-附录 A 末尾问到这个问题。本附录只收本书正文或各章图里出现过的指令，按功能分成四组速查表，并在末尾附上按 SASS 助记符字母顺序排列的索引。
+附录 A 末尾问：一条不认识的 SASS 指令从哪里来、走哪条硬件管线、属于第几级？本附录只收本书正文或各章图里出现过的指令，按功能分成四组速查表，并在末尾附上按 SASS 助记符字母顺序排列的索引。
 
 每一项按它用到的硬件定级；“本书在哪里用到”一列写讲它或用它的那一节：
 
@@ -21,13 +21,13 @@
 
 **SASS 助记符由操作码加修饰后缀拼成，操作数依次写出目的寄存器、内存描述符和 64 位地址。**
 
-从源码到机器码一共走三层：CUDA C++ → PTX → `ptxas` 生成的 **128 位**（**16 B**）SASS 指令字（PTX 与 `ptxas` 见第 4 章第 3 节；128 位指令字结构见第 6 章第 5 节）。按图 B-1 模式 1 把一条 16 B、带 L1 优先淘汰后缀的流式全局读取指令 `LDG.E.EF.128 R8, desc[UR12][R8.64]`（对应第 3 章第 8 节的 16 B 宽读取加第 2 章第 4 节的留存提示）逐段拆开：
+从源码到机器码一共走三层：CUDA C++ → PTX → `ptxas` 生成的 **128 位**（**16 B**）SASS 指令字（PTX 与 `ptxas` 见第 4 章第 3 节；128 位指令字结构见第 6 章第 5 节）。拿图 B-1 模式 1 的 `LDG.E.EF.128 R8, desc[UR12][R8.64]` 来拆。它是一条 16 B 宽的流式全局读取（第 3 章第 8 节），带留存提示（第 2 章第 4 节）：
 
 - **`LDG`**：**操作码**，表示全局显存读取；
 - **`.E`**：**修饰后缀**，表示使用 64 位扩展地址；
 - **`.EF`**：本 SM 的 L1 优先淘汰后缀（`evict_first`）；L2 的留存策略不占指令后缀，而是放在 `desc` 操作数里；
 - **`.128`**：每个线程一次读取 128 位（**16 B**），装进 `R8..R11` 四个连续的 32 位向量寄存器；
-- **`desc[UR12]`**：放在统一寄存器 `UR`（见第 7 章第 7 节）里的 64 位**内存描述符**，第 2 章第 4 节用 `createpolicy` 生成的 L2 留存提示就编码在这个描述符里；
+- **`desc[UR12]`**：放在统一寄存器 `UR`（整束共享的寄存器，见第 7 章第 7 节；助记符以 `U` 开头的指令在统一数据通路上执行或读 `UR` 描述符）里的 64 位**内存描述符**，第 2 章第 4 节用 `createpolicy` 生成的 L2 留存提示就编码在这个描述符里；
 - **`[R8.64]`**：由 `R8:R9` 寄存器对拼出的 64 位字节地址。
 
 ---
@@ -36,9 +36,9 @@
 
 **`ptxas` 会把一条 PTX 编成 0 条独立指令、拆成一串指令，或者换成另一个名字与操作数。**
 
-- **第一类：没有独立指令。** 比如 `wgmma.commit_group`（见第 5 章第 5 节、第 6 章第 6 节）在 SASS 里不占单独的指令字，而是直接编码成这一批最后一条 `HGMMA` 末尾的组标志（见速查三的 `wgmma.commit_group` 一项）。
-- **第二类：拆成一串指令。** 单 warp 的 FP8 矩阵乘 `mma.sync … e4m3` 在 `sm_90a` 上先用 `F2FP` 把 FP8 解包成 FP16，再连发 **2** 条 `HMMA`（见速查三）。第 9 章第 3 节的集群屏障 `cluster.sync()` 也会展开成全卡栅栏加 `ERRBAR`、`CGAERRBAR` 与 L1 失效指令 `CCTL.IVALL`（见速查三的 `cluster.sync` 一项）。
-- **第三类：换了名字或变成操作数。** 全局读取的缓存修饰符在 SASS 里会变成后缀或描述符操作数；例如 L2 留存提示（`ld.global.L2::cache_hint`，策略描述符来自 `createpolicy`，见第 2 章第 4 节）在 SASS 里变成了 `LDG` 上的 `desc[URn]` 操作数（见速查二）。
+- **第一类：没有独立指令。** 比如 `wgmma.commit_group`（见第 5 章第 5 节、第 6 章第 6 节）在 SASS 里不占单独的指令字，而是直接编码成这一批最后一条 `HGMMA` 末尾的组标志（见速查三第 45 项 `wgmma.commit_group`）。
+- **第二类：拆成一串指令。** 单 warp 的 FP8 矩阵乘 `mma.sync … e4m3` 在 `sm_90a` 上先用 `F2FP` 把 FP8 解包成 FP16，再连发 **2** 条 `HMMA`（见速查三第 41 项）。第 9 章第 3 节的集群屏障 `cluster.sync()` 也会展开成全卡栅栏加 `ERRBAR`、`CGAERRBAR` 与 L1 失效指令 `CCTL.IVALL`（见速查三第 39 项 `barrier.cluster`）。
+- **第三类：换了名字或变成操作数。** 全局读取的缓存修饰符在 SASS 里会变成后缀或描述符操作数；例如 L2 留存提示（`ld.global.L2::cache_hint`，策略描述符来自 `createpolicy`，见第 2 章第 4 节）在 SASS 里变成了 `LDG` 上的 `desc[URn]` 操作数（见速查二第 24 项）。
 
 PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全卡栅栏后面的 `ERRBAR`、`CGAERRBAR` 这类指令，NVIDIA 没有公开硬件细节，本书只记录 `sm_90a` 反汇编里看到的序列，换了编译器版本后要重新核对。
 
@@ -54,7 +54,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全�
 | 2 | `add.f32`；`mul.f32` | `FADD`、`FMUL` | FMA 管线 · 第 5 级 | 导引三第 4 节、第 5 章第 1 节 | 写法：`a+b`、`a*b`、`__fadd_rn`、`__fmul_rn`；用 `__fadd_rn` / `__fmul_rn` 可阻止编译器把 `a*b+c` 收缩为 `FFMA`，代价是多发 1 条指令 |
 | 3 | `div.full.f32`；`div.approx.f32` | `MUFU.RCP`、`FMUL` | SFU + FMA 管线 · 第 5 级 | 第 7 章第 3 节 | 写法：`__fdividef(a,b)` 或开启 `-use_fast_math` 时的 `a/b`；1 条 PTX 展开为倒数近似 `MUFU.RCP` 加乘法 `FMUL`，比标准除法省去牛顿迭代与分支，代价是精度低于 IEEE 标准除法 |
 | 4 | `ex2.approx.f32`；`ex2.approx.ftz.f32` | `MUFU.EX2`、`FMUL`、`FSETP` | SFU 管线 · 第 5 级 | 第 7 章第 9 节、第 8 章第 13 节 | 写法：`exp2f(x)`、`__expf(x)` 或内联 PTX；`.ftz` 把非规格化数当 0 处理（非规格化数见第 6 章第 3 节），编译为裸的 1 条 `MUFU.EX2`；漏写 `.ftz` 会多出 `FSETP + FMUL` 两条修正指令 |
-| 5 | `ex2.approx.f16x2`；`ex2.approx.ftz.bf16x2` | `MUFU.EX2.F16`、`PRMT` | SFU + ALU 管线 · 第 5 级 | 第 7 章第 8 节 | 写法：`h2exp2` 或内联 PTX；1 条 PTX 拆成 2 条标量 `MUFU.EX2.F16` 加 1 条 `PRMT` 重排，不能减半 SFU 周期（见第 7 章第 8 节） |
+| 5 | `ex2.approx.f16x2` | `MUFU.EX2.F16`、`PRMT` | SFU + ALU 管线 · 第 5 级 | 第 7 章第 8 节 | 写法：`h2exp2` 或内联 PTX；1 条 PTX 拆成 2 条标量 `MUFU.EX2.F16` 加 1 条 `PRMT` 重排，不能减半 SFU 周期（见第 7 章第 8 节；`bf16x2` 形式的 SASS 后缀未知） |
 | 6 | `rcp.approx.ftz.f32`；`rsqrt.approx.ftz.f32`；`lg2.approx.ftz.f32` | `MUFU.RCP`、`MUFU.RSQ`、`MUFU.LG2` | SFU 管线 · 第 5 级 | 第 5 章第 1 节、第 7 章第 3 节 | 写法：`rsqrtf(x)`、`__log2f(x)` 或内联 PTX；仅 `.approx.ftz` 形态为单条 `MUFU`，代价是近似误差高于标准库函数 |
 | 7 | `tanh.approx.f32` | `MUFU.TANH` | SFU 管线 · 第 5 级 | 第 10 章第 8 节 | 写法：内联 PTX（标准库 `tanhf` 为软件展开）；1 对 1 编译为 `MUFU.TANH` |
 | 8 | `add.rn.f16x2`；`mul.rn.bf16x2`；`fma.rn.bf16x2` | `HADD2`、`HMUL2`、`HFMA2` | FMA 管线 · 第 5 级 | 第 5 章第 1 节、第 6 章第 3 节 | 写法：`__hadd2`、`__hmul2`、`__hfma2`；BF16 打包指令带 `.BF16_V2` 后缀 |
@@ -64,17 +64,17 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全�
 | 12 | `shl.b32`；`shr.b32`；`shf.l.wrap.b32`；`shf.r.clamp.b32` | `SHF`、`IMAD.SHL.U32`、`USHF` | ALU（或 FMA）管线 · 第 5 级 | 第 5 章第 1 节、第 6 章第 3 节、第 8 章第 3 节 | 写法：`a<<n`、`a>>n`、`__funnelshift_l`、`__funnelshift_r`；常数左移可编成 `SHF`（走 ALU）或 `IMAD.SHL.U32`（走 FMA 分担 ALU，代价是跨管线多约 2 个周期，见第 6 章第 3 节） |
 | 13 | `prmt.b32` | `PRMT` | ALU 管线 · 第 6 级 | 第 6 章第 2 节、第 7 章第 10 节 | 写法：`__byte_perm(x,y,sel)` 或内联 PTX；从两个源寄存器的 8 个字节里按 4 位选择器挑出 4 个字节拼进目标寄存器 |
 | 14 | `popc.b32` | `POPC` | ALU 管线 · 第 5 级 | 第 8 章第 6 节 | 写法：`__popc` 或内联 `popc.b32`；统计 32 位掩码中 1 的个数（见第 8 章第 6 节） |
-| 15 | `setp.ne.s32`；`selp.b32` | `ISETP`、`SEL` | ALU 管线 · 第 5 级 | 图 2-3、图 4-3 | 写法：整数比较 `a != b`、条件选择 `?:`；`ISETP` 把比较结果写进谓词寄存器 `P0..P6`（见图 4-3） |
+| 15 | `setp.ne.s32`；`selp.b32` | `ISETP`、`SEL` | ALU 管线 · 第 5 级 | 第 2 章第 6 节（图 2-3）、第 4 章第 4 节（图 4-3） | 写法：整数比较 `a != b`、条件选择 `?:`；`ISETP` 把比较结果写进谓词寄存器 `P0..P6`（见图 4-3） |
 | 16 | `cvt.rn.bf16.f32` | `F2F.BF16.F32` | SFU 管线 · 第 6 级 | 第 5 章第 1 节、第 8 章第 16 节 | 写法：`__float2bfloat16(x)`；单值标量转换走 4 通道 SFU 管线，会与 `MUFU.EX2` 争抢 SFU；成对转换可改用下一项的 `F2FP` |
 | 17 | `cvt.rn.bf16x2.f32`；`cvt.rn.f16x2.f32` | `F2FP.BF16.F32.PACK_AB`、`F2FP.F16.F32.PACK_AB` | ALU 管线 · 第 6 级 | 第 7 章第 9 节、第 8 章第 16 节 | 写法：`__floats2bfloat162_rn(a,b)`、`__floats2half2_rn(a,b)`；1 条指令把两个 FP32 舍入打包进 1 个 32 位寄存器，走 16 通道 ALU 管线（见第 8 章第 16 节），代价是要求两个待转换值已经在同一线程配成一对 |
 | 18 | `cvt.f32.bf16` | `PRMT`、`IMAD.U32`、`SHF.L.U32` | ALU 管线 · 第 6 级 | 导引三第 1 节、第 6 章第 1 节 | 写法：`__bfloat162float(h)`、`__bfloat1622float2`；BF16 正好是 FP32 的高 16 位，编译为字节重排 `PRMT R0,RZ,0x7610,R0` 或移位，走 ALU 而不走 SFU |
-| 19 | `cvt.rn.satfinite.e4m3x2.f32` | `F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C` | ALU 管线 · 第 6 级 | 第 7 章第 1 节 | 写法：`__nv_cvt_float2_to_fp8x2` 或内联 PTX；把两个 FP32 饱和打包成 16 位 FP8（E4M3）对，并保留目标寄存器的另一半 |
+| 19 | `cvt.rn.satfinite.e4m3x2.f32` | `F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C` | ALU 管线 · 第 6 级 | 第 7 章第 9 节 | 写法：`__nv_cvt_float2_to_fp8x2` 或内联 PTX；把两个 FP32 饱和打包成 16 位 FP8（E4M3）对，并保留目标寄存器的另一半 |
 
 ---
 
 ## 4. 速查二：全局与片上访存、异步拷贝
 
-先分清数据走哪条路：经寄存器的 `LDG / STG`、绕过寄存器直写 SMEM 的 `LDGSTS`（`cp.async`）、单线程发起的 TMA `UTMALDG / UTMASTG`（三条路的区别见第 3 章第 3 节）。直接作用于 L2（绕过 L1、L2 留存策略与 L2 原子归约）的访问属第 2 级；经本 SM L1 的普通全局读写、SMEM、TMA、`cp.async` 属第 3 级。
+先分清数据走哪条路：经加载/存储单元（**LSU**）进出寄存器的 `LDG / STG`、绕过寄存器直写 SMEM 的 `LDGSTS`（`cp.async`）、单线程发起的 TMA `UTMALDG / UTMASTG`（三条路的区别见第 3 章第 3 节）。直接作用于 L2（绕过 L1、L2 留存策略与 L2 原子归约）的访问属第 2 级；经本 SM L1 的普通全局读写、SMEM、TMA、`cp.async` 属第 3 级。
 
 | 序号 | PTX | SASS | 管线 · 第几级 | 本书在哪里用到 | 说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -85,7 +85,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全�
 | 24 | `createpolicy.fractional .L2::evict_first.b64`；`ld.global .L1::evict_first .L2::cache_hint` | `UMOV`、`LDG.E.EF`、`LDG.E` | LSU + L2 · 第 2 级 | 第 2 章第 4 节、第 10 章第 2 节 | 写法：内联 PTX；L1 提示变成 `.EF / .EL` 后缀，L2 留存提示编码在 `desc[URn]` 操作数里传给硬件；若被保留的数据本来就不会被挤出 L2，加提示不省时间（见第 10 章第 2 节） |
 | 25 | `prefetch.global.L2 [a]`；`prefetch.global.L1` | `CCTL.E.PF2` | LSU → L2 · 第 2 级 | 第 7 章第 6 节、第 9 章第 4 节 | 写法：`__builtin_prefetch` 或内联 `prefetch.global.L2`；1 对 1 生成 `CCTL.E.PF2`；若预取过早、在用到前被流式数据冲出 L2，反而多读一次 HBM（见第 7 章第 6 节） |
 | 26 | `ld.local`；`st.local` | `LDL`、`LDL.LU`、`STL` | LSU → L1 → L2（位于全局显存）· 第 3 级 | 第 3 章第 1 节、第 3 章第 6 节、第 10 章第 6 节 | 写法：寄存器溢出（`ptxas -v` 报告 `spill`）、动态下标局部数组或未内联函数栈帧；`.LU` 在读出后释放缓存行；出现 `LDL / STL` 说明寄存器读写退化成了局部内存往返 |
-| 27 | `ld.param.*`；`ld.const` | `LDC`、`ULDC` | SM 常量缓存 · 第 3 级 | 图 4-3 | 写法：kernel 形参或 `__constant__` 变量；形参存于常量体 `c[0x0][0x210..]`，`ULDC` 直接把整束相同的常量读进统一寄存器 `UR`（见第 7 章第 7 节） |
+| 27 | `ld.param.*`；`ld.const` | `LDC`、`ULDC` | SM 常量缓存 · 第 3 级 | 第 4 章第 4 节（图 4-3） | 写法：kernel 形参或 `__constant__` 变量；形参存于常量体 `c[0x0][0x210..]`，`ULDC` 直接把整束相同的常量读进统一寄存器 `UR`（见第 7 章第 7 节） |
 | 28 | `ld.shared.b32`；`ld.shared.v4.b32`；`st.shared::cta.v4.b32` | `LDS`、`LDS.64`、`LDS.128`、`LDS.U8`、`LDS.U16`、`STS`、`STS.64`、`STS.128` | LSU → SMEM · 第 3 级 | 导引三第 4 节、第 3 章第 7 节 | 写法：`__shared__` 数组读写；1 对 1 带位宽后缀；同一波次不同通道撞上同一个 4 B bank 时会串行排队（见第 3 章第 7 节） |
 | 29 | `cp.async.cg.shared.global [dst],[src],16`；`cp.async.ca.shared.global` | `LDGSTS.E.BYPASS.128`、`LDGSTS.E.BYPASS.128.ZFILL`、`LDGSTS.E`、`LDGSTS.E.64` | LSU（L2 直写 SMEM）· 第 3 级 | 第 3 章第 3 节、第 7 章第 5–6 节 | 写法：`__pipeline_memcpy_async` 或内联 `cp.async`；不经私有寄存器直写 SMEM；`.cg`（仅 16 B）编译为绕过 L1 的 `.BYPASS.128`，越界填零时生成 `.ZFILL`；代价是每个线程仍要自己算地址、发指令 |
 | 30 | `cp.async.bulk.tensor .2d.shared::cluster.global .mbarrier::complete_tx::bytes` | `UTMALDG.2D`、`UTMALDG.3D`、`UTMALDG.5D` | SM 内专用 TMA 单元 · 第 3 级 | 第 3 章第 3 节、第 5 章第 6 节 | 写法：内联 PTX；1 对 1，由 1 个线程发出，占 0 个数据寄存器；代价是主机端要先建描述符、块形状受限，且不能按离散行号收集（见第 3 章第 3 节、第 10 章第 10 节） |
@@ -97,7 +97,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全�
 
 ## 5. 速查三：屏障、集群共享内存与 Tensor Core
 
-生产者用 TMA 或 `st.async` 搬数据、用 `mbarrier`（`SYNCS`）通知到达，消费者用 `HGMMA / QGMMA` 在 Tensor Core 上算（`mbarrier` 见第 3 章第 5 节，DSMEM 见第 7 章第 12 节，`wgmma` 见第 5 章第 5 节）。
+生产者用 TMA 或 `st.async` 搬数据、用 `mbarrier`（SM 同步单元 `SYNCS`）通知到达，消费者用 `HGMMA / QGMMA` 在 Tensor Core 上算（`mbarrier` 见第 3 章第 5 节，DSMEM 见第 7 章第 12 节，`wgmma` 见第 5 章第 5 节）。
 
 | 序号 | PTX | SASS | 管线 · 第几级 | 本书在哪里用到 | 说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -116,13 +116,13 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。像跟在全�
 | 46 | `wgmma.wait_group .sync.aligned N` | `WARPGROUP.DEPBAR.LE` | warpgroup 记分牌 · 第 4 级 | 第 5 章第 5 节、第 6 章第 6 节 | 写法：内联 PTX；编译为 `WARPGROUP.DEPBAR.LE gsb0, N`，阻塞直到在途未完成的 `wgmma` 组数不超过 $N$；异步区间里混入改写累加器的普通指令或分支同步不一致时，编译器会在每条 `HGMMA` 后自动插 `WARPGROUP.DEPBAR.LE gsb0, 0`（见第 6 章第 6 节） |
 | 47 | `ldmatrix.sync.aligned .m8n8.x4{.trans}.shared.b16` | `LDSM.16.M88.4`、`LDSM.16.M88`、`LDSM.16.M88.2`、`LDSM.16.MT88.4` | LSU → SMEM · 第 3 级 | 第 7 章第 10 节 | 写法：内联 PTX；1 对 1，`.trans` 编译为带转置的 `.MT88`，一个 warp 按 $8 \times 8$ 小块把 SMEM 读进寄存器分片（见第 7 章第 10 节） |
 | 48 | `stmatrix.sync.aligned .m8n8.x4{.trans}.shared.b16` | `STSM.16.M88.4`、`STSM.16.MT88.4`、`STSM.16.M88`、`STSM.16.MT88.2` | LSU → SMEM · 第 3 级 | 第 5 章第 7 节 | 写法：内联 PTX；`ldmatrix` 的逆操作，把累加器寄存器分片按交错布局直接写入 SMEM，供随后 TMA 写回或块归约 |
-| 49 | `setmaxnreg.inc.sync.aligned .u32 N`；`setmaxnreg.dec.sync.aligned .u32 N` | `USETMAXREG.TRY_ALLOC.CTAPOOL`、`USETMAXREG.DEALLOC.CTAPOOL` | SM 块内寄存器池分配器 · 第 3 级 | 第 3 章第 6 节、第 7 章第 7 节、第 10 章第 10 节 | 写法：内联 PTX；$N$ 取 $24..256$（8 的倍数），`dec` 把生产者多余寄存器退回本 CTA 池，`inc` 为消费者申领寄存器；要求整个 warpgroup 对齐执行（见第 3 章第 6 节、第 4 章第 4 节） |
+| 49 | `setmaxnreg.inc.sync.aligned .u32 N`；`setmaxnreg.dec.sync.aligned .u32 N` | `USETMAXREG.TRY_ALLOC.CTAPOOL`、`USETMAXREG.DEALLOC.CTAPOOL` | SM 块内寄存器池分配器 · 第 3 级 | 第 3 章第 6 节、第 7 章第 7 节、第 10 章第 10 节 | 写法：内联 PTX；$N$ 取 $24..256$（8 的倍数），`dec` 把生产者多余寄存器退回本 CTA 池，`inc` 为消费者申领寄存器；要求整个 warpgroup 在同一条指令处一起执行（`.sync.aligned`，见第 3 章第 6 节、第 7 章第 7 节） |
 
 ---
 
 ## 6. 速查四：warp 操作、内存栅栏、原子操作、网格交接与控制流
 
-warp 内协作（`SHFL`、`VOTE`）属第 4 级：`SHFL` 见第 4 章第 5 节，`VOTE` 见第 7 章第 9 节与第 8 章第 6 节。全卡范围的栅栏、L2 原子与释放 / 获取交接属第 2 级（第 2 章第 6 节）。PDL 网格交接与整网格同步属第 1 级（第 1 章第 4 节、第 7 章第 12 节、第 8 章第 6 节）。
+warp 内协作（`SHFL`、`VOTE`，其中 `SHFL` 走 MIO 队列，见第 10 章第 7 节）属第 4 级：`SHFL` 见第 4 章第 5 节，`VOTE` 见第 7 章第 9 节与第 8 章第 6 节。全卡范围的栅栏、L2 原子与释放 / 获取交接属第 2 级（第 2 章第 6 节）。PDL 网格交接与整网格同步属第 1 级（第 1 章第 4 节、第 7 章第 12 节、第 8 章第 6 节）。
 
 | 序号 | PTX | SASS | 管线 · 第几级 | 本书在哪里用到 | 说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -130,8 +130,8 @@ warp 内协作（`SHFL`、`VOTE`）属第 4 级：`SHFL` 见第 4 章第 5 节�
 | 51 | `vote.sync.ballot.b32`；`vote.sync.any.pred`；`vote.sync.all.pred` | `VOTE.ANY`、`VOTEU.ANY`、`VOTEU.ALL` | warp 投票单元 · 第 4 级 | 第 7 章第 9 节、第 8 章第 6 节 | 写法：`__ballot_sync(m,p)`（见第 8 章第 6 节）、`__any_sync`（见第 7 章第 9 节）、`__all_sync`；`ballot` 编译为 `VOTE.ANY Rd, PT, Ps`（返回 32 位掩码） |
 | 52 | `bar.warp.sync mask` | `WARPSYNC.ALL`、`WARPSYNC`、`WARPSYNC.COLLECTIVE`、`BSSY`、`BSYNC` | warp 调度器的重汇合单元 · 第 4 级 | 第 4 章第 4 节、第 10 章第 9 节 | 写法：`__syncwarp(mask)` 或内联 `bar.warp.sync`；全掩码编译为 `WARPSYNC.ALL`；`BSSY / BSYNC` 是编译器在分化分支前后自动插入的汇合指令对（见第 4 章第 4 节、第 10 章第 9 节） |
 | 53 | `bar.sync 0`（即 `barrier.sync.aligned 0`） | `BAR.SYNC.DEFER_BLOCKING` | SM 块内屏障单元 · 第 4 级 | 导引三第 4 节、第 4 章第 4 节 | 写法：`__syncthreads()`；1 对 1；到达不齐时，等待的时间等于最晚与最早到达之差 |
-| 54 | `bar.sync id, n`；`bar.arrive id, n` | `BAR.SYNC.DEFER_BLOCKING`、`BAR.ARV` | SM 块内屏障单元 · 第 4 级 | 第 4 章第 4 节、第 7 章第 7 节 | 写法：内联 `bar.sync id, n`、`bar.arrive id, n`（非对齐形式为 `barrier.sync`，见第 7 章第 7 节）；硬件屏障号 `id`（`0..15`）与线程数 `n` 编码为立即数（见第 7 章第 7 节），`BAR.ARV` 只报到不等待 |
-| 55 | `fence.acq_rel.cta`；`fence.acq_rel.gpu`；`fence.sc.gpu` | `MEMBAR.ALL.CTA`、`MEMBAR.ALL.GPU`、`MEMBAR.SC.GPU`、`ERRBAR`、`CGAERRBAR`、`CCTL.IVALL` | LSU / 内存系统确认 · 第 2 级（`.cta` 属第 3 级） | 第 2 章第 6 节、第 8 章第 11 节 | 写法：`__threadfence_block()`、`__threadfence()` 或内联 PTX；全卡栅栏等待此前的写入被 L2 确认并使本 SM 的 L1 失效（实测周期见第 2 章第 6 节）。单向的生产者-消费者交接用 `acq_rel` 就够；若一个线程先写自己的标志、再读另一个线程的标志（双方互等，即 Dekker 情形），GPU 上要 `fence.sc`（x86 TSO 下这一情形也要 `MFENCE`）；若多个写者的写入必须被所有线程按同一顺序看到（IRIW），x86 上由 TSO 本身保证，GPU 上不保证，也要用 `fence.sc`（GPU 与 x86 TSO 的基础对比见第 2 章第 6 节） |
+| 54 | `bar.sync id, n`；`bar.arrive id, n` | `BAR.SYNC.DEFER_BLOCKING`、`BAR.ARV` | SM 块内屏障单元 · 第 4 级 | 第 5 章第 7 节、第 7 章第 7 节 | 写法：内联 `bar.sync id, n`、`bar.arrive id, n`（非对齐形式为 `barrier.sync`，见第 7 章第 7 节）；硬件屏障号 `id`（`0..15`）与线程数 `n` 编码为立即数（见第 5 章第 7 节、第 7 章第 7 节），`BAR.ARV` 只报到不等待 |
+| 55 | `fence.acq_rel.cta`；`fence.acq_rel.gpu`；`fence.sc.gpu` | `MEMBAR.ALL.CTA`、`MEMBAR.ALL.GPU`、`MEMBAR.SC.GPU`、`ERRBAR`、`CGAERRBAR`、`CCTL.IVALL` | LSU / 内存系统确认 · 第 2 级（`.cta` 属第 3 级） | 第 2 章第 6 节、第 8 章第 11 节 | 写法：`__threadfence_block()`、`__threadfence()`（编成 `fence.sc.gpu`，即 `MEMBAR.SC.GPU`）；只要 `acq_rel` 时写内联 `fence.acq_rel.gpu`。全卡栅栏等待此前的写入被 L2 确认并使本 SM 的 L1 失效（实测周期见第 2 章第 6 节）。单向的生产者-消费者交接用 `acq_rel` 就够；若先写自己的标志、再读对方的标志（双方互等，即 Dekker 情形），GPU 上要用 `fence.sc`（x86 TSO 下这一情形也要 `MFENCE`，见第 2 章第 6 节） |
 | 56 | `fence.release.gpu` | 没有在反汇编里核对 | LSU / 内存系统确认 · 第 2 级 | 第 2 章第 6 节、第 9 章第 5 节 | 写法：内联 PTX；它之前本线程的所有读写，通过它之后的一次强写入（例如写标志的 `st.relaxed`，与对方的获取读配成一对，见第 2 章第 6 节）或紧随其后的 `griddepcontrol.launch_dependents`（与后继网格的启动同步，见第 9 章第 5 节）对其他线程变得可见（`sm_90` 起支持） |
 | 57 | `atom.global.add.u32`；`atom.global.add.f32`；`atom.global.exch`；`atom.global.inc` | `ATOMG.E.ADD.STRONG.GPU`、`ATOMG.E.ADD.S32.STRONG.GPU`、`ATOMG.E.EXCH.STRONG.GPU`、`ATOMG.E.INC.STRONG.GPU` | LSU → L2 原子单元 · 第 2 级 | 第 2 章第 6 节、第 6 章第 8 节 | 写法：使用返回值的 `atomicAdd`、`atomicExch`、`atomicCAS`、`atomicInc`、`fetch_add`；在 L2 执行读改写并要等旧值返回，比只发不等的 `REDG` 多一次 L2 往返；直接对 BF16 做标量原子加会退化成比较交换重试循环（见第 6 章第 8 节） |
 | 58 | `red.global.add.f32`；`red.global.add.v4.f32`；`red.global.add.s32`；`red.global.min.u64` | `REDG.E.ADD.S32.STRONG.GPU`、`REDG.E.ADD.F32.FTZ.RN.STRONG.GPU`、`REDG.E.ADD.F32x4.FTZ.RN.STRONG.GPU` | LSU → L2 归约单元 · 第 2 级 | 第 2 章第 7 节、第 7 章第 12 节、第 9 章第 3 节 | 写法：忽略返回值的 `atomicAdd(p,v)`、向量 `atomicAdd(float2* / float4*)`；编译器自动转为只发不等的 `REDG`（代价是拿不到旧值） |
@@ -221,3 +221,5 @@ warp 内协作（`SHFL`、`VOTE`）属第 4 级：`SHFL` 见第 4 章第 5 节�
 ---
 
 **带走一句话：** 陌生的 SASS 指令按助记符在本附录里查：它来自哪种源码写法、走哪条管线、属于第几级、本书哪一节用过它；要定位到具体哪一行源码，用 `-lineinfo` 编译后在 NCU 的源码视图里看（见第 10 章第 7 节）。
+
+**下一章的问题：** 书里的一个术语在哪一节讲过？→ 附录 C。
