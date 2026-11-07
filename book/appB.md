@@ -37,10 +37,10 @@
 **`ptxas` 会把一条 PTX 编成 0 条独立指令、拆成一串指令，或者换成另一个名字与操作数。**
 
 - **第一类：没有独立指令。** 比如 `wgmma.commit_group`，见第 5 章第 5 节与第 6 章第 6 节，在 SASS 里不占单独的指令字，而是直接编码成这一批最后一条 `HGMMA` 末尾的组标志，见速查三第 45 项。
-- **第二类：拆成一串指令。** 单 warp 的 FP8 矩阵乘 `mma.sync … e4m3` 在 `sm_90a` 上先用 `F2FP` 把 FP8 解包成 FP16，再连发 **2** 条 `HMMA`，见速查三第 41 项。第 9 章第 3 节的集群屏障（`barrier.cluster.arrive/wait`）也会展开成全卡内存屏障加 `ERRBAR`、`CGAERRBAR` 和 L1 失效指令 `CCTL.IVALL`，见速查三第 39 项。
+- **第二类：拆成一串指令。** 单 warp 的 FP8 矩阵乘 `mma.sync … e4m3` 在 `sm_90a` 上先用 `F2FP` 把 FP8 解包成 FP16，再连发 **2** 条 `HMMA`，见速查三第 41 项。第 9 章第 3 节的集群屏障（`barrier.cluster.arrive/wait`）也会展开成全卡内存屏障（`MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + CCTL.IVALL`），见速查三第 39 项。
 - **第三类：换了名字或变成操作数。** 全局读取的缓存修饰符在 SASS 里会变成后缀或描述符操作数；例如第 2 章第 4 节的 L2 留存提示在 SASS 里变成了 `LDG` 上的 `desc[URn]` 操作数，见速查二第 24 项。
 
-PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡内存屏障后面的 `ERRBAR`、`CGAERRBAR`，NVIDIA 没有公开硬件细节，本书只记录 `sm_90a` 反汇编里看到的序列，换了编译器版本后要重新核对。
+PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡内存屏障里的 `ERRBAR`、`CGAERRBAR`，NVIDIA 没有公开硬件细节，本书只记录 `sm_90a` 反汇编里看到的序列，换了编译器版本后要重新核对。
 
 ---
 
@@ -63,7 +63,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡内存�
 | 11 | `and.b32`；`or.b32`；`xor.b32`；`lop3.b32` | `LOP3` | ALU 管线 · 第 5 级 | 第 5 章第 1 节、第 6 章第 2 节 | `a&b`、`a\|b`、`a^b`、`~a` 或内联 `lop3.b32`；`ptxas` 把任意 1–3 输入按位逻辑折叠成 1 条 `LOP3.LUT`（8 位真值表立即数） |
 | 12 | `shl.b32`；`shr.b32`；`shf.l.wrap.b32`；`shf.r.clamp.b32` | `SHF`、`IMAD.SHL.U32` | ALU（或 FMA）管线 · 第 5 级 | 第 5 章第 1 节、第 6 章第 3 节、第 8 章第 3 节 | `a<<n`、`a>>n`、`__funnelshift_l`、`__funnelshift_r`；常数左移可编成 `SHF`（走 ALU）或 `IMAD.SHL.U32`（走 FMA 分担 ALU，见第 6 章第 3 节） |
 | 13 | `prmt.b32` | `PRMT` | ALU 管线 · 第 6 级 | 第 6 章第 2 节、第 7 章第 10 节 | `__byte_perm(x,y,sel)` 或内联 PTX；从两个源寄存器的 8 个字节里按 4 位选择器挑出 4 个字节拼进目标寄存器 |
-| 14 | `popc.b32` | `POPC` | ALU 管线 · 第 5 级 | 第 8 章第 6 节 | `__popc` 或内联 `popc.b32`；统计 32 位掩码中 1 的个数（见第 8 章第 6 节） |
+| 14 | `popc.b32` | `POPC` | 具体管线未测 · 第 5 级 | 第 8 章第 6 节 | `__popc` 或内联 `popc.b32`；统计 32 位掩码中 1 的个数（见第 8 章第 6 节） |
 | 15 | `setp.ne.s32` | `ISETP` | ALU 管线 · 第 5 级 | 第 4 章第 4 节（图 4-3） | 整数比较 `a != b`；`ISETP` 把比较结果写进谓词寄存器 `P0..P6`（见图 4-3） |
 | 16 | `cvt.rn.bf16.f32` | `F2F.BF16.F32` | SFU 管线 · 第 6 级 | 第 5 章第 1 节、第 8 章第 16 节 | `__float2bfloat16(x)`；走 SFU 管线，每条 warp 指令占 8 个周期（相当于每周期 4 个通道），会与 `MUFU.EX2` 争抢 SFU；成对转换可改用下一项的 `F2FP` |
 | 17 | `cvt.rn.bf16x2.f32`；`cvt.rn.f16x2.f32` | `F2FP.BF16.F32.PACK_AB`、`F2FP.F16.F32.PACK_AB` | 非 SFU 管线（具体管线未测）· 第 6 级 | 第 7 章第 9 节、第 8 章第 16 节 | `__floats2bfloat162_rn(a,b)`、`__floats2half2_rn(a,b)`；1 条指令把两个 FP32 舍入打包进 1 个 32 位寄存器，不走 SFU 管线（见第 8 章第 16 节）；代价是要求两个待转换值已经在同一线程配成一对 |
@@ -140,7 +140,7 @@ warp 内协作 `SHFL` 和 `VOTE` 属第 4 级。`SHFL` 走 MIO 队列，见第 4
 | 58 | `red.global.add.f32`；`red.global.add.v4.f32`；`red.global.add.s32`；`red.global.min.u64` | `REDG.E.ADD.S32.STRONG.GPU`、`REDG.E.ADD.F32.FTZ.RN.STRONG.GPU`、`REDG.E.ADD.F32x4.FTZ.RN.STRONG.GPU` | LSU → L2 归约单元 · 第 2 级 | 第 2 章第 7 节、第 7 章第 12 节、第 9 章第 3 节 | 忽略返回值的 `atomicAdd(p,v)`、向量 `atomicAdd(float2* / float4*)`；编译器自动转为只发不等的 `REDG`（代价是拿不到旧值） |
 | 59 | `ld.acquire.gpu.global.u32 [a]`；`red.release.gpu.global.add.s32 [a],v`；`atom.acq_rel.gpu` | `LDG.E.STRONG.GPU`、`CCTL.IVALL`、`MEMBAR.ALL.GPU`、`ERRBAR`、`CGAERRBAR`、`REDG`、`ATOMG` | LSU + L2 · 第 2 级 | 第 2 章第 6 节、第 7 章第 12 节、第 8 章第 11 节 | `cuda::atomic_ref<int, thread_scope_device>::store / load` 或内联 `ld.acquire.gpu`、`red.release.gpu`；PTX 只保证顺序；L1 失效、等 L2 确认是本 SM 的实现方式（一致性在 L2、L1 不一致见第 2 章第 6 节）：`ld.acquire.gpu` 展开为 `LDG.E.STRONG.GPU + CCTL.IVALL`，`red.release.gpu` 展开为 `MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + REDG` |
 | 60 | `griddepcontrol.wait`；`griddepcontrol.launch_dependents` | `ACQBULK`、`PREEXIT` | 网格硬件派发器与 SM · 第 1 级 | 第 1 章第 4 节、第 8 章第 8 节、第 9 章第 5 节 | `cudaGridDependencySynchronize()`、`cudaTriggerProgrammaticLaunchCompletion()` 或内联 `griddepcontrol`（见第 8 章第 8 节）。`wait → ACQBULK`：阻塞直到前序网格完成且写入可见。`launch_dependents → PREEXIT`：所有 CTA 发出它或退出后，后继网格可以被调度。按 PTX 规范，若前序线程在 `launch_dependents` 之前先执行 `fence.release.gpu`（两个网格在同一内存同步域，即默认设置），它此前的写入从后继网格启动起即可见；否则只保证在后继执行 `griddepcontrol.wait` 之后可见（见第 9 章第 5 节）。触发过早会让后继占着 SM 空等（见第 1 章第 4 节、第 7 章第 11 节） |
-| 61 | 全局原子计数 + 内存栅栏 + `ld.acquire` 自旋 + `bar.sync`（标准库展开） | 本书反汇编未记录 | L2 原子单元 + 各 SM 轮询 · 第 1 级 | 第 8 章第 6 节 | `cooperative_groups::this_grid().sync()`（配合 `cudaLaunchCooperativeKernel`）；由标准库组合块内屏障、全卡内存屏障与 L2 计数器轮询实现，要求全网格所有 CTA 同时驻留（见第 2 章第 6 节、第 7 章第 12 节、第 8 章第 6 节） |
+| 61 | 全局原子计数 + 全卡内存屏障 + `ld.acquire` 自旋 + `bar.sync`（标准库展开） | 本书反汇编未记录 | L2 原子单元 + 各 SM 轮询 · 第 1 级 | 第 8 章第 6 节 | `cooperative_groups::this_grid().sync()`（配合 `cudaLaunchCooperativeKernel`）；由标准库组合块内屏障、全卡内存屏障与 L2 计数器轮询实现，要求全网格所有 CTA 同时驻留（见第 2 章第 6 节、第 7 章第 12 节、第 8 章第 6 节） |
 | 62 | `mov.u64 d, %clock64`；`mov.u64 d, %globaltimer` | `S2R` | 特殊寄存器读取 · 第 4 级 | 第 2 章第 2 节、第 10 章第 5–6 节 | `clock64()`、`clock()` 或内联读取 `%globaltimer`、`%clock64`（`%globaltimer` 最小步长实测 32 ns，见第 10 章第 5 节） |
 | 63 | `bra`；`bra.uni`；`exit` | `BRA`、`EXIT`、`BSSY`、`BSYNC` | 分支与发射单元 · 第 4 级 | 第 4 章第 4 节、第 10 章第 9 节 | `if / for`、`return`；整个 warp 一致的跳转标 `.U`，分化分支包在 `BSSY ... BSYNC` 内（分支分化代价见第 4 章第 4 节、第 10 章第 9 节） |
 | 64 | `mov.u32 %tid.x`；`mov.u32 %ctaid.x`；`mov.u32 %ntid.x`；`mov.u32 %nctaid.x` | `S2R`、`R2UR` | 特殊寄存器与统一寄存器文件 · 第 4 级 | 导引三第 3 节、第 7 章第 7 节 | `threadIdx.x`、`blockIdx.x`、`blockDim.x`、`gridDim.x`；`S2R` 读入每线程向量寄存器 `R`，`R2UR` 把向量寄存器值拷入整个 warp 共享的统一寄存器 `UR`（见第 7 章第 7 节） |
