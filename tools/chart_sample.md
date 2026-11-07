@@ -55,3 +55,15 @@ data:
   - {label: experts, value: 11.04}
   - {label: unpooler, value: 1.75}
 ```
+
+只有一个 series 的 grouped 就是普通柱状图（蓝色，没有变化行）：
+
+```chart
+type: grouped
+title: qkv_gate 最终版（g5）在不同 T 下的耗时
+unit: µs
+data:
+  groups: [T = 8, T = 32, T = 128, T = 256]
+  series:
+    - {name: g5 最终版, values: [12.89, 14.30, 17.35, 21.36]}
+```

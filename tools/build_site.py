@@ -14,7 +14,7 @@ SRC_FIGS = SRC_BOOK / "figs"
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB"]
-FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*[A-Z\d.]+-\d+).*?-->"
+FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*(?:导[一二三]|[A-Z\d.]+)-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
 PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
 KATEX_CSS_FIG = '<link rel="stylesheet" href="../vendor/katex/katex.min.css">'
@@ -99,7 +99,7 @@ def write_readme(chapters, built, page, nums):
     for nm, p in built.items():
         m = re.search(r"<title>(.*?)</title>", p.read_text())
         if m and nm in nums:
-            figs.append((nums[nm] + " " + re.sub(r"^图 [A-Z\d.]+-\d+\s*", "", html.unescape(m.group(1))), nm))
+            figs.append((nums[nm] + " " + re.sub(r"^图 (?:导[一二三]|[A-Z\d.]+)-\d+\s*", "", html.unescape(m.group(1))), nm))
     order = [m.group(1) for m in re.finditer(r'src="figs/([^"]+)\.html"', page)]
     figs.sort(key=lambda x: order.index(x[1]) if x[1] in order else len(order))
     (REPO / "README.md").write_text(README.format(

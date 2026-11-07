@@ -248,7 +248,7 @@ const col=(l)=>"hsl("+(222-50*l/31).toFixed(0)+" "+(68-6*l/31).toFixed(0)+"% "+(
 const M={
  1:{t:"写法 1（v0）：每个线程算一整行",f:"这一轮：线程 i 读 W[r+i, k]，再算 acc += W[r+i, k] · x[k]",y:"32 个线程各算 1 行",
     secs:[...Array(32).keys()].map(i=>({lanes:[i],slot:[0]})), useful:64},
- 2:{t:"写法 2（v1，第 0.5 章的 kernel）：相邻线程读相邻元素",f:"这一轮：线程 i 读 W[r, k+i]，再算 acc += W[r, k+i] · x[k+i]",y:"整个 warp 合算第 r 行",
+ 2:{t:"写法 2（v1，导引三的 kernel）：相邻线程读相邻元素",f:"这一轮：线程 i 读 W[r, k+i]，再算 acc += W[r, k+i] · x[k+i]",y:"整个 warp 合算第 r 行",
     secs:[0,1].map(s=>({lanes:[...Array(16).keys()].map(j=>s*16+j),slot:[...Array(16).keys()]})), useful:64},
  3:{t:"写法 3（v5）：每个线程一次读 16 字节（uint4）",f:"这一轮：线程 i 读 W[r, k+8i … k+8i+7]，一次算 8 个乘加",y:"整个 warp 合算第 r 行",
     secs:[...Array(16).keys()].map(s=>({lanes:[2*s,2*s+1],slot:[...Array(16).keys()]})), useful:512}

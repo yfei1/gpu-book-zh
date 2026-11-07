@@ -87,8 +87,8 @@ def delta(prev, cur, lower_better):
     if prev == cur:
         return None
     better = cur < prev if lower_better else cur > prev
-    ratio = prev / cur if lower_better else cur / prev
-    return ratio, cur - prev, better
+    num, den = (prev, cur) if lower_better else (cur, prev)
+    return (num / den if den else None), cur - prev, better
 
 
 def delta_label(prev, cur, lower_better, unit, noise, decimals, with_unit):
@@ -100,9 +100,9 @@ def delta_label(prev, cur, lower_better, unit, noise, decimals, with_unit):
     if d is None:
         return ["×1.00"], col
     ratio, diff, _ = d
-    r = f"×{ratio:.2f}" if ratio < 10 else f"×{ratio:.1f}"
+    r = "" if ratio is None else f"×{ratio:.2f}" if ratio < 10 else f"×{ratio:.1f}"
     a = signed(diff, decimals if decimals is not None else (1 if abs(diff) >= 10 else 2)) + (f" {unit}" if with_unit else "")
-    return [r, a], col
+    return ([r] if r else []) + [a], col
 
 
 def scale(values, extra):
@@ -113,7 +113,7 @@ def scale(values, extra):
     if clipped:
         cap = s[1] * 1.25
     top = max([cap] + [e for e in extra if e is not None and e <= cap * 1.2])
-    return top, clipped
+    return (top or 1.0), clipped
 
 
 def whisker(x, y_of, low, high, color=INK):
@@ -199,26 +199,49 @@ def grouped_svg(spec, unit, lower, dec):
             raise ChartError(f"grouped: series[{i}] has {len(s['values'])} values for {len(groups)} groups")
         vals = []
         for j, v in enumerate(s["values"]):
-            if isinstance(v, dict):
+            if v is None:
+                vals.append((None, None, None))
+            elif isinstance(v, dict):
                 vals.append((number(v, "value", f"grouped: series[{i}].values[{j}]"), number(v, "low", "grouped", False), number(v, "high", "grouped", False)))
             elif isinstance(v, (int, float)) and not isinstance(v, bool):
                 vals.append((float(v), None, None))
             else:
-                raise ChartError(f"grouped: series[{i}].values[{j}] must be a number or {{value, low, high}}")
+                raise ChartError(f"grouped: series[{i}].values[{j}] must be a number, null or {{value, low, high}}")
         series.append((str(s["name"]), vals))
-    if len(series) < 2:
-        raise ChartError("grouped: needs at least 2 series")
+    if not series:
+        raise ChartError("grouped: needs at least 1 series")
+    show_delta = spec.get("delta", len(series) == 2)
+    if not isinstance(show_delta, bool):
+        raise ChartError("delta must be true or false")
     base = line_spec(spec, "baseline", "grouped")
-    allv = [v[0] for _, vs in series for v in vs]
+    allv = [v[0] for _, vs in series for v in vs if v[0] is not None]
+    if not allv:
+        raise ChartError("grouped: every value is null")
     dec = spec.get("decimals", auto_decimals(allv + ([base[1]] if base else [])))
-    top = max(allv + ([base[1]] if base else [])) * 1.0
+    vmax = max(allv + ([base[1]] if base else []) + [0.0])
+    vmin = min(allv + [0.0])
+    pos = sorted((v for v in allv if v > 0), reverse=True)
+    cut = len(pos) > 1 and pos[0] > 3 * pos[1]
+    if cut:
+        vmax = pos[1] * 1.3
+    rng = (vmax - vmin) or 1.0
     G, S = len(groups), len(series)
     pitch = (W - 16) / G
     bw = min(40, (pitch - 26) / S)
-    y_top, plot_h = 58, 150
-    y_base = y_top + plot_h
-    y_of = lambda v: y_base - v / top * plot_h
-    colors = [GREY] + (LIGHT_BLUES[: S - 2] if S > 2 else []) + [BLUE]
+    fs = 12 if bw >= 30 else 10.5
+    y_top, plot_h = (58 if show_delta else 26), 150
+    pad = 16 if vmin < 0 else 0
+    y_base = y_top + plot_h + pad
+    y_of = lambda v: y_top + (vmax - min(v, vmax)) / rng * plot_h
+    y0 = y_of(0)
+    if S == 1:
+        colors = [BLUE]
+    elif S == 2:
+        colors = [GREY, BLUE]
+    elif S == 3:
+        colors = [GREY, LIGHT_BLUES[1], BLUE]
+    else:
+        colors = [STACK[i % len(STACK)] for i in range(S)]
     with_unit = pitch > est(f"{MINUS}00.00 {unit}", 10.5) + 4
     out = []
     for g in range(G):
@@ -226,20 +249,28 @@ def grouped_svg(spec, unit, lower, dec):
         left = gx + (pitch - S * bw - (S - 1) * 3) / 2
         for si, (_, vs) in enumerate(series):
             v, lo, hi = vs[g]
+            if v is None:
+                continue
             x = left + si * (bw + 3)
-            h = v / top * plot_h
-            out.append(f'<rect x="{x:.1f}" y="{y_base-h:.1f}" width="{bw:.1f}" height="{h:.1f}" rx="2" fill="{colors[si]}"/>')
+            ya, yb = sorted((y0, y_of(v)))
+            out.append(f'<rect x="{x:.1f}" y="{ya:.1f}" width="{bw:.1f}" height="{max(yb-ya, 0.6):.1f}" rx="2" fill="{colors[si]}"/>')
             out.append(whisker(x + bw / 2, y_of, lo, hi))
-            out.append(text(x + bw / 2, y_of(max(v, hi or 0)) - 5, fmt(v, dec), 12, weight=600 if si == S - 1 else None, halo=True))
+            if v > vmax:
+                out.append(f'<path d="M{x-2:.1f} {ya+16:.1f} l{bw+4:.1f} -6" stroke="#fbfbfa" stroke-width="3.5" fill="none"/>')
+            above = v >= 0
+            ytxt = (y_of(max(v, hi or v)) - 5) if above else (y_of(min(v, lo if lo is not None else v)) + fs + 3)
+            out.append(text(x + bw / 2, ytxt, fmt(v, dec), fs, weight=600 if si == S - 1 else None, halo=True))
         for j, ln in enumerate(wrap(groups[g], 12.5, pitch - 6) or [""]):
             out.append(text(gx + pitch / 2, y_base + 17 + j * 15, ln, 12.5))
-        lab, col = delta_label(series[0][1][g][0], series[-1][1][g][0], lower, unit, False, dec, with_unit)
-        for j, ln in enumerate(lab):
-            out.append(text(gx + pitch / 2, 14 + j * 13, ln, 11.5 if j == 0 else 10.5, fill=col, weight=600 if j == 0 else None))
+        first, last = series[0][1][g][0], series[-1][1][g][0]
+        if show_delta and S > 1 and first is not None and last is not None:
+            lab, col = delta_label(first, last, lower, unit, False, dec, with_unit)
+            for j, ln in enumerate(lab):
+                out.append(text(gx + pitch / 2, 14 + j * 13, ln, 11.5 if j == 0 else 10.5, fill=col, weight=600 if j == 0 else None))
     lines = hline(8, W - 8, y_of(base[1])) if base else ""
-    axis = f'<line x1="8" x2="{W-8}" y1="{y_base}" y2="{y_base}" stroke="#c9c9ce"/>'
+    axis = f'<line x1="8" x2="{W-8}" y1="{y0:.1f}" y2="{y0:.1f}" stroke="#c9c9ce"/>'
     max_lines = max(len(wrap(g, 12.5, pitch - 6)) for g in groups)
-    legend = [(colors[i], name) for i, (name, _) in enumerate(series)] + ([(("dash", DASH), f"{base[0]} {fmt(base[1], dec)}")] if base else [])
+    legend = ([(colors[i], name) for i, (name, _) in enumerate(series)] if S > 1 else []) + ([(("dash", DASH), f"{base[0]} {fmt(base[1], dec)}")] if base else [])
     return y_base + 8 + 15 * max_lines + 8, axis + "".join(out) + lines, legend, []
 
 
@@ -258,7 +289,7 @@ def stacked_svg(spec, unit, lower, dec):
     total = sum(v for _, v in segs)
     base, floor = line_spec(spec, "baseline", "stacked"), line_spec(spec, "floor", "stacked")
     dec = spec.get("decimals", auto_decimals([v for _, v in segs] + [x[1] for x in (base, floor) if x]))
-    span = max([total] + [x[1] for x in (base, floor) if x])
+    span = max([total] + [x[1] for x in (base, floor) if x]) or 1.0
     x0, x1 = 8, W - 8
     px = lambda v: x0 + v / span * (x1 - x0)
     y_bar, bar_h = 44, 40
@@ -312,13 +343,16 @@ def render(body):
     for key in ("title", "unit", "data"):
         if key not in spec:
             raise ChartError(f"missing '{key}'")
-    unknown = set(spec) - {"type", "title", "unit", "lower_is_better", "baseline", "floor", "note", "data", "decimals"}
+    unknown = set(spec) - {"type", "title", "unit", "lower_is_better", "baseline", "floor", "note", "data", "decimals", "delta"}
     if unknown:
         raise ChartError(f"unknown field(s): {', '.join(sorted(unknown))}")
     unit, lower = str(spec["unit"]), spec.get("lower_is_better", True)
     if not isinstance(lower, bool):
         raise ChartError("lower_is_better must be true or false")
-    height, svg_body, legend, notes = BUILDERS[kind](spec, unit, lower, None)
+    try:
+        height, svg_body, legend, notes = BUILDERS[kind](spec, unit, lower, None)
+    except (ArithmeticError, KeyError, TypeError, ValueError, IndexError) as e:
+        raise ChartError(f"{kind}: {type(e).__name__}: {e}")
     direction = "越低越好" if lower else "越高越好"
     head = f'<div class="chart-title">{esc(spec["title"])}<span class="chart-sub">{esc(unit)}，{direction}</span></div>'
     leg = ""
