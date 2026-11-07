@@ -263,21 +263,21 @@ function setMode(md){ mode=md; M=MODES[md-1]; end=M.end; const hasSync=md>1;
 function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i].t0;
   const cd=(f,i,o,g,cc)=>({f,i,o,g,c:cc});
   const TIDV="$\\shape{\\mathrm{tid}}{32}{int32}$ = 128 B，在 warp 0 的寄存器（lane i = tid i）";
-  const ADDR="<code>row</code> = blockIdx.x（int32，读特殊寄存器）；<code>y</code> 指针 8 B（读常量区）";
+  const ADDR="<code>row</code> 取自 CTA 序号 blockIdx.x；<code>y</code> 的地址是启动时传进来的参数";
   if(mode===1){
     E.push({t:a(0),s:"比较 tid != 0，32 条 lane 同时算，结果写进谓词 P0",ring:{k:"lane",l:0},
       cd:cd("$P_0=(\\mathrm{tid}\\ne0)$",TIDV,"谓词 <code>P0</code>：每条 lane 1 位；lane 0 为假，lane 1–31 为真",
        "<code>P0</code> 交给后面 4 条仅 lane 0 执行的指令","1 条指令，32 条 lane 都有用")});
     E.push({t:a(1),s:"3 条 带条件的指令算 y[row] 的地址：只有 lane 0 的谓词为真",ring:{k:"lane",l:0},
       cd:cd("$\\mathrm{addr}(y[\\mathrm{row}])=y+4\\times\\mathrm{row}$","<code>row</code> int32，<code>y</code> 指针 8 B（常量区）；仅 lane 0 执行","地址：64 位，两个寄存器，在 lane 0",
-       "地址交给写出指令","3 条指令（读 blockIdx、读 y 指针、算地址），累计 "+c(1)+" 条；ptxas 把它们也放进谓词，lane 1–31 空发")});
+       "地址交给写出指令","3 条指令（读 blockIdx、读 y 指针、算地址），累计 "+c(1)+" 条；编译器把它们也放进谓词，lane 1–31 空发")});
     E.push({t:a(2),s:"写全局内存：lane 0 写 y[row]，lane 1–31 不写，也不用等",ring:{k:"lane",l:0},
       cd:cd("$\\text{仅 lane 0}\\;\\;y[\\mathrm{row}]\\leftarrow\\mathrm{sum}$",
        "<code>sum</code> float 4 B，在 lane 0 的寄存器；地址（上一步）",
        "<code>y[row]</code> float 4 B，写入全局内存（经 L2）",
        "<code>y[row]</code> 留给后续 kernel 读取；warp 接着做 <code>z[tid] = sum + 1</code>","1 条指令，只有 lane 0（1/32）的结果有用；这个写法不做 128 次加法，只演示条件写出")});
     E.push({t:end,s:"总代价：5 条 warp 指令",ring:null,
-      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+4\\times1}{5\\times32}=\\dfrac{36}{160}\\approx"+M.pct+"\\%$","本 warp 的 5 条指令（编译后的机器码）；不做 128 次加法，只演示条件写出","y[row] 写出；1 遍走完，没有跳转","—","总代价：共 "+M.total+" 条 warp 指令；若后面没有别的活，ptxas 改成让 31 个通道直接退出（lane 0 另有 10 条）")}); }
+      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+4\\times1}{5\\times32}=\\dfrac{36}{160}\\approx"+M.pct+"\\%$","本 warp 的 5 条指令（编译后的机器码）；不做 128 次加法，只演示条件写出","y[row] 写出；1 遍走完，没有跳转","—","总代价：共 "+M.total+" 条 warp 指令；若后面没有别的活，编译器改成让 31 个通道直接退出")}); }
   else if(mode===2){
     const lp="<code>sum</code> float 4 B，在 lane 0 的寄存器";
     E.push({t:a(0),s:"31 个通道退出：tid != 0 的 lane 直接退出，不是掩码等待",ring:{k:"lane",l:0},
@@ -287,17 +287,17 @@ function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i
       cd:cd("$\\mathrm{addr}(y[\\mathrm{row}])=y+4\\times\\mathrm{row}$",ADDR,"地址：64 位，两个寄存器，在 lane 0","地址交给最后的全局内存写","3 条指令，一次性，累计 "+c(1)+" 条")});
     E.push({t:a(2),s:"第 1 组：1 条 16 B 共享内存读取读 smem[0..3]，4 条浮点加法 依次加进 sum",ring:{k:"lane",l:0},
       cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=0}^{3}\\mathrm{smem}[j]$","$\\shape{\\mathrm{smem}[0{:}4]}{4}{FP32}$ = 16 B，在 SMEM（共 512 B）；"+lp+"，现值 0","<code>sum</code> = smem[0..3] 之和，在 lane 0 的寄存器",
-       "sum 交给第 2 组：下一条加法 要等上一条加完","5 条指令（1 1 条 16 B 共享内存读取 + 4 条加法）；循环完全展开，没有循环控制指令")});
+       "sum 交给第 2 组：下一条加法 要等上一条加完","5 条指令（1 条 16 B 共享内存读取 + 4 条加法）；循环完全展开，没有循环控制指令")});
     E.push({t:a(3),s:"第 2 组：读 smem[4..7]，4 条浮点加法 接着加",ring:{k:"lane",l:0},
       cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=4}^{7}\\mathrm{smem}[j]$","$\\shape{\\mathrm{smem}[4{:}8]}{4}{FP32}$ = 16 B，在 SMEM；"+lp,"<code>sum</code> = smem[0..7] 之和","sum 交给第 3 组","再 5 条指令，累计 "+c(3)+" 条")});
     E.push({t:a(4),s:"第 3 到第 31 组同样只有 lane 0 在干活（图中压缩）",ring:{k:"lane",l:0},
-      cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=8}^{123}\\mathrm{smem}[j]$","$\\shape{\\mathrm{smem}[8{:}124]}{116}{FP32}$ = 464 B，在 SMEM；"+lp,"<code>sum</code> = smem[0..123] 之和，在 lane 0 的寄存器","sum 交给第 32 组","再 145 条指令（29 组 × 5），累计 "+c(4)+" 条；ptxas 不重排加法，仍是依赖链")});
+      cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=8}^{123}\\mathrm{smem}[j]$","$\\shape{\\mathrm{smem}[8{:}124]}{116}{FP32}$ = 464 B，在 SMEM；"+lp,"<code>sum</code> = smem[0..123] 之和，在 lane 0 的寄存器","sum 交给第 32 组","再 145 条指令（29 组 × 5），累计 "+c(4)+" 条；编译器不重排加法，仍是依赖链")});
     E.push({t:a(5),s:"第 32 组：读 smem[124..127]，最后 4 条浮点加法",ring:{k:"lane",l:0},
       cd:cd("$\\mathrm{sum}\\mathrel{+}=\\sum_{j=124}^{127}\\mathrm{smem}[j]$，得 $\\mathrm{sum}=\\sum_{i<128}\\mathrm{smem}[i]$","$\\shape{\\mathrm{smem}[124{:}128]}{4}{FP32}$ = 16 B，在 SMEM；"+lp,"<code>sum</code> = 128 个部分和之和，float 4 B，在 lane 0 的寄存器","sum 交给全局内存写","共 32 条共享内存读取 + 128 条加法 = 160 条；128 次依赖加法：128 × 4 + 23 = 535 个周期（加首尾约 537；用合并共享内存读取 首读为 32 个周期）")});
     E.push({t:a(6),s:"全局内存写：lane 0 把 sum 写进 y[row]",ring:{k:"lane",l:0},
       cd:cd("$y[\\mathrm{row}]\\leftarrow\\mathrm{sum}$",lp+"；地址（第 2 步算好）","<code>y[row]</code> float 4 B，写入全局内存（经 L2）","<code>y[row]</code> 留给后续 kernel 读取；warp 0 接着退出","1 条指令，累计 "+c(6)+" 条")});
     E.push({t:a(7),s:"退出：kernel 结束",ring:{k:"sch"},
-      cd:cd("退出","warp 0 只剩 lane 0；lane 1–31 已退出","无；若 if 后还有代码，ptxas 加汇合点，32 个通道重新全开","kernel 结束","1 条退出，累计 "+c(7)+" 条")});
+      cd:cd("退出","warp 0 只剩 lane 0；lane 1–31 已退出","无；若 if 后还有代码，编译器加汇合点，32 个通道重新全开","kernel 结束","1 条退出，累计 "+c(7)+" 条")});
     E.push({t:end,s:"总代价：共 "+M.total+" 条 warp 指令",ring:null,
       cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+165\\times1}{166\\times32}=\\dfrac{197}{5312}\\approx"+M.pct+"\\%$","本 warp 的 166 条指令（循环次数写常数 128）","y[row] 写出；160 条是共享内存读取 + 加法，只有 1/32 的 lane 活跃","—","总代价：循环次数写常数 128 时静态 166 条，写 blockDim.x 时动态 231 条；128 次依赖加法 128 × 4 + 23 = 535 个周期（加首尾约 537）；活跃 lane 占 "+M.pct+"%")}); }
   else {
@@ -313,7 +313,7 @@ function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i
     E.push({t:a(4),s:"汇合：两群 lane 在汇合点重新合并",ring:{k:"sch"},
       cd:cd("汇合","lane 0–15 与 lane 16–31 两群 lane","活跃掩码恢复为 0xFFFFFFFF","32 条 lane 齐步走向后面的指令","1 条指令，累计 "+c(4)+" 条")});
     E.push({t:a(5),s:"汇合后的 6 条其他指令（含全局内存写 和退出），32 条 lane 齐步走",ring:{k:"sch"},
-      cd:cd("$y[\\ldots]\\leftarrow s$；退出","每条 lane 的 s（float 4 B）","y 的 32 个元素，写入全局内存","kernel 结束","6 条指令，累计 "+c(5)+" 条；位置按本次重编译画在汇合之后，条数来自 cuobjdump")});
+      cd:cd("$y[\\ldots]\\leftarrow s$；退出","每条 lane 的 s（float 4 B）","y 的 32 个元素，写入全局内存","kernel 结束","6 条指令，累计 "+c(5)+" 条；位置按重新编译后的机器指令画在汇合之后")});
     E.push({t:end,s:"总代价：共 "+M.total+" 条 warp 指令",ring:null,
       cd:cd("$\\text{活跃 lane 占比}=\\dfrac{32+160\\times16+16+160\\times16+32+6\\times32}{329\\times32}=\\dfrac{5392}{10528}\\approx"+M.pct+"\\%$","本 warp 的 329 条指令（64 共享内存读取 + 256 加法 + 2 次跳转 + 1 次汇合 + 其他 6）","s 算完并写出","—","总代价：耗时是两支之和；活跃 lane 占 "+M.pct+"%")}); }
   return E; }
