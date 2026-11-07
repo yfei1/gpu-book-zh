@@ -210,7 +210,7 @@ function setMode(md){ mode=md; readout.textContent=RO[md]; EV=EVS[md]; end=ENDS[
   EV.forEach((e,i)=>{ if(md<3) e.t=i; });
   $("algsvg").setAttribute("viewBox","0 0 640 "+(md<=2?190:196)); $("flatsvg").setAttribute("viewBox","0 0 640 "+(md<=2?(md===1?130:110):138));
   $("frm").innerHTML=""; $("tl").innerHTML=""; $("ax").innerHTML="";
-  if(md>=3){ const rows=["ALU 管线","FMA 管线","目标寄存器就位"]; $("tTitle").textContent="时间（clk）：每条指令占管线 2 clk，依赖延迟按约 4 clk 推导";
+  if(md>=3){ const rows=["ALU 管线","FMA 管线","目标寄存器就位"]; $("tTitle").textContent="时间（clk）：每条指令占管线 2 clk，依赖延迟取约 4 clk";
     let fr=""; rows.forEach((r,i)=>{ fr+='<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*24+13)+'">'+r+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*24)+'" width="'+(TL1-TL0)+'" height="18"/>'; }); $("frm").innerHTML=fr;
     let h=""; const blk=(x)=>{ const y=TY0+(x.pipe==="A"?0:24), w=TX(2)-TX(0);
       return '<rect x="'+TX(x.t0).toFixed(1)+'" y="'+(y+1)+'" width="'+(w-1).toFixed(1)+'" height="16" fill="'+hsl(HUE[x.k],55,x.name==="LOP3"?40:(x.name==="HMUL2"?34:52))+'"/><text class="tb" x="'+(TX(x.t0)+w/2).toFixed(1)+'" y="'+(y+13)+'">'+x.n+' '+(x.name==="IMAD.SHL"?"IMAD":x.name)+'</text>'; };

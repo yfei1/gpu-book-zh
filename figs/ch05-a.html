@@ -167,7 +167,7 @@ function setMode(md){ mode=md; const D=DATA[md]; R=D.R; EV=D.EV; end=D.end; read
   $("algT").textContent=D.t1; $("algT2").textContent=D.t2;
   let h=""; const y=(i)=>TY0+i*24, row={FMA:1,ALU:2,SFU:3};
   R.forEach(r=>{ if(r.stall>0) h+=bar(r.st0,r.iss,y(0),null,null,"wait"); h+=bar(r.iss,r.iss+1,y(0),col(r.w),r.n); h+=bar(r.iss,r.iss+r.iv,y(row[r.p]),col(r.w),r.n); });
-  $("tl").innerHTML=h; drawAxis(4,"时间（周期，由发射间隔推算）"); $("tIn").max=String(end); t=Math.min(t,end); }
+  $("tl").innerHTML=h; drawAxis(4,"时间（周期）"); $("tIn").max=String(end); t=Math.min(t,end); }
 const partEl={}; ["int32","fp32","sfu"].forEach(n=>partEl[n]=document.querySelector('[data-part="'+n+'"]')); const schedEl=document.querySelector('[data-part="sched"]');
 function show(){ let dots="", lit={int32:false,fp32:false,sfu:false}, iss=false;
   R.forEach(r=>{ const u=t-r.iss; if(u>=0 && u<1){ iss=true; const p=along([SRCP[r.p],PIPE[r.p]],u); dots+=tok(p,r.n); lit[PART[r.p]]=true; }

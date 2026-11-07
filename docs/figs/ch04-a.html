@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 4-1 调度器每个周期选哪个 warp</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 4-1 调度器每个周期选哪个 warp</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -203,7 +217,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate{padding-bottom:58px}
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
 .iso-plate-corner[data-corner="readout"]{max-width:100%}
-@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px;padding-bottom:104px}.iso-plate-corners{inset:18px 12px}}
 .f4 .nar{margin:14px 8px 8px;min-height:15em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.f4 .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
 </style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 4-1</span><span class="iso-plate-corner" data-corner="title">调度器每个周期选哪个 warp</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f4"><svg class="flat" viewBox="0 0 640 114" role="img" aria-label="算法：每个 warp 读 W 的哪一段">
 <text class="lab2" id="agT" x="18" y="16"></text><g id="agR"></g><g id="agS"></g><g id="agO"></g><g id="agF"></g></svg><svg class="isov" viewBox="0 0 640 250" role="img" aria-label="一个 SMSP：16 个 warp 槽位、调度器、寄存器与执行单元">
@@ -216,7 +230,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <g id="rows"></g><clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="232"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g>
 <path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">第 1 档 · 16 个驻留 warp，每轮 1 条读取</label><label><input type="radio" name="mode" value="2">第 2 档 · 每线程 8 条读取在途（第 3 节）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="1400" step="1" value="0"></label></div><div class="lg"><span><i class="k1"></i>发出一条读取（读 W 的一段）</span><span><i class="k2"></i>发出一条计算（乘加、换算、循环控制）</span><span><i class="k3"></i>能发但没被选中</span><span><i class="k4"></i>在等读取的数据回来</span></div>
-<p class="cap">按空载约 600 个周期、第 2 档每 SMSP 4 个 warp 建模（模型值：两档均超八成 no eligible）；满载时往返更长，见第 2 章第 3 节。真实网格每 SM 约 17.45 个 warp，在途约 69.8 KiB/SM（正文账）。</p></main><script type="module">
+<p class="cap">按空载约 600 个周期、第 2 档每 SMSP 4 个 warp 建模（模型值：两档均超八成 no eligible）；满载时往返更长，见第 2 章第 3 节。第 1 档的 16 个驻留 warp 来自 16 个 CTA，读 W 的 16 个不同行；图里把每 4 个涂成同色，只是对照导引三 <code>v1</code> 里同读一行 W 的 4 个 warp，真实机器上这 4 个 warp 在 4 个不同的 SMSP 上，不影响结果。真实网格每 SM 约 17.45 个 warp，在途约 69.8 KiB/SM（正文账）。</p></main><script type="module">
 function simulate(m){ const W=m.w; const st=[...Array(W)].map(()=>({pc:0,dataAt:-1,last:-1}));
   const per=m.n+m.n*6; const rec=[...Array(W)].map(()=>new Array(1400).fill(0)); const sel=new Array(1400).fill(-1); let busy=0, none=0; const ret=[]; let peak=0;
   for(let c=0;c<1400;c++){ let pick=-1; const rdy=[];
@@ -245,8 +259,8 @@ const rowOf=(w)=>Math.floor(w/MODES[mode].per), segOf=(w)=>w%MODES[mode].per;
 const rect=(w)=>{ const m=MODES[mode], r=rowOf(w), pw=(GX1-GX0)/m.per; return {x:GX0+segOf(w)*pw, y:GY0+r*GH, w:pw-1, h:GH-1}; };
 let mode=1, rec=[], sel=[], t=0, end=CYC, stats=null;
 function setMode(md){ mode=md; const m=MODES[md]; for(let w=0;w<16;w++) slot[w].style.fill=""; const s=simulate(m); rec=s.rec; sel=s.sel; stats=s.stats;
-  const pct=(x)=>Math.round(100*x), kib=stats.kib<4?stats.kib.toFixed(1):stats.kib.toFixed(0);
-  readout.textContent=m.t+"\n发射槽忙 "+pct(stats.busy)+"% 的周期 · no eligible（没有可发射的 warp）"+pct(stats.none)+"%"+(md===2?" · 本 SMSP 最多同时在途 "+kib+" KiB":"");
+  const pct=(x)=>Math.round(100*x), kib=+stats.kib.toFixed(1), sm=+(4*stats.kib).toFixed(0);
+  readout.textContent=m.t+"\n发射槽忙 "+pct(stats.busy)+"% 的周期 · no eligible（没有可发射的 warp）"+pct(stats.none)+"%"+" · 本 SMSP 最多同时在途 "+kib+" KiB（整个 SM "+sm+" KiB）";
   let rows="", h=""; for(let w=0;w<16;w++){ const y=TY0+w*RH; rows+='<rect class="row" x="'+TL0+'" y="'+y+'" width="'+(TL1-TL0)+'" height="'+(RH-2)+'"'+(w>=m.w?' opacity=".25"':'')+'/>'+(w<m.w&&w%m.per===0&&(m.per===1||w%4===0)?'<text class="rl" x="'+(TL0-6)+'" y="'+(y+9)+'">'+(m.per>1?'读第 '+rowOf(w)+' 行的 4 个 warp':'读第 '+rowOf(w)+' 行的 warp')+'</text>':''); }
   for(let w=0;w<m.w;w++){ const y=TY0+w*RH; let c=0; const r=rec[w];
     while(c<CYC){ let e=c; while(e<CYC&&r[e]===r[c]) e++; const v=r[c];
@@ -266,8 +280,8 @@ function setMode(md){ mode=md; const m=MODES[md]; for(let w=0;w<16;w++) slot[w].
 function narrate(c){ const n=document.getElementById("stepN"); const m=MODES[mode], K=CARDS[mode];
   if(t<1e-9){ n.textContent=""; card("按播放，或拖动时间"); return; }
   let wait=0, rdy=0; for(let w=0;w<m.w;w++){ if(rec[w][c]===3) wait++; else if(rec[w][c]===2) rdy++; }
-  const pct=(x)=>Math.round(100*x), kib=stats.kib<4?stats.kib.toFixed(1):stats.kib.toFixed(0);
-  if(t>=end){ n.textContent="结束"; card("总代价", K.end, "这 "+CYC+" 个周期里，发射槽忙 "+pct(stats.busy)+"%，没有 warp 可发 "+pct(stats.none)+"%"+(mode===2?"；本 SMSP 最多同时在途 "+kib+" KiB":"")); return; }
+  const pct=(x)=>Math.round(100*x), kib=+stats.kib.toFixed(1), sm=+(4*stats.kib).toFixed(0);
+  if(t>=end){ n.textContent="结束"; card("总代价", K.end, "这 "+CYC+" 个周期里，发射槽忙 "+pct(stats.busy)+"%，没有 warp 可发 "+pct(stats.none)+"%"+"；本 SMSP 最多同时在途 "+kib+" KiB（整个 SM "+sm+" KiB）"); return; }
   const p=sel[c]; n.textContent="第 "+c+" 周期";
   if(p<0){ card("没有 warp 能发：全部 "+m.w+" 个都在等读取的数据", K.idle, "这个周期的发射槽空着"); return; }
   const ld=rec[p][c]===1;

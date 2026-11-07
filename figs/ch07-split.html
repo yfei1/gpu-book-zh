@@ -174,7 +174,7 @@ function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){co
 const pd=(pts)=>"M"+pts.map(p=>p[0]+" "+p[1]).join("L");
 let mode=1, M=null, end=1, t=0, EV=[], FX=[], FXC=[];
 const TL0=CFG.tl0, TL1=CFG.tl1, TY0=26; let PITCH=24, RH=18;
-let TX=(x)=>x;
+let TX=(x)=>x, TLT=[];
 function buildTL(){ const tl=M.tl, n=tl.rows.length; PITCH=tl.pitch||24; RH=tl.rowh||18; TX=(x)=>TL0+(TL1-TL0)*x/tl.T; const H=TY0+n*PITCH+18;
   let h='<svg class="flat" viewBox="0 0 640 '+H+'" role="img" aria-label="'+esc_(tl.title)+'"><defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern><pattern id="hatchF" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hf"/></pattern></defs>';
   h+='<text class="lab2" x="'+TL0+'" y="'+(TY0-10)+'">'+esc_(tl.title)+'</text>';
@@ -184,7 +184,7 @@ function buildTL(){ const tl=M.tl, n=tl.rows.length; PITCH=tl.pitch||24; RH=tl.r
     const fill=b.c!=null?' fill="'+pal(b.c)+'"':""; h+='<rect class="'+(b.cls||"rd")+'" x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+hh+'"'+fill+'/>';
     if(b.txt) h+='<text class="bt" x="'+(x+w/2).toFixed(1)+'" y="'+(y+hh*0.75)+'">'+esc_(b.txt)+'</text>'; });
   (tl.div||[]).forEach(d=>{ h+='<path class="div" d="M'+TX(d.t)+' '+(TY0-14)+'V'+(TY0+n*PITCH)+'"/><text class="lab2" x="'+(TX(d.t)+4)+'" y="'+(TY0+n*PITCH+9)+'">'+esc_(d.label)+'</text>'; });
-  h+='</g><path id="cur" class="cur" d=""/></svg>'; $("tlHost").innerHTML=h; }
+  h+='</g><path id="cur" class="cur" d=""/></svg>'; $("tlHost").innerHTML=h; TLT=[...$("tlHost").querySelectorAll("text.bt")].map(x=>{ const b=x.getBBox(); return [x,b.x+b.width]; }); }
 function setMode(md){ FX.forEach(f=>f.els.forEach(e=>FXC.forEach(c=>e.classList.remove(c)))); mode=md; M=CFG.modes[md-1]; end=M.tl.T; t=Math.min(t,end);
   $("algHost").innerHTML='<svg class="flat" viewBox="0 0 640 '+M.algH+'" role="img" aria-label="'+esc_(M.algAria)+'">'+M.alg+'<g id="algO"></g></svg>';
   $("links").innerHTML=(M.links||[]).map(r=>'<path class="lk" d="'+pd(r)+'"/>').join("");
@@ -197,7 +197,7 @@ function show(){ const tt=Math.min(t,end);
   FX.forEach(f=>{ if(tt>=f.t0 && tt<(f.t1==null?1e9:f.t1)) f.els.forEach(e=>f.cls.split(" ").forEach(c=>e.classList.add(c))); });
   let dots=""; (M.dots||[]).forEach(d=>{ if(tt>=d.t0 && tt<d.t1){ const p=along(d.route,(tt-d.t0)/(d.t1-d.t0)); dots+='<circle class="dot" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(d.r||2.8)+'" fill="'+(d.c!=null?pal(d.c):"var(--anatomy-blue)")+'"/>'; } });
   $("dots").innerHTML=dots;
-  $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); const n=M.tl.rows.length; $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+n*PITCH)); $("tIn").value=String(t);
+  TLT.forEach(([x,r])=>{ x.style.visibility=r<=TX(tt)+0.5?"visible":"hidden"; }); $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); const n=M.tl.rows.length; $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+n*PITCH)); $("tIn").value=String(t);
   let k_=-1; for(let i=0;i<EV.length;i++){ if(EV[i].t<=tt+1e-9) k_=i; else break; }
   const N=$("stepN"), A=$("algO");
   if(k_<0){ N.textContent=""; card({t:"按播放，或拖动时间"}); $("focus").innerHTML=""; A.innerHTML=""; return; }

@@ -161,7 +161,7 @@ const pathA=(h,s)=>[HP[h],L2C,LSU[s],REG[s]];
 const M1=()=>{
   const bl=[{n:1,c:B1,route:pathA(0,0),t0:0,t1:3,home:1,stay:1,until:3.4},{n:2,c:B2,route:pathA(1,0),t0:3.4,t1:6.4,home:1,stay:1,until:6.8},{n:3,c:B3,route:[HP[2],L2C,LSU[0],DST[0]],t0:6.8,t1:9.8,home:1,stay:1}];
   return {end:10.5,speed:1.1,shot:7.6,
-  ro:"三跳串行：每跳只有 1 条独立指令，合计约 2.4 µs（检验 1 请求全长实测 2,400 ns）\n第一次用页号算地址处的停顿：37%–42% 在等页表读回来",
+  ro:"三跳串行：每跳只有 1 条独立指令，合计约 2.4 µs（检验 1 请求全长实测 2,400 ns）\n剖析器抽样中第一次用页号算地址处等页表返回的占比：37%–42%",
   axis:"时间（只表示先后，每跳画成一样长；真实约 600 / 640 / 1,150 ns）",
   strip:{title:"算法：读请求 b 的一个历史 KV 页，要走三跳",cells:[{a:"1",b:["seq_lens[b]","序列长度"],c:B1,t0:0,t1:3.4},{a:"2",b:["page_table[b, i]","页表项"],c:B2,t0:3.4,t1:6.8},{a:"3",b:["cp.async","KV 页进共享内存"],c:B3,t0:6.8,t1:10.5}]},
   blocks:bl,

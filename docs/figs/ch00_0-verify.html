@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 导一-2 一趟 verify：8 行的预测和草稿逐个比较</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 导一-2 一趟 verify：8 行的预测和草稿逐个比较</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -224,8 +238,8 @@ const stepOf=()=>Math.min(N(), Math.floor(t+1e-9)+1), frac=()=>Math.min(1, t-Mat
 const verdictShown=()=>t>=N()-1e-9 || frac()>=0.35;
 function cardOf(i){ const p=PIECES[i-1], last=i===N(); let s,o,x;
  if(!last){ s="第 "+i+" 行的预测与位置 "+(6+i)+" 的草稿比较：一致，接受这个草稿。"; o=p.oa; x=p.xa; }
- else if(K<7){ s="第一个不一致：采用大模型自己的预测，停止。"; o=p.os; x="位置编号前进 k + 1 = "+N()+"，下一趟从这里接着走"; }
- else { s="7 个草稿全部一致：第 8 行的预测没有草稿可比，直接采用，停止。"; o=p.ol; x="位置编号前进 k + 1 = 8，下一趟从这里接着走"; }
+ else if(K<7){ s="第一个不一致：采用大模型自己的预测，停止。"; o=p.os; x="已确认长度前进 k + 1 = "+N()+"，下一趟从这里接着走"; }
+ else { s="7 个草稿全部一致：第 8 行的预测没有草稿可比，直接采用，停止。"; o=p.ol; x="已确认长度前进 k + 1 = 8，下一趟从这里接着走"; }
  const c="本趟固定读取 9.0 GB 已付；每多接受 1 个，每个词元分摊变为 9.0 ÷ (k + 1) GB。到这一步已确认 "+i+" 个词元，每个摊 "+SHARE[i-1]+" GB。";
  $("stepT").textContent=s;
  $("stepK").innerHTML=[["公式",p.f],["输入",p.i],["输出",o],["交给下一步",x],["代价",c]].map(r=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); }

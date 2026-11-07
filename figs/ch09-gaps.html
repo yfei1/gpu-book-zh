@@ -232,7 +232,7 @@ function show(){
   const q=tot?null:D.KS[k];
   $("isoNote").textContent=tot?(mode===2?"琥珀：常驻的 CTA 在等计数器":"整层走完"):L_.phase==="gap"?(mode===2?"交接：132 个 SM 都常驻着 CTA，等计数器":"交接空隙：没有 CTA 在算"):L_.phase==="body"?L_.nBody+" 个 SM 在算":"尾部：132 个 SM 里只剩 "+L_.n+" 个在算";
   // timeline cursor and highlight
-  const tc=tcOf(Math.min(u,KN)); $("tcur").setAttribute("d","M"+TX(tc).toFixed(1)+" "+(Y0-34)+"V"+(Y0+28));
+  const tc=tcOf(Math.min(u,KN)); $("tcur").setAttribute("d","M"+TX(tc).toFixed(1)+" "+(Y0-3)+"V"+(Y0+25));
   let hl=''; if(!tot){ const a=k===0?M.s[0]:M.e[k-1]; hl='<rect class="hl" x="'+(TX(a)-1).toFixed(1)+'" y="'+(Y0-2)+'" width="'+(TX(M.e[k])-TX(a)+2).toFixed(1)+'" height="26" rx="2"/>'; }
   else hl='<rect class="hl" x="'+(TX(M.s[0])-1)+'" y="'+(Y0-2)+'" width="'+(TX(M.e[KN-1])-TX(M.s[0])+2).toFixed(1)+'" height="26" rx="2"/>';
   $("hlg").innerHTML=hl;

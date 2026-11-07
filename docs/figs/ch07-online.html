@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 7-3 在线 softmax：分母边读边算，切成两段后精确合并</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 7-3 在线 softmax：分母边读边算，切成两段后精确合并</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -240,7 +254,7 @@ function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){co
 const pd=(pts)=>"M"+pts.map(p=>p[0]+" "+p[1]).join("L");
 let mode=1, M=null, end=1, t=0, EV=[], FX=[], FXC=[];
 const TL0=CFG.tl0, TL1=CFG.tl1, TY0=26; let PITCH=24, RH=18;
-let TX=(x)=>x;
+let TX=(x)=>x, TLT=[];
 function buildTL(){ const tl=M.tl, n=tl.rows.length; PITCH=tl.pitch||24; RH=tl.rowh||18; TX=(x)=>TL0+(TL1-TL0)*x/tl.T; const H=TY0+n*PITCH+18;
   let h='<svg class="flat" viewBox="0 0 640 '+H+'" role="img" aria-label="'+esc_(tl.title)+'"><defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern><pattern id="hatchF" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hf"/></pattern></defs>';
   h+='<text class="lab2" x="'+TL0+'" y="'+(TY0-10)+'">'+esc_(tl.title)+'</text>';
@@ -250,7 +264,7 @@ function buildTL(){ const tl=M.tl, n=tl.rows.length; PITCH=tl.pitch||24; RH=tl.r
     const fill=b.c!=null?' fill="'+pal(b.c)+'"':""; h+='<rect class="'+(b.cls||"rd")+'" x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+hh+'"'+fill+'/>';
     if(b.txt) h+='<text class="bt" x="'+(x+w/2).toFixed(1)+'" y="'+(y+hh*0.75)+'">'+esc_(b.txt)+'</text>'; });
   (tl.div||[]).forEach(d=>{ h+='<path class="div" d="M'+TX(d.t)+' '+(TY0-14)+'V'+(TY0+n*PITCH)+'"/><text class="lab2" x="'+(TX(d.t)+4)+'" y="'+(TY0+n*PITCH+9)+'">'+esc_(d.label)+'</text>'; });
-  h+='</g><path id="cur" class="cur" d=""/></svg>'; $("tlHost").innerHTML=h; }
+  h+='</g><path id="cur" class="cur" d=""/></svg>'; $("tlHost").innerHTML=h; TLT=[...$("tlHost").querySelectorAll("text.bt")].map(x=>{ const b=x.getBBox(); return [x,b.x+b.width]; }); }
 function setMode(md){ FX.forEach(f=>f.els.forEach(e=>FXC.forEach(c=>e.classList.remove(c)))); mode=md; M=CFG.modes[md-1]; end=M.tl.T; t=Math.min(t,end);
   $("algHost").innerHTML='<svg class="flat" viewBox="0 0 640 '+M.algH+'" role="img" aria-label="'+esc_(M.algAria)+'">'+M.alg+'<g id="algO"></g></svg>';
   $("links").innerHTML=(M.links||[]).map(r=>'<path class="lk" d="'+pd(r)+'"/>').join("");
@@ -263,7 +277,7 @@ function show(){ const tt=Math.min(t,end);
   FX.forEach(f=>{ if(tt>=f.t0 && tt<(f.t1==null?1e9:f.t1)) f.els.forEach(e=>f.cls.split(" ").forEach(c=>e.classList.add(c))); });
   let dots=""; (M.dots||[]).forEach(d=>{ if(tt>=d.t0 && tt<d.t1){ const p=along(d.route,(tt-d.t0)/(d.t1-d.t0)); dots+='<circle class="dot" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(d.r||2.8)+'" fill="'+(d.c!=null?pal(d.c):"var(--anatomy-blue)")+'"/>'; } });
   $("dots").innerHTML=dots;
-  $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); const n=M.tl.rows.length; $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+n*PITCH)); $("tIn").value=String(t);
+  TLT.forEach(([x,r])=>{ x.style.visibility=r<=TX(tt)+0.5?"visible":"hidden"; }); $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); const n=M.tl.rows.length; $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+n*PITCH)); $("tIn").value=String(t);
   let k_=-1; for(let i=0;i<EV.length;i++){ if(EV[i].t<=tt+1e-9) k_=i; else break; }
   const N=$("stepN"), A=$("algO");
   if(k_<0){ N.textContent=""; card({t:"按播放，或拖动时间"}); $("focus").innerHTML=""; A.innerHTML=""; return; }

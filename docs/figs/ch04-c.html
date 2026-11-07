@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 4-3 一个 warp 的 32 条 lane：谓词、单侧分支与双侧分支</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 4-3 一个 warp 的 32 条 lane：谓词、单侧分支与双侧分支</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -261,9 +275,9 @@ function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i
       cd:cd("$\\texttt{@!P0}\\;\\;y[\\mathrm{row}]\\leftarrow\\mathrm{sum}$",
        "<code>sum</code> float 4 B，在 lane 0 的寄存器；地址（上一步）",
        "<code>y[row]</code> float 4 B，写入全局内存（经 L2）",
-       "<code>y[row]</code> 留给后续 kernel 读取；warp 接着做 <code>z[tid] = sum + 1</code>","1 条指令，只有 lane 0（1/32）的结果有用")});
+       "<code>y[row]</code> 留给后续 kernel 读取；warp 接着做 <code>z[tid] = sum + 1</code>","1 条指令，只有 lane 0（1/32）的结果有用；这个写法不做 128 次加法，只演示条件写出")});
     E.push({t:end,s:"总代价：5 条 warp 指令",ring:null,
-      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+4\\times1}{5\\times32}=\\dfrac{36}{160}\\approx"+M.pct+"\\%$","本 warp 的 5 条指令（cuobjdump，sm_90a）","y[row] 写出；1 遍走完，无分支，无 BSSY/BSYNC","—","总代价：共 "+M.total+" 条 warp 指令；若后面没有别的活，ptxas 改用 @P0 EXIT（lane 0 另有 10 条）")}); }
+      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+4\\times1}{5\\times32}=\\dfrac{36}{160}\\approx"+M.pct+"\\%$","本 warp 的 5 条指令（cuobjdump，sm_90a）；不做 128 次加法，只演示条件写出","y[row] 写出；1 遍走完，无分支，无 BSSY/BSYNC","—","总代价：共 "+M.total+" 条 warp 指令；若后面没有别的活，ptxas 改用 @P0 EXIT（lane 0 另有 10 条）")}); }
   else if(mode===2){
     const lp="<code>sum</code> float 4 B，在 lane 0 的寄存器";
     E.push({t:a(0),s:"@P0 EXIT：tid != 0 的 lane 直接退出，不是掩码等待",ring:{k:"lane",l:0},
@@ -285,7 +299,7 @@ function events(){ const S=M.segs, E=[]; const c=(i)=>S[i].cum; const a=(i)=>S[i
     E.push({t:a(7),s:"EXIT：kernel 结束",ring:{k:"sch"},
       cd:cd("$\\texttt{EXIT}$","warp 0 只剩 lane 0；lane 1–31 已在 @P0 EXIT 退出","无；若 if 后还有代码，ptxas 用 BSSY B0 / BSYNC B0 汇合","kernel 结束","1 条 EXIT，累计 "+c(7)+" 条")});
     E.push({t:end,s:"总代价：共 "+M.total+" 条 warp 指令",ring:null,
-      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+165\\times1}{166\\times32}=\\dfrac{197}{5312}\\approx"+M.pct+"\\%$","本 warp 的 166 条指令（循环次数写常数 128）","y[row] 写出；160 条是 LDS.128 + FADD，只有 1/32 的 lane 活跃","—","总代价：共 166 条（循环次数写 blockDim.x 时动态 231 条）；至少约 537 个周期；活跃 lane 占 "+M.pct+"%")}); }
+      cd:cd("$\\text{活跃 lane 占比}=\\dfrac{1\\times32+165\\times1}{166\\times32}=\\dfrac{197}{5312}\\approx"+M.pct+"\\%$","本 warp 的 166 条指令（循环次数写常数 128）","y[row] 写出；160 条是 LDS.128 + FADD，只有 1/32 的 lane 活跃","—","总代价：循环次数写常数 128 时静态 166 条，写 blockDim.x 时动态 231 条；128 次依赖加法 128 × 4 + 23 = 535 个周期（加首尾约 537）；活跃 lane 占 "+M.pct+"%")}); }
   else {
     const IL="（示意代码，不在 gemv 里）";
     E.push({t:a(0),s:"@!P0 BRA：lane 0–15 往下走 if 支，lane 16–31 跳到 else 支",ring:{k:"lane",l:0},

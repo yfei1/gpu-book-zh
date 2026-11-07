@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 5-1 三条基础管线的发射间隔：交替发与连续发</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 5-1 三条基础管线的发射间隔：交替发与连续发</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -228,7 +242,7 @@ function setMode(md){ mode=md; const D=DATA[md]; R=D.R; EV=D.EV; end=D.end; read
   $("algT").textContent=D.t1; $("algT2").textContent=D.t2;
   let h=""; const y=(i)=>TY0+i*24, row={FMA:1,ALU:2,SFU:3};
   R.forEach(r=>{ if(r.stall>0) h+=bar(r.st0,r.iss,y(0),null,null,"wait"); h+=bar(r.iss,r.iss+1,y(0),col(r.w),r.n); h+=bar(r.iss,r.iss+r.iv,y(row[r.p]),col(r.w),r.n); });
-  $("tl").innerHTML=h; drawAxis(4,"时间（周期，由发射间隔推算）"); $("tIn").max=String(end); t=Math.min(t,end); }
+  $("tl").innerHTML=h; drawAxis(4,"时间（周期）"); $("tIn").max=String(end); t=Math.min(t,end); }
 const partEl={}; ["int32","fp32","sfu"].forEach(n=>partEl[n]=document.querySelector('[data-part="'+n+'"]')); const schedEl=document.querySelector('[data-part="sched"]');
 function show(){ let dots="", lit={int32:false,fp32:false,sfu:false}, iss=false;
   R.forEach(r=>{ const u=t-r.iss; if(u>=0 && u<1){ iss=true; const p=along([SRCP[r.p],PIPE[r.p]],u); dots+=tok(p,r.n); lit[PART[r.p]]=true; }

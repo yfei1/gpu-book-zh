@@ -168,7 +168,7 @@ function setMode(md){ mode=md; const D=MD[md]; R=D.R; EV=D.E; end=D.end; V8=D.v8
     if(r.k==="U"&&r.p==="FMA") h+=bar(r.iss,r.iss+1,y(2),col(r.e),r.n);
     if(r.k==="FMA"||r.k==="FADD"){ h+=bar(r.iss,r.iss+1,y(2),col(r.e),r.n); const oy=(r.k==="FADD"||r.e%2)?7:0; h+='<rect x="'+TX(r.iss).toFixed(1)+'" y="'+(y(3)+2+oy)+'" width="'+(TX(r.iss+LAT)-TX(r.iss)-0.6).toFixed(1)+'" height="7" fill="'+col(r.e)+'" opacity=".75"/>'; }
     if(r.k==="LDG") h+=bar(r.iss,r.iss+1,y(4),col(r.e),r.n); });
-  $("tl").innerHTML=h; drawAxis(4,"时间（周期，由发射间隔和约 4 个周期的依赖延迟推算）"); $("tIn").max=String(end); t=Math.min(t,end);
+  $("tl").innerHTML=h; drawAxis(4,"时间（周期）：依赖延迟取约 4 个周期"); $("tIn").max=String(end); t=Math.min(t,end);
   document.querySelectorAll("[data-acc]").forEach((c,i)=>c.style.display=(V8&&i>1)?"none":""); }
 const partEl={}; ["int32","fp32","lsu"].forEach(n=>partEl[n]=document.querySelector('[data-part="'+n+'"]')); const schedEl=document.querySelector('[data-part="sched"]');
 function show(){ let dots="", lit={int32:false,fp32:false,lsu:false}, iss=false, accT="";

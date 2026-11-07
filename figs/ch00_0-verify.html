@@ -163,8 +163,8 @@ const stepOf=()=>Math.min(N(), Math.floor(t+1e-9)+1), frac=()=>Math.min(1, t-Mat
 const verdictShown=()=>t>=N()-1e-9 || frac()>=0.35;
 function cardOf(i){ const p=PIECES[i-1], last=i===N(); let s,o,x;
  if(!last){ s="第 "+i+" 行的预测与位置 "+(6+i)+" 的草稿比较：一致，接受这个草稿。"; o=p.oa; x=p.xa; }
- else if(K<7){ s="第一个不一致：采用大模型自己的预测，停止。"; o=p.os; x="位置编号前进 k + 1 = "+N()+"，下一趟从这里接着走"; }
- else { s="7 个草稿全部一致：第 8 行的预测没有草稿可比，直接采用，停止。"; o=p.ol; x="位置编号前进 k + 1 = 8，下一趟从这里接着走"; }
+ else if(K<7){ s="第一个不一致：采用大模型自己的预测，停止。"; o=p.os; x="已确认长度前进 k + 1 = "+N()+"，下一趟从这里接着走"; }
+ else { s="7 个草稿全部一致：第 8 行的预测没有草稿可比，直接采用，停止。"; o=p.ol; x="已确认长度前进 k + 1 = 8，下一趟从这里接着走"; }
  const c="本趟固定读取 9.0 GB 已付；每多接受 1 个，每个词元分摊变为 9.0 ÷ (k + 1) GB。到这一步已确认 "+i+" 个词元，每个摊 "+SHARE[i-1]+" GB。";
  $("stepT").textContent=s;
  $("stepK").innerHTML=[["公式",p.f],["输入",p.i],["输出",o],["交给下一步",x],["代价",c]].map(r=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); }

@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-5 小批量专家阶段的 kernel 链：栅栏还是 PDL 边</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-5 小批量专家阶段的 kernel 链：栅栏还是 PDL 边</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -230,7 +244,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 const $=(id)=>document.getElementById(id);
 const readout=document.querySelector("[data-readout]");
 const TL0=132,TL1=620,TY0=26,RH=24;
-let mode=1,t=0,end=1,MD=null,movers=[],lits=[],fxs=[];
+let mode=1,t=0,end=1,MD=null,movers=[],lits=[],fxs=[],tlTexts=[];
 const esc=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 const hsl=(h,l)=>"hsl("+h+" 62% "+(l||48)+"%)";
 const TX=(x)=>TL0+(TL1-TL0)*x/end;
@@ -244,6 +258,7 @@ function setMode(m){
   $("rowsG").innerHTML=MD.rows.map((r,i)=>'<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*RH+13)+'">'+esc(r)+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*RH)+'" width="'+(TL1-TL0)+'" height="18"/>').join("");
   $("clipR").setAttribute("height",nr*RH+8);
   $("tl").innerHTML=MD.bars.map((b)=>{ const y=TY0+b.r*RH+2, x0=TX(b.t0), w=Math.max(1.5,TX(b.t1)-x0); const st=b.h!=null?' style="fill:'+hsl(b.h)+'"':''; const rc='<rect class="'+(b.cls||"bar")+'" x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="14"'+st+'/>'; const lb=(b.lab&&w>14)?'<text class="bt'+(b.cls&&b.cls!=="bar"?' d':'')+'" x="'+(x0+w/2).toFixed(1)+'" y="'+(y+7.5)+'" text-anchor="middle">'+esc(b.lab)+'</text>':''; return rc+lb; }).join("");
+  tlTexts=[...$("tl").querySelectorAll("text.bt")]; tlTexts.forEach((x)=>{ const b=x.getBBox(); x.dataset.r=String(b.x+b.width); });
   $("tIn").max=String(end);
   movers=MD.movers||[]; lits=(MD.lit||[]).map((l)=>({...l,els:[...$("scene").querySelectorAll(l.sel)]}));
   $("fx").innerHTML=(MD.fx||[]).map((f,i)=>'<g data-fx="'+i+'" style="display:none">'+f.svg+'</g>').join(""); fxs=[...document.querySelectorAll("#fx [data-fx]")];
@@ -263,7 +278,7 @@ function show(){
   $("dots").innerHTML=dots;
   lits.forEach((l)=>l.els.forEach((e)=>e.classList.remove(l.cls||"busy"))); lits.forEach((l)=>{ if(t>=l.t0&&t<l.t1) l.els.forEach((e)=>e.classList.add(l.cls||"busy")); });
   (MD.fx||[]).forEach((f,i)=>{ fxs[i].style.display=(t>=f.t0&&(f.t1==null||t<f.t1))?"":"none"; });
-  const tt=Math.min(t,end); $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+MD.rows.length*RH)); $("tIn").value=String(t); narrate();
+  const tt=Math.min(t,end); tlTexts.forEach((x)=>{ x.style.visibility=(+x.dataset.r<=TX(tt)+0.5)?"visible":"hidden"; }); $("clipR").setAttribute("width",(TX(tt)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(tt).toFixed(1)+" "+(TY0-4)+"V"+(TY0+MD.rows.length*RH)); $("tIn").value=String(t); narrate();
 }
 const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
 let playing=!still,last=0,hold=0,raf=0;

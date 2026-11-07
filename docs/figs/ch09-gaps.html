@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 9-6 一层的交接空隙和尾部：合写成一个大 kernel 能拿回多少</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 9-6 一层的交接空隙和尾部：合写成一个大 kernel 能拿回多少</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -293,7 +307,7 @@ function show(){
   const q=tot?null:D.KS[k];
   $("isoNote").textContent=tot?(mode===2?"琥珀：常驻的 CTA 在等计数器":"整层走完"):L_.phase==="gap"?(mode===2?"交接：132 个 SM 都常驻着 CTA，等计数器":"交接空隙：没有 CTA 在算"):L_.phase==="body"?L_.nBody+" 个 SM 在算":"尾部：132 个 SM 里只剩 "+L_.n+" 个在算";
   // timeline cursor and highlight
-  const tc=tcOf(Math.min(u,KN)); $("tcur").setAttribute("d","M"+TX(tc).toFixed(1)+" "+(Y0-34)+"V"+(Y0+28));
+  const tc=tcOf(Math.min(u,KN)); $("tcur").setAttribute("d","M"+TX(tc).toFixed(1)+" "+(Y0-3)+"V"+(Y0+25));
   let hl=''; if(!tot){ const a=k===0?M.s[0]:M.e[k-1]; hl='<rect class="hl" x="'+(TX(a)-1).toFixed(1)+'" y="'+(Y0-2)+'" width="'+(TX(M.e[k])-TX(a)+2).toFixed(1)+'" height="26" rx="2"/>'; }
   else hl='<rect class="hl" x="'+(TX(M.s[0])-1)+'" y="'+(Y0-2)+'" width="'+(TX(M.e[KN-1])-TX(M.s[0])+2).toFixed(1)+'" height="26" rx="2"/>';
   $("hlg").innerHTML=hl;

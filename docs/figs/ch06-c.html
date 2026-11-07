@@ -59,7 +59,21 @@ addEventListener("DOMContentLoaded",()=>{
       pause(); jumpToBox(e); }); });
   window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
 });
-})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 6-3 4 位权重（E2M1）在寄存器里的解码</title><style>
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 6-3 4 位权重（E2M1）在寄存器里的解码</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -271,7 +285,7 @@ function setMode(md){ mode=md; readout.textContent=RO[md]; EV=EVS[md]; end=ENDS[
   EV.forEach((e,i)=>{ if(md<3) e.t=i; });
   $("algsvg").setAttribute("viewBox","0 0 640 "+(md<=2?190:196)); $("flatsvg").setAttribute("viewBox","0 0 640 "+(md<=2?(md===1?130:110):138));
   $("frm").innerHTML=""; $("tl").innerHTML=""; $("ax").innerHTML="";
-  if(md>=3){ const rows=["ALU 管线","FMA 管线","目标寄存器就位"]; $("tTitle").textContent="时间（clk）：每条指令占管线 2 clk，依赖延迟按约 4 clk 推导";
+  if(md>=3){ const rows=["ALU 管线","FMA 管线","目标寄存器就位"]; $("tTitle").textContent="时间（clk）：每条指令占管线 2 clk，依赖延迟取约 4 clk";
     let fr=""; rows.forEach((r,i)=>{ fr+='<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*24+13)+'">'+r+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*24)+'" width="'+(TL1-TL0)+'" height="18"/>'; }); $("frm").innerHTML=fr;
     let h=""; const blk=(x)=>{ const y=TY0+(x.pipe==="A"?0:24), w=TX(2)-TX(0);
       return '<rect x="'+TX(x.t0).toFixed(1)+'" y="'+(y+1)+'" width="'+(w-1).toFixed(1)+'" height="16" fill="'+hsl(HUE[x.k],55,x.name==="LOP3"?40:(x.name==="HMUL2"?34:52))+'"/><text class="tb" x="'+(TX(x.t0)+w/2).toFixed(1)+'" y="'+(y+13)+'">'+x.n+' '+(x.name==="IMAD.SHL"?"IMAD":x.name)+'</text>'; };
