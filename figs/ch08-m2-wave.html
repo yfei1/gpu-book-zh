@@ -1,0 +1,269 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-3 专家内核的波次台阶</title><style>
+.iso{
+  --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
+  --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
+  --anatomy-shade-0:#0f0f0f;--anatomy-shade-1:#121212;--anatomy-shade-2:#151515;--anatomy-shade-3:#181818;
+  --anatomy-lit-top:#262626;--anatomy-lit-shade:#1d1d1d;
+  --anatomy-hi:#d4d4d4;--anatomy-mid:#6a6a6a;--anatomy-lo:#3e3e3e;--anatomy-faint:#2a2a2a;--anatomy-lit:#ffffff;
+  --anatomy-halo:#050505;--anatomy-halo-opacity:.9;--anatomy-dot:#e6e6e6;
+  --anatomy-red:#ff6b6b;--anatomy-green:#6be0a0;--anatomy-blue:#6b9bff;
+  --anatomy-weight:.6px;--anatomy-ease:cubic-bezier(.32,.72,0,1);
+  --anatomy-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff0a,inset 0 0 0 1px #ffffff06,0 0 0 1px #00000026,0 1px 1px -.5px #00000014,0 3px 3px -1.5px #00000014,0 6px 6px -3px #00000014,0 12px 12px -6px #00000014;
+}
+.iso[data-theme="light"]{
+  --anatomy-page:#f2f2ef;--anatomy-card:#fbfbfa;--anatomy-text:#57575a;--anatomy-strong:#18181a;--anatomy-muted:#8c8c90;
+  --anatomy-paper:#fbfbfa;--anatomy-face:#ffffff;--anatomy-top:#ffffff;
+  --anatomy-shade-0:#dcdcd9;--anatomy-shade-1:#e5e5e2;--anatomy-shade-2:#ededea;--anatomy-shade-3:#f4f4f1;
+  --anatomy-lit-top:#ffffff;--anatomy-lit-shade:#eeeeeb;
+  --anatomy-hi:#26262a;--anatomy-mid:#8a8a8f;--anatomy-lo:#b4b4b8;--anatomy-faint:#d4d4d6;--anatomy-lit:#000000;
+  --anatomy-halo:#8a8a80;--anatomy-halo-opacity:.32;--anatomy-dot:#3a3a3e;
+  --anatomy-red:#e5484d;--anatomy-green:#30a46c;--anatomy-blue:#3e63dd;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff,0 0 0 1px #0000000f,0 1px 1px -.5px #0000000a,0 3px 3px -1.5px #0000000a,0 6px 6px -3px #0000000a,0 12px 12px -6px #0000000a;
+}
+.iso-svg{display:block;width:100%;height:auto;overflow:visible}
+.iso-svg path,.iso-svg circle{vector-effect:non-scaling-stroke}
+.iso-fill{fill:var(--anatomy-paper);stroke:none}
+.iso-solid[data-lit]>.iso-fill{fill:var(--anatomy-face)}
+.iso-shade,.iso-top{stroke:none}
+.iso-shade[data-shade="0"]{fill:var(--anatomy-shade-0)}
+.iso-shade[data-shade="1"]{fill:var(--anatomy-shade-1)}
+.iso-shade[data-shade="2"]{fill:var(--anatomy-shade-2)}
+.iso-shade[data-shade="3"]{fill:var(--anatomy-shade-3)}
+.iso-top{fill:var(--anatomy-top)}
+.iso-solid[data-lit]>.iso-top{fill:var(--anatomy-lit-top)}
+.iso-solid[data-lit]>.iso-shade{fill:var(--anatomy-lit-shade)}
+.iso-solid[data-seamless]>.iso-shade,.iso-solid[data-seamless]>.iso-top{stroke-width:.4;stroke-linejoin:round}
+.iso-solid[data-seamless]>.iso-shade[data-shade="0"]{stroke:var(--anatomy-shade-0)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="1"]{stroke:var(--anatomy-shade-1)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="2"]{stroke:var(--anatomy-shade-2)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="3"]{stroke:var(--anatomy-shade-3)}
+.iso-solid[data-seamless]>.iso-top{stroke:var(--anatomy-top)}
+.iso-solid[data-seamless][data-lit]>.iso-top{stroke:var(--anatomy-lit-top)}
+.iso-solid[data-seamless][data-lit]>.iso-shade{stroke:var(--anatomy-lit-shade)}
+.iso-solid[data-lit]>.iso-edge{stroke:var(--anatomy-lit)}
+.iso-halo{fill:var(--anatomy-halo);stroke:none;filter:blur(9px);opacity:var(--anatomy-halo-opacity);transform:translateY(3px)}
+.iso-line{fill:none;stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight);stroke-linecap:round;stroke-linejoin:round}
+.iso-line[data-tone="hi"]{stroke:var(--anatomy-hi)}
+.iso-line[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.iso-line[data-tone="lo"]{stroke:var(--anatomy-lo)}
+.iso-line[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.iso-line[data-tone="lit"]{stroke:var(--anatomy-lit)}
+.iso-line[data-tone="red"]{stroke:var(--anatomy-red)}
+.iso-line[data-tone="green"]{stroke:var(--anatomy-green)}
+.iso-line[data-tone="blue"]{stroke:var(--anatomy-blue)}
+.iso-line[data-dotted]{stroke-dasharray:.01 3.5;stroke-width:1}
+.iso-line[data-dashed]{stroke-dasharray:3 3}
+.iso-line[data-flow]{stroke-dasharray:2 6}
+.iso-wire-end{fill:var(--anatomy-paper);stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight)}
+.iso-wire[data-tone="hi"] .iso-wire-end{stroke:var(--anatomy-hi)}
+.iso-wire[data-tone="mid"] .iso-wire-end{stroke:var(--anatomy-mid)}
+.iso-wire[data-tone="faint"] .iso-wire-end{stroke:var(--anatomy-faint)}
+.iso-wire[data-tone="lit"] .iso-wire-end{stroke:var(--anatomy-lit)}
+.iso-dots circle{fill:var(--anatomy-dot);stroke:none;opacity:.32}
+.iso-dots[data-tone="hi"] circle{opacity:.85}
+.iso-dots[data-tone="mid"] circle{opacity:.45}
+.iso-dots[data-tone="lo"] circle{opacity:.22}
+.iso-dots[data-tone="faint"] circle{opacity:.12}
+.iso-face-text{fill:var(--anatomy-mid);font-family:var(--anatomy-mono);letter-spacing:.04em}
+.iso-face-text[data-tone="hi"]{fill:var(--anatomy-hi)}
+.iso-face-text[data-tone="lo"]{fill:var(--anatomy-lo)}
+.iso-face-text[data-tone="faint"]{fill:var(--anatomy-faint)}
+.tb-body{fill:var(--anatomy-shade-2);stroke:none}
+.tb-shine{fill:var(--anatomy-top);stroke:none}
+.tb-shade{fill:var(--anatomy-shade-0);stroke:none}
+.tb-ring{fill:none;stroke:var(--anatomy-lo);stroke-width:.45;stroke-linecap:butt;stroke-linejoin:round}
+.tb-ring[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.tb-ring[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.tb-ring[data-tone="hi"]{stroke:var(--anatomy-hi)}
+@keyframes iso-flow{to{stroke-dashoffset:-32}}
+@keyframes iso-pulse{0%,100%{opacity:.18}12%{opacity:1}40%{opacity:.18}}
+.iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
+.iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
+.iso-figure{margin:32px 0 36px}
+.iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
+.iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
+.iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+.iso-plate-corner[data-corner="fig"]{top:0;left:0;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="title"]{top:0;right:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="hint"]{bottom:0;left:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="readout"]{right:0;bottom:0;color:var(--anatomy-text);font-variant-numeric:tabular-nums}
+.iso-plate .iso-svg{margin:0 auto}
+.iso-legend{display:grid;gap:8px;margin-top:12px;color:var(--anatomy-muted);font-size:13px;line-height:1.55}
+.iso-keys{display:flex;flex-wrap:wrap;gap:6px 18px}
+.iso-key{display:inline-flex;align-items:center;gap:7px}
+.iso-swatch{width:16px;height:10px;flex:none;overflow:visible}
+.iso-swatch path{fill:none;stroke:var(--anatomy-hi);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.iso-swatch[data-mark="raised"] path,.iso-swatch[data-mark="flat"] path{stroke:var(--anatomy-mid)}
+.iso-swatch[data-mark="lit"] path{stroke:var(--anatomy-lit)}
+.iso-swatch[data-mark="dim"] path{stroke:var(--anatomy-lo)}
+.iso-swatch[data-mark="dotted"] path{stroke-dasharray:.01 3;stroke-width:1.4}
+.iso-swatch[data-mark="dashed"] path{stroke-dasharray:3 2.5}
+.iso-swatch[data-mark="red"] path{stroke:var(--anatomy-red)}
+.iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
+.iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
+.iso-swatch-crease{stroke:var(--anatomy-lo)!important}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
+
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body[data-theme="light"]{color-scheme:light}
+body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
+.fe svg{display:block;width:100%;height:auto;font-family:inherit}
+.fe .busy{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a;--anatomy-hi:#111;--anatomy-mid:#444;--anatomy-lo:#555;--anatomy-faint:#666}
+.fe .hot{--anatomy-face:#d9534f;--anatomy-top:#e87a76;--anatomy-shade-0:#a83a37;--anatomy-shade-1:#b4403d;--anatomy-shade-2:#c24744;--anatomy-shade-3:#cf4e4b;--anatomy-hi:#8a2f2c;--anatomy-mid:#8a2f2c}
+.fe .gone{opacity:.25}
+.fe .lab{font-size:11.5px;fill:var(--anatomy-strong);font-weight:600;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3.5px}
+.fe .lab2{font-size:11.5px;fill:var(--anatomy-text)}
+.fe .tn{font-size:10.5px;fill:var(--anatomy-text)}
+.fe .dot{stroke:var(--anatomy-card);stroke-width:1}
+.fe .dn{font-size:9px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.fe .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}
+.fe .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
+.fe .free{fill:var(--anatomy-green);opacity:.28}.fe .bar{fill:var(--anatomy-blue)}
+.fe .wait{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.6}.fe .hl{stroke:var(--anatomy-red);stroke-width:1;opacity:.7}
+.fe .bt{font-size:9.5px;fill:#fff;dominant-baseline:central}.fe .bt.d{fill:var(--anatomy-strong)}
+.fe .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
+.fe .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}
+.fe .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}.fe .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
+.fe .sc{stroke:var(--anatomy-lo);stroke-width:.8}.fe .sa{fill:#fff;font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}.fe .sb{font-size:10px;fill:var(--anatomy-text);text-anchor:middle}
+.fe .nar{margin:14px 8px 6px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fe .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.fe .nh b{white-space:nowrap;flex:none;display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
+.fe .kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text);min-height:11.5em}
+.fe .kard>div{display:contents}.fe .kard dt{font-weight:600;color:var(--anatomy-muted)}.fe .kard dd{margin:0}
+.fe .kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
+.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
+.ctl .modes label{border:1px solid var(--anatomy-lo);border-radius:6px;padding:3px 10px;cursor:pointer;background:var(--anatomy-card)}
+.ctl .modes input{margin-right:5px}
+.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
+.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+.lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
+.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo)}
+.lg .k1{background:linear-gradient(90deg,hsl(0 62% 48%),hsl(135 62% 48%),hsl(225 62% 48%));border-radius:5px}.lg .k2{background:var(--anatomy-blue)}.lg .k3{background:color-mix(in srgb,var(--anatomy-green) 28%,transparent)}
+.lg .k4{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}.lg .k5{background:#2a2a2e}.lg .k6{background:#d9534f}
+.cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.iso-plate{padding-bottom:58px}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%;text-wrap:balance}
+@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+
+.fe .ax{font-size:10px;fill:var(--anatomy-text)}.fe .axl{stroke:var(--anatomy-lo);stroke-width:.8}
+.fe .gridc{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.5}
+.fe .slot{stroke:none}.fe .slot.e{fill:none;stroke:var(--anatomy-mid);stroke-width:.6}
+.fe .kard dd .katex{font-size:1em}
+.ctl .grp{display:inline-flex;gap:6px;align-items:center}
+.ctl button.on{background:var(--anatomy-strong);color:var(--anatomy-card);border-color:var(--anatomy-strong)}
+.ctl .val{min-width:3.2em;font-weight:600}
+</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 8-3</span><span class="iso-plate-corner" data-corner="title">专家内核的波次台阶</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fe"><svg class="flat" viewBox="0 0 640 96" role="img" aria-label="算法：每个移动的块属于算法的哪一部分"><text class="lab2" id="stripT" x="18" y="14"></text><g id="strip"></g><g id="algO"></g><g id="focusS"></g></svg><svg class="isov" viewBox="0 0 640 238" role="img" aria-label="132 个 SM 的 CTA 位，和总 CTA 数对波数的台阶"><g id="scene"></g><g id="dots"></g><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" id="flat" viewBox="0 0 640 200" role="img" aria-label="时间线，与光标同步">
+<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs>
+<text class="lab2" id="axisT" x="132" y="16"></text><g id="rowsG"></g>
+<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="100"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg><div id="axisBox"></div></div></div></figure><div class="ctl"><label class="grp">A <input id="aIn" type="range" min="1" max="32" step="1" value="9"><span class="val" id="aVal"></span></label><span class="grp">k <button type="button" data-k="9">9</button><button type="button" data-k="8">8</button></span><span class="grp">c = 128</span><button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="10" step="0.01" value="0"></label></div><div class="lg"><span><i class="k1"></i>一个专家的 CTA（颜色与编号 = 专家号）</span><span><i class="k4"></i>不满的一波：多出来的 CTA 位空闲</span></div><p class="cap">拖动 A，切换 k = 9 或 8：总 CTA 数过了台阶 132k，就多一波。A = 9 时 1,152 个 CTA 在 k = 8 要两波，在 k = 9 一波就够。</p></main><script type="module">const F={"C":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>C</mi><mo>=</mo><mn>132</mn><mtext> </mtext><mi>k</mi></mrow><annotation encoding=\"application/x-tex\">C = 132\\,k</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\">132</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0315em;\">k</span></span></span></span>","N":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>N</mi><mo>=</mo><mi>A</mi><mtext> </mtext><mi>c</mi></mrow><annotation encoding=\"application/x-tex\">N = A\\,c</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\">A</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\">c</span></span></span></span>","n1":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mi>n</mi><mn>1</mn></msub><mo>=</mo><mi>min</mi><mo>⁡</mo><mo stretchy=\"false\">(</mo><mi>N</mi><mo separator=\"true\">,</mo><mtext> </mtext><mi>C</mi><mo stretchy=\"false\">)</mo></mrow><annotation encoding=\"application/x-tex\">n_1 = \\min(N,\\ C)</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.5806em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">n</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">1</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mop\">min</span><span class=\"mopen\">(</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mpunct\">,</span><span class=\"mspace\"> </span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">)</span></span></span></span>","rest":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>N</mi><mo>−</mo><mi>C</mi></mrow><annotation encoding=\"application/x-tex\">N - C</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span></span></span></span>","W":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>W</mi><mo>=</mo><mo stretchy=\"false\">⌈</mo><mi>N</mi><mi mathvariant=\"normal\">/</mi><mi>C</mi><mo stretchy=\"false\">⌉</mo></mrow><annotation encoding=\"application/x-tex\">W = \\lceil N / C \\rceil</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.1389em;\">W</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mopen\">⌈</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mord\">/</span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">⌉</span></span></span></span>"};
+const COLS=12, ROWS=11, GX0=20, GY0=24, CW=50, CH=19.2;
+let P={A:9,k:8};
+function init(q){ if(q.has("A")) P.A=Math.max(1,Math.min(32,+q.get("A"))); if(q.has("k")) P.k=+q.get("k")===9?9:8; }
+function bind(re){ const a=document.getElementById("aIn"); a.value=String(P.A); const lab=()=>{ document.getElementById("aVal").textContent=String(P.A); };
+  lab(); a.addEventListener("input",()=>{ P.A=+a.value; lab(); re(); });
+  const bs=[...document.querySelectorAll("button[data-k]")]; const mark=()=>bs.forEach((b)=>b.classList.toggle("on",+b.dataset.k===P.k)); mark();
+  bs.forEach((b)=>b.addEventListener("click",()=>{ P.k=+b.dataset.k; mark(); re(); })); }
+const f0=(n)=>n.toLocaleString("en-US");
+const exCol=(e)=>"hsl("+Math.round(360*(e%8)/8)+" 62% "+(46+10*(Math.floor(e/8)%2))+"%)";
+function MODEL(){
+  const A=P.A,k=P.k,c=128,N=A*c,C=132*k,W=Math.ceil(N/C),last=N-(W-1)*C;
+  const t5=3+Math.max(W-1,1), end=t5+1.4;
+  const waveAt=(t)=>t<2?0:t<3?1:t<t5?(W>=2?Math.min(W,2+Math.floor(t-3)):1):W;
+  const cnt=(w)=>Math.min(C,N-(w-1)*C);
+  const sx=(n)=>18+604*n/N;
+  // strip: A experts, wave boundaries
+  let strip='<text class="tn" x="18" y="34">总 CTA 数 N = A × c：'+A+' 个专家 × 每专家 '+c+' 个 CTA（颜色与编号 = 专家号）</text>';
+  for(let e=0;e<A;e++){ const x=18+604*e/A, w=604/A-1; strip+='<rect class="sc" x="'+x.toFixed(1)+'" y="42" width="'+w.toFixed(1)+'" height="24" style="fill:'+exCol(e)+'"/>'+(w>=14?'<text class="sa" style="font-size:'+(w>=24?11:9)+'px" x="'+(x+w/2).toFixed(1)+'" y="54">'+(e+1)+'</text>':""); }
+  for(let w=1;w<W;w++){ const x=sx(w*C); strip+='<path d="M'+x.toFixed(1)+' 38V72" stroke="var(--anatomy-red)" stroke-width="1.6" stroke-dasharray="3 2"/>'; }
+  if(W>1) strip+='<text class="tn" x="'+sx(C).toFixed(1)+'" y="84" text-anchor="middle">一波容量 C = '+f0(C)+'</text>'; else strip+='<text class="tn" x="622" y="84" text-anchor="end">一波容量 C = '+f0(C)+' ≥ N</text>';
+    const alg1=[18,40,604*Math.min(1,C/N),28], alg2=[sx(C),40,Math.max(2,622-sx(C)),28];
+  // axis: wave count against CTA count, selected k bold, other k faint
+  const AX0=30, AX1=610, NM=4800, AX=(n)=>AX0+(AX1-AX0)*n/NM, YB=118, LV=19;
+  const stair=(kk,bold)=>{ const Ck=132*kk; let d="M"+AX(0)+" "+(YB-LV); for(let w=1;w*Ck<NM;w++){ d+="H"+AX(w*Ck)+"V"+(YB-LV*(w+1)); } d+="H"+AX1; return '<path d="'+d+'" fill="none" stroke="'+(bold?"var(--anatomy-strong)":"var(--anatomy-lo)")+'" stroke-width="'+(bold?2:1.2)+'" '+(bold?"":'stroke-dasharray="4 3"')+'/>'; };
+  let ax='<svg class="flat" viewBox="0 0 640 182" role="img" aria-label="CTA 总数与波数：台阶在 132k 处"><line class="axl" x1="'+AX0+'" y1="'+YB+'" x2="'+AX1+'" y2="'+YB+'"/>';
+  [1,2,3,4].forEach((w)=>{ ax+='<text class="ax" x="'+(AX0-4)+'" y="'+(YB-LV*w+4-LV*0)+'" text-anchor="end">'+w+'</text>'; });
+  ax+='<text class="lab2" x="'+(AX0-4)+'" y="16" text-anchor="end">波数</text>';
+  const other=k===9?8:9; ax+=stair(other,false)+stair(k,true);
+  for(let w=1;w*132*k<NM;w++){ const x=AX(w*132*k); ax+='<line class="axl" x1="'+x+'" y1="'+YB+'" x2="'+x+'" y2="'+(YB+4)+'"/><text class="ax" x="'+x+'" y="'+(YB+15)+'" text-anchor="middle">'+f0(w*132*k)+'</text>'; }
+  for(let w=1;w*132*other<NM;w++){ const x=AX(w*132*other); ax+='<text class="ax" x="'+x+'" y="'+(YB+28)+'" text-anchor="middle" style="opacity:.55">'+f0(w*132*other)+'</text>'; }
+  const nx=AX(N), ny=YB-LV*(W+0); ax+='<path d="M'+nx+' '+YB+'V'+(YB-LV*(W+1))+'" stroke="var(--anatomy-red)" stroke-width="1.6" stroke-dasharray="4 3"/><circle class="dot" cx="'+nx+'" cy="'+(YB-LV*W)+'" r="5" style="fill:var(--anatomy-red)"/>';
+  ax+='<text class="lab" x="'+nx+'" y="'+(YB-LV*(W+1)-5)+'" text-anchor="middle">N = '+f0(N)+'</text>';
+  ax+='<text class="lab2" x="'+AX1+'" y="'+(YB+46)+'" text-anchor="end" style="opacity:.8">横轴：总 CTA 数 N（粗线 k = '+k+'，虚线 k = '+other+'）</text></svg>';
+  // frame
+  const frame=(t)=>{ const w=waveAt(t); let o='<text class="lab2" x="'+GX0+'" y="14">132 个 SM，每个 SM 有 '+k+' 个 CTA 位</text>';
+    for(let s=0;s<132;s++){ const cx=GX0+(s%COLS)*CW, cy=GY0+Math.floor(s/COLS)*CH; o+='<rect class="gridc" x="'+cx+'" y="'+cy+'" width="'+(CW-2)+'" height="'+(CH-2)+'" rx="2"/>';
+      for(let r=0;r<k;r++){ const sx_=cx+2+(r%3)*15.4, sy_=cy+1.5+Math.floor(r/3)*5.2; const g=(w-1)*C+r*132+s; let cls="slot e", st="";
+        if(w>0&&g<N){ cls="slot"; st=' style="fill:'+exCol(Math.floor(g/c))+'"'; } else if(w>0&&w===W&&t>=t5){ cls="slot wait"; st=' style="fill:url(#hatch)"'; }
+        o+='<rect class="'+cls+'" x="'+sx_.toFixed(1)+'" y="'+sy_.toFixed(1)+'" width="14" height="4.4"'+st+'/>'; } }
+    return o; };
+  const key=(t)=>waveAt(t)+"|"+(t>=t5?1:0);
+  const cell0=[GX0+CW/2-1,GY0+CH/2];
+  const tl=[ [0,1],[1,2],[2,3] ];
+  const ratio=f0(N)+" 个 CTA ÷ 一波 "+f0(C)+" 个";
+  const steps=[
+    { t:0, title:"每个 SM 同时驻留 k = "+k+" 个 CTA，132 个 SM 一波最多放 "+f0(C)+" 个。", card:{ f:F.C, i:"132 个 SM；每个 SM 驻留 k = "+k+" 个 CTA（由寄存器和共享内存决定，见第 3 章第 1 节）", o:"一波容量 C = 132 × "+k+" = "+f0(C)+" 个 CTA", x:"拿 C 和总 CTA 数 N 比较", c:"k 越大，一波装得越多；改动让 k 变了，台阶 132k 整体挪动" }, ring:{g:"scene",p:cell0,r:13,n:1} },
+    { t:1, title:"本卡有 A = "+A+" 个活跃专家，每个专家开 c = "+c+" 个 CTA，总共 "+f0(N)+" 个。", card:{ f:F.N, i:"A = "+A+" 个活跃专家（本卡被命中的本地专家，随路由而变）；每个专家 c = "+c+" 个 CTA", o:"N = "+A+" × "+c+" = "+f0(N)+" 个 CTA", x:"按 CTA 序号依次派发给各个 SM", c:"A 随路由变，所以 N 跟着变；路由不同，同一个 k 下的波数也不同" }, ring:{g:"strip",p:[320,38],r:11,n:2}, alg:[18,40,604,28] },
+    { t:2, title:"第 1 波：最先的 "+f0(Math.min(N,C))+" 个 CTA 占满各 SM 的 CTA 位。", card:{ f:F.n1, i:"N = "+f0(N)+"；C = "+f0(C), o:"第 1 波 "+f0(Math.min(N,C))+" 个 CTA"+(N>=C?"，所有 CTA 位全满":"，"+f0(C-N)+" 个 CTA 位空闲"), x:W>1?"余下 "+f0(N-C)+" 个 CTA 排到后面":"没有余下的 CTA", c:"一波的执行时间，同一个内核每波约相同" }, ring:{g:"scene",p:[GX0+CW*6,GY0+CH*5.5],r:13,n:3}, alg:alg1 },
+    { t:3, title:W>1?"第 2 波起：余下的 CTA 等 CTA 位空出来再跑。":"没有第 2 波：N 不超过 C，一波跑完。", card:{ f:F.rest, i:"N = "+f0(N)+"；C = "+f0(C), o:W>1?("余下 "+f0(N-C)+" 个 CTA，每波最多 "+f0(C)+" 个；最后一波只有 "+f0(last)+" 个，"+f0(C-last)+" 个 CTA 位空闲"):"N − C ≤ 0，不需要第 2 波", x:W>1?"波数交给下一步":"波数 = 1", c:W>1?"最后一波的 "+f0(last)+" 个 CTA 也要付一整波的执行时间":"没有多出的波" }, ring:{g:"scene",p:[GX0+CW*3,GY0+CH*3],r:13,n:4}, alg:W>1?alg2:alg1 },
+    { t:t5, title:"总波数 W = "+W+"：总时间约为 W 个一波的时间。", card:{ f:F.W, i:"N = "+f0(N)+"；C = "+f0(C), o:"W = ⌈"+f0(N)+" ÷ "+f0(C)+"⌉ = "+W, x:"这就是这一组路由下该内核的波数", c:"总代价：多出的波按整波计时。实例（T = 8，mma.sync 换成 wgmma，k 从 9 掉到 8，单层阶段 6）：A = 9 的两组路由慢 10.43 和 11.41 µs，另外三组路由略快 1.34 / 1.68 / 1.90 µs" }, ring:{g:"axis",p:[nx,YB-LV*W],r:10,n:5}, alg:[18,40,604,28] },
+  ];
+  steps[4].ring={g:"scene",p:[GX0+CW*6,GY0+CH*5.5],r:13,n:5};
+  const bars=[]; const rows=[]; for(let w=1;w<=W;w++){ rows.push("第 "+w+" 波"); const t0=w===1?2:3+(w-2), t1=w===1?3:3+(w-1); const n_=cnt(w); bars.push({r:w-1,t0,t1,cls:n_<C?"wait":"bar",lab:f0(n_)+" 个 CTA"}); }
+  const ro="总 CTA 数 "+f0(N)+" · 一波容量 "+f0(C)+" · 波数 "+W;
+  return { end, speed:0.45, ro, rows, bars, axisT:"时间只表示先后；每一波按一个单位画", strip, stripT:"算法：每个专家的 CTA 依次排队", steps, key, frame, axis:ax };
+}
+
+
+const $=(id)=>document.getElementById(id);
+const readout=document.querySelector("[data-readout]");
+const TL0=132,TL1=620,TY0=26,RH=24;
+const esc=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const hsl=(h,l)=>"hsl("+h+" 62% "+(l||48)+"%)";
+let M=null,t=0,end=1,key="",playing=true,last=0,hold=0,raf=0;
+const TX=(x)=>TL0+(TL1-TL0)*x/end;
+const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function rebuild(){
+  M=MODEL(); end=M.end; t=Math.min(t,end); key="";
+  if($("strip")){ $("strip").innerHTML=M.strip||""; $("stripT").textContent=M.stripT||""; }
+  const nr=M.rows.length, H=TY0+nr*RH+10;
+  $("flat").setAttribute("viewBox","0 0 640 "+H); $("axisT").textContent=M.axisT;
+  $("rowsG").innerHTML=M.rows.map((r,i)=>'<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*RH+13)+'">'+esc(r)+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*RH)+'" width="'+(TL1-TL0)+'" height="18"/>').join("");
+  $("clipR").setAttribute("height",nr*RH+8);
+  $("tl").innerHTML=M.bars.map((b)=>{ const y=TY0+b.r*RH+2, x0=TX(b.t0), w=Math.max(1.5,TX(b.t1)-x0); const st=b.h!=null?' style="fill:'+hsl(b.h)+'"':''; const rc='<rect class="'+(b.cls||"bar")+'" x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="14"'+st+'/>'; const lb=(b.lab&&w>14)?'<text class="bt'+(b.cls&&b.cls!=="bar"?' d':'')+'" x="'+(x0+w/2).toFixed(1)+'" y="'+(y+7.5)+'" text-anchor="middle">'+esc(b.lab)+'</text>':''; return rc+lb; }).join("");
+  $("tIn").max=String(end);
+  readout.innerHTML=M.ro;
+  if($("axisBox")) $("axisBox").innerHTML=M.axis||"";
+  show();
+}
+function card(s){ document.getElementById("stepT").textContent=s.title||"";
+  $("stepK").innerHTML=[["公式",s.card.f],["输入",s.card.i],["输出",s.card.o],["交给下一步",s.card.x],["代价",s.card.c]].map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+(r[1]||"—")+"</dd></div>").join(""); }
+const ringSvg=(r)=>r?'<circle class="fr" cx="'+r.p[0]+'" cy="'+r.p[1]+'" r="'+(r.r||9)+'"/><text class="fn" x="'+r.p[0]+'" y="'+(r.p[1]-(r.r||9)-3)+'">'+esc(r.n)+'</text>':"";
+function narrate(){ const S=M.steps; let k=-1; for(let i=0;i<S.length;i++){ if(S[i].t<=t+1e-9) k=i; else break; }
+  if(k<0){ $("stepN").textContent=""; $("stepT").textContent="按播放，或拖动时间"; $("stepK").innerHTML=""; $("focus").innerHTML=""; if($("focusS")) $("focusS").innerHTML=""; if($("algO")) $("algO").innerHTML=""; return; }
+  const s=S[k]; $("stepN").textContent="第 "+(k+1)+" 步"; card(s);
+  $("focus").innerHTML=s.ring&&s.ring.g!=="strip"?ringSvg(s.ring):""; if($("focusS")) $("focusS").innerHTML=s.ring&&s.ring.g==="strip"?ringSvg(s.ring):"";
+  if($("algO")) $("algO").innerHTML=s.alg?'<rect class="ao" x="'+s.alg[0]+'" y="'+s.alg[1]+'" width="'+s.alg[2]+'" height="'+s.alg[3]+'"/>':""; }
+function show(){
+  t=Math.max(0,Math.min(t,end));
+  const fk=M.key(t)+"|"+(M.keyAxis?M.keyAxis(t):"");
+  if(fk!==key){ key=fk; $("scene").innerHTML=M.frame(t); if(M.axisFrame&&$("axisG")) $("axisG").innerHTML=M.axisFrame(t); }
+  $("dots").innerHTML=M.dots?M.dots(t):"";
+  $("clipR").setAttribute("width",(TX(t)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(t).toFixed(1)+" "+(TY0-4)+"V"+(TY0+M.rows.length*RH)); $("tIn").value=String(t); narrate();
+}
+function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if(playing){ if(t<end) t=Math.min(end,t+dt*(M.speed||0.6)); else { hold+=dt; if(hold>2.5){hold=0;t=0;} } } show(); raf=playing?requestAnimationFrame(loop):0; }
+const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
+const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=end){t=0;hold=0;} start(); } else show(); };
+play.addEventListener("click",()=>setPlay(!playing));
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
+const q=new URLSearchParams(location.search);
+init(q); bind(()=>{ t=0; hold=0; rebuild(); setPlay(true); });
+rebuild();
+t = q.has("t") ? +q.get("t") : (still ? Math.max(0,end-0.5) : 0); show();
+if(q.has("t")){ playing=false; play.textContent="播放"; } else if(!still){ start(); } else { playing=false; play.textContent="播放"; }
+</script></body></html>

@@ -395,4 +395,4 @@ MODES[4]=()=>{ const E=[], N=8, T0=1.2, DT=0.35, FL=3;
   return {EV:E,end:tE+0.6,rows:["线程发出的读取","在途读取数","acc 累加"],bars,moves,tog,links:[[D.SRCR[0],D.L2C,D.LSU[0],D.REG[0]]],tlT:"同一个线程的时间线（只表示先后；红虚线 = 每 CTA 4 行时的在途上限，o 的配置）",algT:"算法：一个 CTA 同时算 W 的 8 行（行 1…8，编号同下面），每行的结果各进一个累加器 acc[i]",
     ro:"每 CTA 8 行：每个线程同时为 8 行挂起独立读取（二维累加器）\nqkv_gate T = 1：12.29 → 11.00 µs（−1.29 µs）· 288 个 CTA × 8 行 = 2,304 行 · 累加器寄存器随行数增加"}; };
 boot(3);
-</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
+</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

@@ -212,7 +212,7 @@ function show(){
   $("bars").innerHTML=rect(G.FX0,G.FY0,X(64)-G.FX0,G.FY1-G.FY0,"b1")+rect(X(64),G.FY0,X(128)-X(64),G.TAILH,"b2")+rect(X(64),G.FY0+G.TAILH,X(128)-X(64),G.FY1-G.FY0-G.TAILH,"idleb");
   $("clipR").setAttribute("width",(X(t)-G.FX0+1).toFixed(2)); const x=X(t); $("cur").setAttribute("d","M"+x.toFixed(2)+" "+(G.FY0-2)+"V"+(G.FY1+2));
   $("tlab").innerHTML='<text class="bt" x="'+((G.FX0+X(64))/2).toFixed(1)+'" y="'+((G.FY0+G.FY1)/2+4)+'">第 1 个 wave：2,112 个 CTA</text>'
-    +'<text class="bt dk" x="'+((X(64)+G.FX1)/2).toFixed(1)+'" y="'+(G.FY0+G.TAILH+48)+'">空着的槽</text><text class="bt dk" x="'+((X(64)+G.FX1)/2).toFixed(1)+'" y="'+(G.FY0+G.TAILH+24)+'" style="text-anchor:middle">尾波：192 个 CTA ↑</text>';
+    +'<text class="bt dk" x="'+(X(64)+6).toFixed(1)+'" y="'+(G.FY0+G.TAILH+18)+'" style="text-anchor:start">尾波：192 个 CTA</text><text class="bt dk" x="'+(X(64)+6).toFixed(1)+'" y="'+(G.FY0+G.TAILH+46)+'" style="text-anchor:start">空着的槽</text>';
   tIn.value=String(t);
   // step card, rings, readout
   $("stepN").textContent="第 "+n+" 步"; card(n);

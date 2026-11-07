@@ -273,4 +273,4 @@ document.querySelectorAll("input[name=mode]").forEach((r)=>r.addEventListener("c
 const q=new URLSearchParams(location.search); const m0=+(q.get("mode")||q.get("m")||1);
 document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
 t = q.has("t") ? +q.get("t") : (still ? Math.max(0,end-0.5) : 0); show(); if(playing) start(); else play.textContent="播放";
-</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
+</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

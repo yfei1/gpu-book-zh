@@ -61,6 +61,21 @@ def wrap(text, size, width):
     return lines + ([cur] if cur else [])
 
 
+def fit(labels, pitch, size, floor, bold=False):
+    """Font size that lets every label fit in pitch, and whether the labels must also alternate in height."""
+    k = 1.08 if bold else 1.0
+    wmax = max(est(l, size * k) for l in labels)
+    if wmax <= pitch - 2:
+        return size, False
+    small = max(floor, size * (pitch - 2) / wmax)
+    return small, max(est(l, small * k) for l in labels) > pitch - 2
+
+
+def clamp_x(x, label, size):
+    half = est(label, size * 1.08) / 2 + 2
+    return min(max(x, half), W - half)
+
+
 def text(x, y, s, size=13, anchor="middle", fill=INK, weight=None, halo=False):
     extra = f' font-weight="{weight}"' if weight else ""
     extra += ' stroke="#fbfbfa" stroke-width="3" paint-order="stroke"' if halo else ""
@@ -155,10 +170,14 @@ def steps_svg(spec, unit, lower, dec):
     n = len(rows)
     pitch = (W - 16) / n
     bw = min(34, pitch * 0.58)
-    y_top, plot_h = 58, 150
+    vlabels = [fmt(r["v"], dec) for r in rows]
+    vfs, vstag = fit(vlabels, pitch, 12.5, 9, bold=True)
+    with_unit = pitch > est(f"{MINUS}000.0 {unit}", 10.5) + 2
+    dabs = [delta_label(rows[i - 1]["v"], rows[i]["v"], lower, unit, rows[i]["noise"], dec, with_unit)[0][-1] for i in range(1, n)]
+    dfs, dstag = fit(dabs, pitch, 10.5, 8.5)
+    y_top, plot_h = 58 + 13 * vstag + 11 * dstag, 150
     y_base = y_top + plot_h
     y_of = lambda v: y_base - min(v, top) / top * plot_h
-    with_unit = pitch > est(f"{MINUS}000.0 {unit}", 10.5) + 2
     out = []
     for i, r in enumerate(rows):
         cx = 8 + pitch * (i + 0.5)
@@ -168,15 +187,16 @@ def steps_svg(spec, unit, lower, dec):
             yb = y_base - h + 12
             out.append(f'<path d="M{cx-bw/2-2:.1f} {yb+3:.1f} l{bw+4:.1f} -6" stroke="#fbfbfa" stroke-width="3.5" fill="none"/>')
         out.append(whisker(cx, y_of, r["low"], r["high"]))
-        ytxt = y_of(max(r["v"], r["high"] or 0)) - 5
-        out.append(text(cx, ytxt, fmt(r["v"], dec), 12.5, weight=600, halo=True))
+        ytxt = y_of(max(r["v"], r["high"] or 0)) - 5 - (vfs + 1) * (vstag and i % 2)
+        out.append(text(clamp_x(cx, vlabels[i], vfs), ytxt, vlabels[i], vfs, weight=600, halo=True))
         for j, ln in enumerate(wrap(r["label"], 12.5, pitch - 3) or [""]):
             out.append(text(cx, y_base + 17 + j * 15, ln, 12.5))
         if i:
             lab, col = delta_label(rows[i - 1]["v"], r["v"], lower, unit, r["noise"], dec, with_unit)
             bx = 8 + pitch * i
             for j, ln in enumerate(lab):
-                out.append(text(bx, 14 + j * 13, ln, 11.5 if j == 0 else 10.5, fill=col, weight=600 if j == 0 else None))
+                last = j == len(lab) - 1
+                out.append(text(bx, 14 + j * 13 + 11 * (dstag and last and i % 2), ln, dfs if last else 11.5, fill=col, weight=None if last else 600))
     lines = "".join(hline(8, W - 8, y_of(x[1]), col) for x, col in ((base, DASH), (floor, FLOOR_COLOR)) if x)
     axis = f'<line x1="8" x2="{W-8}" y1="{y_base}" y2="{y_base}" stroke="#c9c9ce"/>'
     max_lines = max(len(wrap(r["label"], 12.5, pitch - 3)) for r in rows)
@@ -228,8 +248,10 @@ def grouped_svg(spec, unit, lower, dec):
     G, S = len(groups), len(series)
     pitch = (W - 16) / G
     bw = min(40, (pitch - 26) / S)
-    fs = 12 if bw >= 30 else 10.5
-    y_top, plot_h = (58 if show_delta else 26), 150
+    vlabels = [[fmt(v[0], dec) if v[0] is not None else "" for v in vs] for _, vs in series]
+    fs, vstag = fit([l for ls in vlabels for l in ls if l], bw + 3 if S > 1 else pitch, 12 if bw >= 30 else 10.5, 9, bold=True)
+    with_unit = pitch > est(f"{MINUS}00.00 {unit}", 10.5) + 4
+    y_top, plot_h = (58 if show_delta else 26) + 13 * vstag, 150
     pad = 16 if vmin < 0 else 0
     y_base = y_top + plot_h + pad
     y_of = lambda v: y_top + (vmax - min(v, vmax)) / rng * plot_h
@@ -242,7 +264,6 @@ def grouped_svg(spec, unit, lower, dec):
         colors = [GREY, LIGHT_BLUES[1], BLUE]
     else:
         colors = [STACK[i % len(STACK)] for i in range(S)]
-    with_unit = pitch > est(f"{MINUS}00.00 {unit}", 10.5) + 4
     out = []
     for g in range(G):
         gx = 8 + pitch * g
@@ -258,8 +279,8 @@ def grouped_svg(spec, unit, lower, dec):
             if v > vmax:
                 out.append(f'<path d="M{x-2:.1f} {ya+16:.1f} l{bw+4:.1f} -6" stroke="#fbfbfa" stroke-width="3.5" fill="none"/>')
             above = v >= 0
-            ytxt = (y_of(max(v, hi or v)) - 5) if above else (y_of(min(v, lo if lo is not None else v)) + fs + 3)
-            out.append(text(x + bw / 2, ytxt, fmt(v, dec), fs, weight=600 if si == S - 1 else None, halo=True))
+            ytxt = (y_of(max(v, hi or v)) - 5 - (fs + 1) * (vstag and (si if S > 1 else g) % 2)) if above else (y_of(min(v, lo if lo is not None else v)) + fs + 3)
+            out.append(text(clamp_x(x + bw / 2, vlabels[si][g], fs), ytxt, vlabels[si][g], fs, weight=600 if si == S - 1 else None, halo=True))
         for j, ln in enumerate(wrap(groups[g], 12.5, pitch - 6) or [""]):
             out.append(text(gx + pitch / 2, y_base + 17 + j * 15, ln, 12.5))
         first, last = series[0][1][g][0], series[-1][1][g][0]

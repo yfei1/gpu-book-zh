@@ -273,7 +273,7 @@ function show(){
   $("bars").innerHTML=rect(G.FX0,G.FY0,X(64)-G.FX0,G.FY1-G.FY0,"b1")+rect(X(64),G.FY0,X(128)-X(64),G.TAILH,"b2")+rect(X(64),G.FY0+G.TAILH,X(128)-X(64),G.FY1-G.FY0-G.TAILH,"idleb");
   $("clipR").setAttribute("width",(X(t)-G.FX0+1).toFixed(2)); const x=X(t); $("cur").setAttribute("d","M"+x.toFixed(2)+" "+(G.FY0-2)+"V"+(G.FY1+2));
   $("tlab").innerHTML='<text class="bt" x="'+((G.FX0+X(64))/2).toFixed(1)+'" y="'+((G.FY0+G.FY1)/2+4)+'">第 1 个 wave：2,112 个 CTA</text>'
-    +'<text class="bt dk" x="'+((X(64)+G.FX1)/2).toFixed(1)+'" y="'+(G.FY0+G.TAILH+48)+'">空着的槽</text><text class="bt dk" x="'+((X(64)+G.FX1)/2).toFixed(1)+'" y="'+(G.FY0+G.TAILH+24)+'" style="text-anchor:middle">尾波：192 个 CTA ↑</text>';
+    +'<text class="bt dk" x="'+(X(64)+6).toFixed(1)+'" y="'+(G.FY0+G.TAILH+18)+'" style="text-anchor:start">尾波：192 个 CTA</text><text class="bt dk" x="'+(X(64)+6).toFixed(1)+'" y="'+(G.FY0+G.TAILH+46)+'" style="text-anchor:start">空着的槽</text>';
   tIn.value=String(t);
   // step card, rings, readout
   $("stepN").textContent="第 "+n+" 步"; card(n);
@@ -295,4 +295,4 @@ play.addEventListener("click",()=>setPlay(!playing));
 tIn.addEventListener("input",()=>{ const v_=+tIn.value; setPlay(false); t=v_; show(); });
 if(q.has("t")) playing=false;
 show(); if(playing) start(); else play.textContent="播放";
-</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
+</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

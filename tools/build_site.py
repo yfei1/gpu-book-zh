@@ -230,7 +230,7 @@ def main():
         if d.is_dir() and not d.name.startswith("_") and h.exists():
             built[d.name] = h
             t = h.read_text()
-            (DOCS / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + (KATEX_CSS_FIG if 'class="katex' in t else "") + POST_H + "</body>"))
+            (DOCS / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + KATEX_CSS_FIG + POST_H + "</body>"))
             shutil.copy2(h, REPO / "figs" / h.name)
     nums = {}
     def fig_rep(m):
