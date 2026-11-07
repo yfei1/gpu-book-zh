@@ -7,7 +7,7 @@
 每一项按它用到的硬件定级；“本书在哪里用到”一列写讲到它或用到它的那一节：
 
 - **第 1 级**：网格的启动与交接，以及整网格同步，见第 1 章。
-- **第 2 级**：直接作用于中央 L2 或跨 SM 的操作，包括 L2 留存提示与预取、L2 原子与归约、全卡栅栏与释放获取，以及集群与 DSMEM，见第 2 章。
+- **第 2 级**：直接作用于中央 L2 或跨 SM 的操作，包括 L2 留存提示与预取、L2 原子与归约、全卡内存屏障与释放获取，以及集群与 DSMEM，见第 2 章。
 - **第 3 级**：单个 SM 内部的数据通路与资源，包括经本 SM L1 的普通全局读写、SMEM、TMA、`cp.async`、`mbarrier`、`setmaxnreg` 与块内内存栅栏，见第 3 章。
 - **第 4 级**：SMSP 调度，包括块内与 warp 内屏障、洗牌、投票、分支、记分牌等待，以及时钟与线程编号等特殊寄存器读取，见第 4 章。
 - **第 5 级**：执行管线与 Tensor Core，包括 FMA、ALU、SFU 算术与超越函数指令，以及 `HMMA`、`HGMMA`、`QGMMA`，见第 5 章。
@@ -40,7 +40,7 @@
 - **第二类：拆成一串指令。** 单 warp 的 FP8 矩阵乘 `mma.sync … e4m3` 在 `sm_90a` 上先用 `F2FP` 把 FP8 解包成 FP16，再连发 **2** 条 `HMMA`，见速查三第 41 项。第 9 章第 3 节的集群屏障（`barrier.cluster.arrive/wait`）也会展开成全卡内存屏障加 `ERRBAR`、`CGAERRBAR` 和 L1 失效指令 `CCTL.IVALL`，见速查三第 39 项。
 - **第三类：换了名字或变成操作数。** 全局读取的缓存修饰符在 SASS 里会变成后缀或描述符操作数；例如第 2 章第 4 节的 L2 留存提示在 SASS 里变成了 `LDG` 上的 `desc[URn]` 操作数，见速查二第 24 项。
 
-PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡栅栏后面的 `ERRBAR`、`CGAERRBAR`，NVIDIA 没有公开硬件细节，本书只记录 `sm_90a` 反汇编里看到的序列，换了编译器版本后要重新核对。
+PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡内存屏障后面的 `ERRBAR`、`CGAERRBAR`，NVIDIA 没有公开硬件细节，本书只记录 `sm_90a` 反汇编里看到的序列，换了编译器版本后要重新核对。
 
 ---
 
@@ -74,7 +74,9 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡栅栏�
 
 ## 4. 速查二：全局与片上访存、异步拷贝
 
-先分清数据走哪条路：经加载存储单元 **LSU** 进出寄存器的 `LDG / STG`、绕过寄存器直写 SMEM 的 `LDGSTS`，以及单线程发起的 TMA，三条路的区别见第 3 章第 3 节。直接作用于 L2 的访问属第 2 级：绕过 L1 的读写、L2 留存策略、L2 原子归约。经本 SM L1 的普通全局读写、SMEM、TMA 和 `cp.async` 属第 3 级。
+先分清数据走哪条路：经加载存储单元 **LSU** 进出寄存器的 `LDG / STG`、绕过寄存器直写 SMEM 的 `LDGSTS`，以及单线程发起的 TMA，三条路的区别见第 3 章第 3 节。
+
+直接作用于 L2 的访问属第 2 级：绕过 L1 的读写、L2 留存策略、L2 原子归约。经本 SM L1 的普通全局读写、SMEM、TMA 和 `cp.async` 属第 3 级。
 
 | 序号 | PTX | SASS | 管线 · 第几级 | 本书在哪里用到 | 写法与说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -83,7 +85,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡栅栏�
 | 22 | `ld.global.cg.v4.b32`；`st.global.cg.f32` | `LDG.E.STRONG.GPU`、`STG.E.STRONG.GPU` | LSU → L2（绕过 L1）· 第 2 级 | 第 2 章第 6 节 | `__ldcg(p)`、`__stcg(p,v)` 或内联 `ld / st.global.cg`，在 `sm_90a` 反汇编里编译成 `.STRONG.GPU`。注意 PTX 规范里 `.cg` 只是弱缓存提示，轮询同步标志要用 `ld.relaxed.gpu` 或 `ld.acquire.gpu`（见第 2 章第 6 节） |
 | 23 | `ld.global.cs.v4.b32` | `LDG.E.EF`、`LDG.E.EF.128`、`LDG.E.EF.64` | LSU → L1 · 第 3 级 | 第 2 章第 4 节、附录 B 第 1 节 | `__ldcs(p)` 或内联 `ld.global.cs`；PTX 规范定义 `.cs` 在 L1 和 L2 都用 `evict_first`，在 `sm_90a` 反汇编里指令后缀只显示管本 SM L1 的 `.EF`（L2 的策略另在 `desc[URn]` 里） |
 | 24 | `createpolicy.fractional .L2::evict_first.b64`；`ld.global .L1::evict_first .L2::cache_hint` | `LDG.E.EF`、`LDG.E` | LSU + L2 · 第 2 级 | 第 2 章第 4 节、第 10 章第 2 节 | 内联 PTX；L1 提示变成 `.EF / .EL` 后缀，L2 留存提示编码在 `desc[URn]` 操作数里传给硬件；若被保留的数据本来就不会被挤出 L2，加提示不省时间（见第 2 章第 4 节） |
-| 25 | `prefetch.global.L2 [a]`；`cp.async.bulk.prefetch.L2.global [a], size` | `CCTL.E.PF2`；`UBLKPF.L2` | LSU → L2 · 第 2 级 | 第 7 章第 6 节、第 9 章第 4 节 | `__builtin_prefetch` 或内联 `prefetch.global.L2`；1 对 1 生成 `CCTL.E.PF2`；若预取过早、在用到前被流式数据冲出 L2，反而多读一次 HBM（见第 7 章第 6 节） |
+| 25 | `prefetch.global.L2 [a]`；`cp.async.bulk.prefetch.L2.global [a], size` | `CCTL.E.PF2`；`UBLKPF.L2` | LSU → L2 · 第 2 级 | 第 7 章第 6 节、第 9 章第 4 节 | `__builtin_prefetch` 或内联 `prefetch.global.L2` 1 对 1 生成 `CCTL.E.PF2`；`cp.async.bulk.prefetch.L2` 由 1 个线程按字节数预取一段连续区域，编译为 `UBLKPF.L2`。若预取过早、在用到前被流式数据冲出 L2，反而多读一次 HBM（见第 7 章第 6 节） |
 | 26 | `ld.local`；`st.local` | 本书反汇编未记录 | LSU → L1 → L2（位于全局显存）· 第 3 级 | 第 3 章第 1 节、第 3 章第 6 节、第 10 章第 6 节 | 寄存器溢出（`ptxas -v` 报告 `spill`）、动态下标局部数组或未内联函数栈帧；出现局部内存读写说明寄存器读写退化成了显存往返 |
 | 27 | `ld.param.*`；`ld.const` | `LDC` | SM 常量缓存 · 第 3 级 | 第 4 章第 4 节（图 4-3） | kernel 形参或 `__constant__` 变量；也可以把整个 warp 相同的常量直接读进统一寄存器 `UR`（见第 7 章第 7 节） |
 | 28 | `ld.shared.b32`；`ld.shared.v4.b32`；`st.shared::cta.v4.b32` | `LDS`、`LDS.64`、`LDS.128`、`LDS.U8`、`LDS.U16`、`STS`、`STS.64`、`STS.128` | LSU → SMEM · 第 3 级 | 导引三第 4 节、第 3 章第 7 节 | `__shared__` 数组读写；1 对 1 带位宽后缀；同一波次不同通道撞上同一个 4 B bank 时会串行排队（见第 3 章第 7 节） |
@@ -105,7 +107,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡栅栏�
 | 35 | `mbarrier.arrive.shared::cta.b64`；`mbarrier.arrive.expect_tx .shared::cta.b64 state,[addr],txcount` | `SYNCS.ARRIVE.TRANS64`、`SYNCS.ARRIVE.TRANS64.A1T0` | `SYNCS` 单元 · 第 3 级 | 第 3 章第 5 节、第 5 章第 6 节 | 内联 PTX；普通报到带 `.A1T0`（报到计数加 1、期望字节 0），登记 TMA 字节数用带寄存器操作数的 `.TRANS64`；若消费者在共享内存读（`LDS`）尚未返回前向 `empty[s]` 报到，会触发读后写竞态（见第 3 章第 5 节） |
 | 36 | `mbarrier.try_wait.parity .shared::cta.b64 p,[addr],phase`；`mbarrier.test_wait` | `SYNCS.PHASECHK.TRANS64.TRYWAIT`、`SYNCS.PHASECHK.TRANS64` | `SYNCS` 单元 · 第 3 级 | 第 3 章第 5 节、第 5 章第 6 节 | 内联 PTX；`try_wait` 编译为 `.TRYWAIT`，在硬件里等待直到相位位翻转或超时，未翻转时由 `@!P BRA` 重试 |
 | 37a | `fence.proxy.async .shared::cta` | `FENCE.VIEW.ASYNC.S` | LSU / 内存管线 · 第 3 级 | 第 3 章第 3 节、第 5 章第 7 节 | 普通线程写完 SMEM 后，必须执行这道异步代理栅栏，TMA 或 `wgmma` 的异步代理才能看到新数据 |
-| 37b | `fence.proxy.async .global` | `FENCE.VIEW.ASYNC.G` | LSU / 内存管线 · 第 3 级 | 第 5 章第 7 节、第 8 章第 11 节 | 普通存储写全局内存、随后由 TMA（异步代理）读取或归约时，在本线程内衔接通用代理与异步代理（代理见第 3 章第 3 节）：读侧放在 `ld.acquire.gpu` 之后、发 TMA 之前（见第 5 章第 7 节、第 8 章第 11 节）；写侧在第 8 章第 11 节由各写线程执行它，经块内屏障后由 1 个线程发 `red.release.gpu`（靠第 2 章第 6 节的累积性），合起来代替每线程的 `fence.acq_rel.gpu` |
+| 37b | `fence.proxy.async .global` | `FENCE.VIEW.ASYNC.G` | LSU / 内存管线 · 第 3 级 | 第 5 章第 7 节、第 8 章第 11 节 | 普通存储写全局内存、随后由 TMA（异步代理）读取或归约时，在本线程内衔接通用代理与异步代理（代理见第 3 章第 3 节）。读侧：放在 `ld.acquire.gpu` 之后、发 TMA 之前；写侧用法见第 8 章第 11 节 |
 | 38 | `st.async.shared::cluster .mbarrier::complete_tx::bytes .v4.f32 [ra],{..},[mbar]` | 本书反汇编未记录 | 集群互连 + 远端 `mbarrier` · 第 2 级 | 第 7 章第 12 节、第 9 章第 3 节 | 内联 PTX；数据写入同集群远端 CTA 的 SMEM 后自动扣减远端 `mbarrier` 的期望字节数 |
 | 39 | `barrier.cluster.arrive {.relaxed/.release}.aligned`；`barrier.cluster.wait {.acquire}.aligned` | `MEMBAR.ALL.GPU`、`ERRBAR`、`CGAERRBAR`、`CCTL.IVALL` | 集群屏障单元 · 第 2 级 | 第 9 章第 3 节 | `cooperative_groups::this_cluster().sync()` 或内联 PTX；默认 `cluster.sync()` 附带 `MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + CCTL.IVALL`（等待前序写被 L2 确认并使本 SM 的 L1 失效）。只有屏障前写的数据在屏障后不再被读，或数据另有完成通知（如 `st.async` 加 `mbarrier`）时，才能用 `.relaxed`；否则屏障不再保证数据的先后 |
 | 40 | `mma.sync.aligned.m16n8k16 .row.col.f32.bf16.bf16.f32`（或 `.f16`） | `HMMA.16816.F32.BF16`、`HMMA.16816.F32` | 本 SMSP 的 Tensor Core · 第 5 级 | 第 5 章第 3 节、第 6 章第 3 节、第 7 章第 2 节 | 内联 PTX；1 对 1，操作数 $A$、$B$ 与累加器 $D$ 均在向量寄存器中 |
@@ -123,7 +125,7 @@ PTX 规范只规定语义，不规定具体的 SASS 指令序列。全卡栅栏�
 
 ## 6. 速查四：warp 操作、内存栅栏、原子操作、网格交接与控制流
 
-warp 内协作 `SHFL` 和 `VOTE` 属第 4 级。`SHFL` 走 MIO 队列，见第 4 章第 5 节与第 10 章第 7 节；`VOTE` 见第 7 章第 9 节与第 8 章第 6 节。全卡范围的栅栏、L2 原子与释放获取交接属第 2 级，见第 2 章第 6 节。PDL 网格交接与整网格同步属第 1 级，见第 1 章第 4 节、第 7 章第 12 节与第 8 章第 6 节。
+warp 内协作 `SHFL` 和 `VOTE` 属第 4 级。`SHFL` 走 MIO 队列，见第 4 章第 5 节与第 10 章第 7 节；`VOTE` 见第 7 章第 9 节与第 8 章第 6 节。全卡内存屏障、L2 原子与释放获取交接属第 2 级，见第 2 章第 6 节。PDL 网格交接与整网格同步属第 1 级，见第 1 章第 4 节、第 7 章第 12 节与第 8 章第 6 节。
 
 | 序号 | PTX | SASS | 管线 · 第几级 | 本书在哪里用到 | 写法与说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -132,13 +134,13 @@ warp 内协作 `SHFL` 和 `VOTE` 属第 4 级。`SHFL` 走 MIO 队列，见第 4
 | 52 | `bar.warp.sync mask` | `WARPSYNC.ALL`、`WARPSYNC`、`WARPSYNC.COLLECTIVE`、`BSSY`、`BSYNC` | warp 调度器的重汇合单元 · 第 4 级 | 第 4 章第 4 节、第 10 章第 9 节 | `__syncwarp(mask)` 或内联 `bar.warp.sync`；全掩码编译为 `WARPSYNC.ALL`；`BSSY / BSYNC` 是编译器在分化分支前后自动插入的汇合指令对（见第 4 章第 4 节、第 10 章第 9 节） |
 | 53 | `bar.sync 0`（即 `barrier.sync.aligned 0`） | `BAR.SYNC.DEFER_BLOCKING` | SM 块内屏障单元 · 第 4 级 | 导引三第 4 节、第 4 章第 4 节 | `__syncthreads()`；1 对 1；到达不齐时，等待的时间等于最晚与最早到达之差 |
 | 54 | `bar.sync id, n`；`bar.arrive id, n` | `BAR.SYNC.DEFER_BLOCKING`、`BAR.ARV` | SM 块内屏障单元 · 第 4 级 | 第 5 章第 7 节、第 7 章第 7 节 | 内联 `bar.sync id, n`、`bar.arrive id, n`（默认带 `.aligned`，要求参与屏障的线程执行同一条指令，见附录 A 第 2 节；非对齐形式写 `barrier.sync`）；硬件屏障号 `id`（`0..15`）与线程数 `n` 编码为立即数（见第 5 章第 7 节、第 7 章第 7 节），`BAR.ARV` 只报到不等待 |
-| 55 | `fence.acq_rel.cta`；`fence.acq_rel.gpu`；`fence.sc.gpu` | `MEMBAR.ALL.CTA`、`MEMBAR.ALL.GPU`、`MEMBAR.SC.GPU`、`ERRBAR`、`CGAERRBAR`、`CCTL.IVALL` | LSU / 内存系统确认 · 第 2 级（`.cta` 属第 3 级） | 第 8 章第 11 节 | `__threadfence_block()`、`__threadfence()`（编成 `fence.sc.gpu`，即 `MEMBAR.SC.GPU`）；只需要 `acq_rel` 语义时，写内联 `fence.acq_rel.gpu`。全卡栅栏等待此前的写入被 L2 确认并使本 SM 的 L1 失效。单向的生产者-消费者交接用 `acq_rel` 就够；`acq_rel` 不禁止本线程的写与之后对另一地址的读交换顺序，双方先写自己的标志、再读对方的标志互等（Dekker 情形）时，需要 `fence.sc` 禁止这一种交换 |
-| 56 | `fence.release.gpu` | 本书反汇编未记录 | LSU / 内存系统确认 · 第 2 级 | 第 2 章第 6 节、第 9 章第 5 节 | 内联 PTX；它之前本线程的所有读写，通过它之后的一次强写入（例如写标志的 `st.relaxed`，与对方的获取读配成一对，见第 2 章第 6 节）或紧随其后的 `griddepcontrol.launch_dependents`（两个网格在同一内存同步域，即默认设置；与后继网格的启动同步，见第 9 章第 5 节）对其他线程变得可见（`sm_90` 起支持） |
+| 55 | `fence.acq_rel.cta`；`fence.acq_rel.gpu`；`fence.sc.gpu` | `MEMBAR.ALL.CTA`、`MEMBAR.ALL.GPU`、`MEMBAR.SC.GPU`、`ERRBAR`、`CGAERRBAR`、`CCTL.IVALL` | LSU / 内存系统确认 · 第 2 级（`.cta` 属第 3 级） | 第 8 章第 11 节 | `__threadfence_block()`、`__threadfence()`（编成 `fence.sc.gpu`，展开为 `MEMBAR.ALL.CTA + MEMBAR.SC.GPU + ERRBAR + CGAERRBAR + CCTL.IVALL` 5 条指令）；只需要 `acq_rel` 语义时，写内联 `fence.acq_rel.gpu`。全卡内存屏障等待此前的写入被 L2 确认并使本 SM 的 L1 失效。单向的生产者-消费者交接用 `acq_rel` 就够；`acq_rel` 不禁止本线程的写与之后对另一地址的读交换顺序，双方先写自己的标志、再读对方的标志互等（Dekker 情形）时，需要 `fence.sc` 禁止这一种交换 |
+| 56 | `fence.release.gpu` | 本书反汇编未记录 | LSU / 内存系统确认 · 第 2 级 | 第 2 章第 6 节、第 9 章第 5 节 | 内联 PTX；它让本线程之前的所有读写对其他线程可见，需要接上两种写法之一：之后的一次强写入（如写标志的 `st.relaxed`，与对方的获取读成对，见第 2 章第 6 节）；或紧随其后的 `griddepcontrol.launch_dependents`（同一内存同步域，即默认设置；见第 9 章第 5 节）。`sm_90` 起支持 |
 | 57 | `atom.global.add.u32`；`atom.global.add.f32`；`atom.global.exch`；`atom.global.inc` | `ATOMG.E.ADD.STRONG.GPU`、`ATOMG.E.ADD.S32.STRONG.GPU`、`ATOMG.E.EXCH.STRONG.GPU`、`ATOMG.E.INC.STRONG.GPU` | LSU → L2 原子单元 · 第 2 级 | 第 2 章第 6 节、第 6 章第 8 节 | 使用返回值的 `atomicAdd`、`atomicExch`、`atomicCAS`、`atomicInc`、`fetch_add`；在 L2 执行读改写并要等旧值返回，比只发不等的 `REDG` 多一次 L2 往返；直接对 BF16 做标量原子加会退化成比较交换重试循环（见第 6 章第 8 节） |
 | 58 | `red.global.add.f32`；`red.global.add.v4.f32`；`red.global.add.s32`；`red.global.min.u64` | `REDG.E.ADD.S32.STRONG.GPU`、`REDG.E.ADD.F32.FTZ.RN.STRONG.GPU`、`REDG.E.ADD.F32x4.FTZ.RN.STRONG.GPU` | LSU → L2 归约单元 · 第 2 级 | 第 2 章第 7 节、第 7 章第 12 节、第 9 章第 3 节 | 忽略返回值的 `atomicAdd(p,v)`、向量 `atomicAdd(float2* / float4*)`；编译器自动转为只发不等的 `REDG`（代价是拿不到旧值） |
 | 59 | `ld.acquire.gpu.global.u32 [a]`；`red.release.gpu.global.add.s32 [a],v`；`atom.acq_rel.gpu` | `LDG.E.STRONG.GPU`、`CCTL.IVALL`、`MEMBAR.ALL.GPU`、`ERRBAR`、`CGAERRBAR`、`REDG`、`ATOMG` | LSU + L2 · 第 2 级 | 第 2 章第 6 节、第 7 章第 12 节、第 8 章第 11 节 | `cuda::atomic_ref<int, thread_scope_device>::store / load` 或内联 `ld.acquire.gpu`、`red.release.gpu`；PTX 只保证顺序；L1 失效、等 L2 确认是本 SM 的实现方式（一致性在 L2、L1 不一致见第 2 章第 6 节）：`ld.acquire.gpu` 展开为 `LDG.E.STRONG.GPU + CCTL.IVALL`，`red.release.gpu` 展开为 `MEMBAR.ALL.GPU + ERRBAR + CGAERRBAR + REDG` |
 | 60 | `griddepcontrol.wait`；`griddepcontrol.launch_dependents` | `ACQBULK`、`PREEXIT` | 网格硬件派发器与 SM · 第 1 级 | 第 1 章第 4 节、第 8 章第 8 节、第 9 章第 5 节 | `cudaGridDependencySynchronize()`、`cudaTriggerProgrammaticLaunchCompletion()` 或内联 `griddepcontrol`（见第 8 章第 8 节）。`wait → ACQBULK`：阻塞直到前序网格完成且写入可见。`launch_dependents → PREEXIT`：所有 CTA 发出它或退出后，后继网格可以被调度。按 PTX 规范，若前序线程在 `launch_dependents` 之前先执行 `fence.release.gpu`（两个网格在同一内存同步域，即默认设置），它此前的写入从后继网格启动起即可见；否则只保证在后继执行 `griddepcontrol.wait` 之后可见（见第 9 章第 5 节）。触发过早会让后继占着 SM 空等（见第 1 章第 4 节、第 7 章第 11 节） |
-| 61 | 全局原子计数 + 内存栅栏 + `ld.acquire` 自旋 + `bar.sync`（标准库展开） | 本书反汇编未记录 | L2 原子单元 + 各 SM 轮询 · 第 1 级 | 第 8 章第 6 节 | `cooperative_groups::this_grid().sync()`（配合 `cudaLaunchCooperativeKernel`）；由标准库组合块内屏障、全卡栅栏与 L2 计数器轮询实现，要求全网格所有 CTA 同时驻留（见第 2 章第 6 节、第 7 章第 12 节、第 8 章第 6 节） |
+| 61 | 全局原子计数 + 内存栅栏 + `ld.acquire` 自旋 + `bar.sync`（标准库展开） | 本书反汇编未记录 | L2 原子单元 + 各 SM 轮询 · 第 1 级 | 第 8 章第 6 节 | `cooperative_groups::this_grid().sync()`（配合 `cudaLaunchCooperativeKernel`）；由标准库组合块内屏障、全卡内存屏障与 L2 计数器轮询实现，要求全网格所有 CTA 同时驻留（见第 2 章第 6 节、第 7 章第 12 节、第 8 章第 6 节） |
 | 62 | `mov.u64 d, %clock64`；`mov.u64 d, %globaltimer` | `S2R` | 特殊寄存器读取 · 第 4 级 | 第 2 章第 2 节、第 10 章第 5–6 节 | `clock64()`、`clock()` 或内联读取 `%globaltimer`、`%clock64`（`%globaltimer` 最小步长实测 32 ns，见第 10 章第 5 节） |
 | 63 | `bra`；`bra.uni`；`exit` | `BRA`、`EXIT`、`BSSY`、`BSYNC` | 分支与发射单元 · 第 4 级 | 第 4 章第 4 节、第 10 章第 9 节 | `if / for`、`return`；整个 warp 一致的跳转标 `.U`，分化分支包在 `BSSY ... BSYNC` 内（分支分化代价见第 4 章第 4 节、第 10 章第 9 节） |
 | 64 | `mov.u32 %tid.x`；`mov.u32 %ctaid.x`；`mov.u32 %ntid.x`；`mov.u32 %nctaid.x` | `S2R`、`R2UR` | 特殊寄存器与统一寄存器文件 · 第 4 级 | 导引三第 3 节、第 7 章第 7 节 | `threadIdx.x`、`blockIdx.x`、`blockDim.x`、`gridDim.x`；`S2R` 读入每线程向量寄存器 `R`，`R2UR` 把向量寄存器值拷入整个 warp 共享的统一寄存器 `UR`（见第 7 章第 7 节） |
@@ -193,6 +195,7 @@ warp 内协作 `SHFL` 和 `VOTE` 属第 4 级。`SHFL` 走 MIO 队列，见第 4
 - `STS` → 速查二 第 28 项
 - `STSM` → 速查三 第 48 项
 - `SYNCS` → 速查三 第 34 项；速查三 第 35 项；速查三 第 36 项
+- `UBLKPF` → 速查二 第 25 项
 - `UTMAREDG` → 速查二 第 32 项
 - `VIADD` → 速查一 第 10 项
 - `VOTE` → 速查四 第 51 项

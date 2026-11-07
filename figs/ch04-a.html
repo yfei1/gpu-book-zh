@@ -155,7 +155,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <g id="rows"></g><clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="232"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g>
 <path id="cur" class="cur" d=""/><g id="ax"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">第 1 档 · 16 个驻留 warp，每轮 1 条读取</label><label><input type="radio" name="mode" value="2">第 2 档 · 每线程 8 条读取在途（第 3 节）</label></div>
 <button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="1400" step="1" value="0"></label></div><div class="lg"><span><i class="k1"></i>发出一条读取（读 W 的一段）</span><span><i class="k2"></i>发出一条计算（乘加、换算、循环控制）</span><span><i class="k3"></i>能发但没被选中</span><span><i class="k4"></i>在等读取的数据回来</span></div>
-<p class="cap">按空载约 600 个周期、第 2 档每 SMSP 4 个 warp 建模（两档均超八成 no eligible）；满载时往返更长，见第 2 章第 3 节。第 1 档的 16 个驻留 warp 来自 16 个 CTA，读 W 的 16 个不同行；每个 warp 按自己读的那一行着色。真实网格每 SM 约 17.45 个 warp，在途约 69.8 KiB/SM。</p></main><script type="module">
+<p class="cap">按空载约 600 个周期、第 2 档每 SMSP 4 个 warp（约等于 v7 每 SMSP 的 17.45 ÷ 4 ≈ 4.4 个 warp）建模（两档均超八成 no eligible）；真实满载时往返更长，空周期占比只会更高（见第 2 章第 3 节）。第 1 档的 16 个驻留 warp 来自 16 个 CTA，读 W 的 16 个不同行；每个 warp 按自己读的那一行着色。真实网格每 SM 约 17.45 个 warp，在途约 69.8 KiB/SM。</p></main><script type="module">
 function simulate(m){ const W=m.w; const st=[...Array(W)].map(()=>({pc:0,dataAt:-1,last:-1}));
   const per=m.n+m.n*6; const rec=[...Array(W)].map(()=>new Array(1400).fill(0)); const sel=new Array(1400).fill(-1); let busy=0, none=0; const ret=[]; let peak=0;
   for(let c=0;c<1400;c++){ let pick=-1; const rdy=[];
