@@ -77,7 +77,7 @@
 - [图 7-2 8 个查询头叠成矩阵的行：同一份 KV 只搬进 SM 一次](figs/ch07-gqa.html)
 - [图 7-3 在线 softmax：分母边读边算，切成两段后精确合并](figs/ch07-online.html)
 - [图 7-4 切几段、怎样切匀、空段怎样处理](figs/ch07-split.html)
-- [图 7-5 两个 KV 头共用一条 128 B 行：怎样只从 HBM 读一次](figs/ch07-row.html)
+- [图 7-5 两个 KV 头共用一条 128 B 行：同一条 K 行两半的四种读法](figs/ch07-row.html)
 - [图 7-6 三跳指针链，与把页表读取提前](figs/ch08-a1.html)
 - [图 7-7 CTA 内部分工：寄存器、乒乓、循环剥离、统一寄存器与 264 个 CTA](figs/ch07-vw2.html)
 - [图 7-8 不再每块折算、行求和，与打包的半精度指数](figs/ch08-b1.html)
