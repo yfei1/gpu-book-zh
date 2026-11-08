@@ -3,7 +3,7 @@
 Run from the repo root:  uv run --no-project --with markdown-it-py --with pyyaml python tools/build_site.py
 Math needs KaTeX once:  cd tools && npm ci
 """
-import bisect, html, json, re, shutil, subprocess, sys
+import bisect, html, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 from markdown_it import MarkdownIt
 
@@ -24,29 +24,30 @@ CSS = """
 --serif:"Iowan Old Style","Source Han Serif SC","Noto Serif SC","Songti SC",serif;
 --sans:-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
 --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
---side:0px;--col:38em;--fw:min(780px,100vw - var(--side) - 40px);--tw:min(960px,100vw - var(--side) - 40px)}
+--rail:0px;--frame:100vw;--col:38em;--main:calc(min(100vw,var(--frame)) - 2 * var(--rail));
+--fw:min(780px,var(--main) - 40px);--tw:min(960px,var(--main) - 40px)}
 *{box-sizing:border-box}
 html{scroll-padding-top:72px;-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--ivory);color:var(--slate);font:17px/1.9 var(--serif);overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
-main{padding:0 20px 160px}
+body{margin:0;background:var(--ivory);color:var(--slate);font:18px/1.9 var(--serif);overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+main{padding:0 20px 160px;min-width:0}
 .col{max-width:var(--col);margin:0 auto}
-p{margin:0 0 1.05em;text-wrap:pretty}
+p{margin:0 0 1em;text-wrap:pretty}
 a{color:inherit;text-decoration:underline;text-decoration-color:var(--clay);text-decoration-thickness:1px;text-underline-offset:.22em}
 a:hover{color:var(--clay-dk)}
 :focus-visible{outline:2px solid var(--clay);outline-offset:2px;border-radius:2px}
 strong{font-weight:600}
-h1,h2,h3{font-family:var(--sans);color:var(--slate);font-weight:600;letter-spacing:0;word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
-h2{font-size:21px;line-height:1.5;margin:2.6em 0 .7em;position:relative}
-h3{font-size:17px;line-height:1.6;margin:2em 0 .5em}
-h2 .sn{color:var(--clay);font-weight:500;margin-right:.55em;font-variant-numeric:tabular-nums}
-code{font-family:var(--mono);font-size:.82em;background:var(--oat);padding:.1em .32em;border-radius:3px;overflow-wrap:anywhere}
+h1,h2,h3{font-family:var(--serif);color:var(--slate);font-weight:600;letter-spacing:0;word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
+h2{font-size:24px;line-height:1.5;margin:2.5em 0 .8em}
+h3{font-size:18px;line-height:1.7;margin:2em 0 .5em}
+h2 .sn{color:var(--stone);font-weight:400;margin-right:.55em;font-variant-numeric:lining-nums tabular-nums}
+code{font-family:var(--mono);font-size:.8em;background:var(--oat);padding:.1em .32em;border-radius:3px;overflow-wrap:anywhere}
 td code,th code{overflow-wrap:normal}
 h1 code,h2 code,h3 code{font-size:.86em;background:none;padding:0}
-pre{background:var(--oat);margin:1.4em 0;padding:14px 18px;border-radius:4px;font:13.5px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+pre{background:var(--oat);margin:1.4em 0;padding:16px 20px;border-radius:4px;font:14px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
 pre code{background:none;padding:0;font-size:inherit}
-blockquote{margin:1.4em 0;padding:0 0 0 1.1em;border-left:2px solid var(--clay);color:var(--stone)}
+blockquote{margin:1.4em 0;padding:0 0 0 1.1em;border-left:2px solid var(--rule);color:var(--stone)}
 hr{border:none;border-top:1px solid var(--rule);margin:2.6em 0}
-ul,ol{padding-left:1.4em;margin:0 0 1.05em}
+ul,ol{padding-left:1.4em;margin:0 0 1em}
 li{margin:.3em 0}
 li>p{margin:.3em 0}
 li::marker{color:var(--stone)}
@@ -60,82 +61,92 @@ td:first-child,th:first-child{min-width:0;white-space:nowrap}
 .katex-display{margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden}
 .fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .fig iframe{display:block;width:100%;height:900px;border:0}
-.book{padding:88px 0 8px}
-.book h1{font-size:38px;line-height:1.3;margin:0 0 .45em;font-weight:600;text-wrap:balance}
-.book .sub{font-size:20px;line-height:1.7;color:var(--slate);margin:0 0 1.4em}
+.book{padding:104px 0 8px}
+.book h1{font-size:48px;line-height:1.25;margin:0 0 .5em}
+.book .sub{font-size:21px;line-height:1.7;margin:0 0 1.2em}
 .book .note{font:14px/1.7 var(--sans);color:var(--stone);margin:0}
-section{padding-top:clamp(96px,14vh,150px)}
-.ch-head{margin:0 0 20px}
-.ch-num{font:500 15px/1.5 var(--sans);color:var(--clay);margin:0 0 14px}
-.ch-num .lv{color:var(--stone);margin-left:1em}
-.ch-head h1{font-size:30px;line-height:1.42;margin:0;text-wrap:balance}
-.map{display:flex;flex-wrap:wrap;margin:0 0 2.4em;padding:14px 0 0;border-top:1px solid var(--rule);list-style:none;font:13px/1.7 var(--sans);color:var(--stone)}
+section{padding-top:clamp(112px,16vh,168px)}
+.ch-head{margin:0 0 26px}
+.ch-num{font:400 14px/1.5 var(--sans);color:var(--stone);margin:0 0 14px}
+.ch-num .lv{margin-left:1.2em}
+.ch-head h1{font-size:36px;line-height:1.38;margin:0}
+.map{display:flex;flex-wrap:wrap;margin:0 0 2.6em;padding:14px 0 0;border-top:1px solid var(--rule);list-style:none;font:13px/1.7 var(--sans);color:var(--stone)}
 .map li{margin:0}
 .map li:not(:last-child)::after{content:"\\203A";margin:0 7px;color:#b9b7ad}
 .map .here{color:var(--slate);font-weight:600}
-.pn{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:4em 0 0;padding-top:20px;border-top:1px solid var(--rule);font-family:var(--sans)}
+.pn{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:4.5em 0 0;padding-top:20px;border-top:1px solid var(--rule);font-family:var(--sans)}
 .pn a{text-decoration:none;display:block;line-height:1.55}
 .pn a span{display:block;font-size:13px;color:var(--stone);margin-bottom:4px}
 .pn a b{font-weight:500;font-size:15px}
 .pn a:hover b{color:var(--clay-dk)}
 .pn .next{text-align:right;grid-column:2}
 .bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:var(--ivory);border-bottom:1px solid var(--rule);font:14px/1.4 var(--sans)}
-.bar-book{font-weight:600;text-decoration:none;white-space:nowrap}
+.bar-book{font:600 16px/1.4 var(--serif);text-decoration:none;white-space:nowrap}
 .bar-cur{flex:1;min-width:0;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar button,.toc-close{flex-shrink:0;white-space:nowrap;font:500 14px/1 var(--sans);color:var(--slate);background:none;border:1px solid var(--rule);border-radius:4px;padding:8px 12px;cursor:pointer}
 .bar button:hover,.toc-close:hover{border-color:var(--stone)}
-.toc{font:14px/1.5 var(--sans);background:var(--oat);overflow-y:auto;overscroll-behavior:contain}
-.toc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:28px 24px 8px}
-.toc-book{font-weight:600;font-size:15px;line-height:1.5;text-decoration:none}
-.toc ol{list-style:none;margin:0;padding:0}
-.toc li{margin:0}
-.toc .part{padding:14px 0 4px}
-.toc .part-name{margin:0;padding:6px 24px 4px;font-size:12.5px;color:var(--stone)}
-.toc a{text-decoration:none;color:var(--slate)}
-.chap>a{display:grid;grid-template-columns:4.3em 1fr;gap:0 4px;padding:5px 24px 5px 21px;border-left:3px solid transparent}
-.chap>a .n{color:var(--stone);font-variant-numeric:tabular-nums;white-space:nowrap}
-.chap>a .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.chap>a:hover .t,.secs a:hover .t{color:var(--clay-dk)}
-.chap.on>a{border-left-color:var(--clay)}
+.toc,.rail{--hang:62px;font:14px/1.5 var(--sans);background:var(--ivory);overflow-y:auto;overscroll-behavior:contain}
+.toc a,.rail a{text-decoration:none;color:var(--slate)}
+.toc ol,.rail ol{list-style:none;margin:0;padding:0}
+.toc li,.rail li{margin:0}
+.toc-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:40px 20px 10px var(--hang)}
+.toc-book{font:600 17px/24px var(--serif)}
+.toc .part{margin-top:20px}
+.part-name{margin:0;padding:4px 14px 4px var(--hang);font-size:13.5px;line-height:1.45;font-weight:600}
+.part-name span{display:block;font-size:12.5px;font-weight:400;color:var(--stone)}
+.chap>a,.secs a,.rail a{position:relative;display:block}
+.chap>a{padding:5px 20px 5px var(--hang);line-height:21px}
+.chap>a .n,.secs a .n,.rail a .n{position:absolute;text-align:right;color:var(--stone);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.chap>a .n{left:0;top:5px;width:calc(var(--hang) - 14px);font-size:13px}
+.chap>a:hover .t,.secs a:hover .t,.rail a:hover .t{color:var(--clay-dk)}
 .chap.on>a .t{font-weight:600}
-.chap.on>a .n{color:var(--slate)}
-.secs{display:none;padding:2px 0 8px!important}
+.chap.on>a .n,.secs a.here .n,.rail a.here .n{color:var(--clay);font-weight:600}
+.secs{display:none;padding:2px 0 10px!important}
 .chap.on .secs{display:block}
-.secs a{display:grid;grid-template-columns:1.6em 1fr;padding:3px 24px 3px calc(21px + 4.3em + 4px);font-size:13px;line-height:1.55;color:var(--stone)}
-.secs a .n{font-variant-numeric:tabular-nums}
-.secs a.here{color:var(--slate)}
-.secs a.here .n{color:var(--clay);font-weight:600}
-.secs code{background:none;padding:0;font-size:.95em}
-.secs .katex{font-size:1em}
+.secs a{padding:3px 20px 3px calc(var(--hang) + 22px);font-size:13px;line-height:20px;color:var(--stone)}
+.secs a .n{left:var(--hang);top:3px;width:14px}
+.secs a.here,.rail a.here{color:var(--slate)}
+.secs code,.rail code{background:none;padding:0;font-size:.95em}
+.secs .katex,.rail .katex{font-size:1em}
+.rail{display:none}
 .scrim{display:none}
-@media(min-width:1180px){
-:root{--side:296px}
+@media(min-width:1280px){
+:root{--rail:256px;--frame:1440px}
 .bar{display:none}
-.toc{position:fixed;top:0;bottom:0;left:0;width:var(--side);border-right:1px solid var(--rule);padding-bottom:48px}
+.frame{display:grid;grid-template-columns:var(--rail) minmax(0,1fr) var(--rail);max-width:var(--frame);margin:0 auto}
+.toc,.rail{position:sticky;top:0;align-self:start;height:100vh;padding-bottom:48px}
 .toc-close{display:none}
-main{margin-left:var(--side);padding:0 52px 160px}
+.toc .chap.on .secs{display:none}
+.rail{display:block;--hang:28px;font-size:13.5px;padding:40px 32px 48px 4px}
+.rail-head{margin:0 0 10px;padding-left:var(--hang);font-size:13px;line-height:24px;color:var(--stone)}
+.rail ol{display:none}
+.rail ol.on{display:block}
+.rail a{padding:4px 0 4px var(--hang);line-height:20px;color:var(--stone)}
+.rail a .n{left:0;top:4px;width:calc(var(--hang) - 12px);font-size:12.5px}
+main{padding:0 24px 160px}
 td code{overflow-wrap:anywhere}
-h2 .sn{position:absolute;right:100%;margin-right:.9em;top:0}
 }
-@media(max-width:1179px){
+@media(max-width:1279px){
 .toc{position:fixed;top:0;bottom:0;left:0;z-index:40;width:min(420px,100%);padding-bottom:48px;transform:translateX(-100%);visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
+.toc-head{padding-top:20px;align-items:center}
 body.toc-open{overflow:hidden}
 body.toc-open .toc{transform:none;visibility:visible;transition:transform .22s ease;box-shadow:0 0 40px rgba(20,20,19,.18)}
 body.toc-open .scrim{display:block;position:fixed;inset:0;z-index:30;background:rgba(20,20,19,.28)}
-.book{padding-top:56px}
+.book{padding-top:64px}
 }
 @media(max-width:600px){
-body{font-size:16.5px;line-height:1.85}
+body{font-size:17px;line-height:1.85}
 main{padding:0 18px 120px}
 .bar{padding:0 14px;gap:10px}
 .bar-cur{display:none}
 .bar-book{flex:1}
-.book{padding-top:40px}
-.book h1{font-size:28px}
-.book .sub{font-size:17.5px}
-.ch-head h1{font-size:24px}
-h2{font-size:19px}
-section{padding-top:80px}
+.toc{--hang:52px}
+.book{padding-top:44px}
+.book h1{font-size:32px}
+.book .sub{font-size:18px}
+.ch-head h1{font-size:26px}
+h2{font-size:21px}
+section{padding-top:88px}
 :root{--fw:100vw}
 .fig iframe{min-width:640px}
 pre{font-size:12px;padding:12px 14px}
@@ -147,27 +158,30 @@ td,th{min-width:8em}
 @media(prefers-reduced-motion:reduce){.toc{transition:none!important}}
 """
 JS = """(function(){
-var d=document,b=d.body,nav=d.getElementById("toc"),btn=d.getElementById("toc-btn"),cur=d.getElementById("bar-cur");
-var chs=[].slice.call(d.querySelectorAll("main section[id]")),links={},items={};
-[].forEach.call(nav.querySelectorAll("a[href^='#']"),function(a){links[a.getAttribute("href").slice(1)]=a;});
+var d=document,b=d.body,nav=d.getElementById("toc"),rail=d.getElementById("rail"),btn=d.getElementById("toc-btn"),cur=d.getElementById("bar-cur");
+var chs=[].slice.call(d.querySelectorAll("main section[id]")),navA={},railA={},items={},lists={};
+[].forEach.call(nav.querySelectorAll("a[href^='#']"),function(a){navA[a.getAttribute("href").slice(1)]=a;});
+[].forEach.call(rail.querySelectorAll("a[href^='#']"),function(a){railA[a.getAttribute("href").slice(1)]=a;});
 [].forEach.call(nav.querySelectorAll(".chap"),function(li){items[li.dataset.ch]=li;});
+[].forEach.call(rail.querySelectorAll("ol[data-ch]"),function(ol){lists[ol.dataset.ch]=ol;});
 var onCh=null,onSec=null;
+function mark(a,on){if(!a)return;a.classList.toggle("here",on);if(on)a.setAttribute("aria-current","location");else a.removeAttribute("aria-current");}
 function spy(){
-  var y=innerHeight*0.3,ch=null,sec=null;
-  for(var i=0;i<chs.length;i++){if(chs[i].getBoundingClientRect().top<=y)ch=chs[i];else break;}
-  if(ch){var hs=ch.querySelectorAll("h2[id]");for(var j=0;j<hs.length;j++){if(hs[j].getBoundingClientRect().top<=y)sec=hs[j];else break;}}
+  var y=innerHeight*0.3,ch=chs[0],sec=null;
+  for(var i=1;i<chs.length;i++){if(chs[i].getBoundingClientRect().top<=y)ch=chs[i];else break;}
+  var hs=ch?ch.querySelectorAll("h2[id]"):[];
+  for(var j=0;j<hs.length;j++){if(hs[j].getBoundingClientRect().top<=y)sec=hs[j];else break;}
   var c=ch&&ch.id,s=sec&&sec.id;
-  if(c!==onCh){if(onCh&&items[onCh])items[onCh].classList.remove("on");if(c&&items[c])items[c].classList.add("on");onCh=c;
+  if(c!==onCh){[items,lists].forEach(function(m){if(onCh&&m[onCh])m[onCh].classList.remove("on");if(c&&m[c])m[c].classList.add("on");});onCh=c;
     cur.textContent=c&&items[c]?items[c].dataset.t:"";}
-  if(s!==onSec){if(onSec&&links[onSec]){links[onSec].classList.remove("here");links[onSec].removeAttribute("aria-current");}
-    if(s&&links[s]){links[s].classList.add("here");links[s].setAttribute("aria-current","location");}onSec=s;}
-  var a=(s&&links[s])||(c&&links[c]);
-  if(a&&!b.classList.contains("toc-open")){var r=a.getBoundingClientRect(),n=nav.getBoundingClientRect();if(r.top<n.top+60||r.bottom>n.bottom-40)reveal(a);}
+  if(s!==onSec){mark(navA[onSec],false);mark(railA[onSec],false);mark(navA[s],true);mark(railA[s],true);onSec=s;}
+  if(!b.classList.contains("toc-open")){keep(nav,navA[s]&&navA[s].offsetParent?navA[s]:navA[c]);keep(rail,railA[s]);}
 }
-function reveal(a){nav.scrollTop+=a.getBoundingClientRect().top-nav.getBoundingClientRect().top-nav.clientHeight/3;}
+function keep(box,a){if(!a||!a.offsetParent||box.scrollHeight<=box.clientHeight)return;var r=a.getBoundingClientRect(),n=box.getBoundingClientRect();if(r.top<n.top+60||r.bottom>n.bottom-40)reveal(box,a);}
+function reveal(box,a){box.scrollTop+=a.getBoundingClientRect().top-box.getBoundingClientRect().top-box.clientHeight/3;}
 var t=0;function req(){if(!t)t=requestAnimationFrame(function(){t=0;spy();});}
 addEventListener("scroll",req,{passive:true});addEventListener("resize",req);addEventListener("load",spy);spy();
-function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&links[onSec])||(onCh&&links[onCh]);if(a)reveal(a);nav.querySelector(".toc-close").focus({preventScroll:true});}
+function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&navA[onSec])||(onCh&&navA[onCh]);if(a)reveal(nav,a);nav.querySelector(".toc-close").focus({preventScroll:true});}
 function close(){if(!b.classList.contains("toc-open"))return;b.classList.remove("toc-open");btn.setAttribute("aria-expanded","false");btn.focus({preventScroll:true});}
 btn.addEventListener("click",open);
 nav.querySelector(".toc-close").addEventListener("click",close);
@@ -176,14 +190,18 @@ nav.addEventListener("click",function(e){if(e.target.closest("a"))close();});
 addEventListener("keydown",function(e){if(e.key==="Escape")close();});
 })();"""
 BOOK = "GPU 是怎么工作的，以及怎么优化 GPU 性能"
+BOOK_SHORT = "GPU 是怎么工作的"
 TMPL = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{book}</title><link rel="stylesheet" href="vendor/katex/katex.min.css"><style>{css}</style>
 <script>addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";}});}});</script></head>
 <body>
-<header class="bar"><a class="bar-book" href="#top">GPU 是怎么工作的</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">目录</button></header>
-<nav class="toc" id="toc" aria-label="目录"><div class="toc-head"><a class="toc-book" href="#top">{book}</a><button class="toc-close" type="button">关闭</button></div><ol>{toc}</ol></nav><div class="scrim"></div>
+<header class="bar"><a class="bar-book" href="#top">{short}</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">目录</button></header>
+<div class="frame">
+<nav class="toc" id="toc" aria-label="目录"><div class="toc-head"><a class="toc-book" href="#top">{short}</a><button class="toc-close" type="button">关闭</button></div><ol>{toc}</ol></nav><div class="scrim"></div>
 <main><div class="col"><header class="book" id="top"><h1>{book_nb}</h1><p class="sub">以一张 H200 为例，从整个大模型一级一级拆到单条指令和比特：GPU 怎样工作，时间花在哪里，怎样让它更快。</p><p class="note">中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p></header>
-{secs}</div></main><script>{js}</script></body></html>"""
+{secs}</div></main>
+<aside class="rail" id="rail" aria-label="本章各节"><p class="rail-head">本章</p>{rail}</aside>
+</div><script>{js}</script></body></html>"""
 # Parts as listed in book/preface.md section 3 ("目录：每一章回答哪一个问题？").
 PARTS = [("", ["preface"]),
          ("导引", ["ch00_0", "ch00", "ch00_5"]),
@@ -339,6 +357,25 @@ def resolve(items):
     return errors
 
 
+BOOK_FONT = os.environ.get("BOOK_FONT", "google")
+GOOGLE_CSS = """
+@font-face{font-family:"Google Sans";src:url('fonts/GoogleSans-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:"Noto Sans SC";src:url('fonts/NotoSansSC-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+:root{--sans:"Google Sans","Noto Sans SC",-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;--serif:var(--sans)}
+body{font-weight:400;line-height:1.85}
+h1,h2,h3{font-weight:650}
+"""
+
+
+def vendor_fonts():
+    dst = DOCS / "fonts"
+    shutil.rmtree(dst, ignore_errors=True)
+    if BOOK_FONT == "google":
+        dst.mkdir(parents=True)
+        for f in [*(REPO / "tools" / "fonts").glob("*.woff2"), *(REPO / "tools" / "fonts").glob("OFL-*.txt")]:
+            shutil.copy2(f, dst / f.name)
+
+
 def vendor_katex():
     dst = DOCS / "vendor" / "katex"
     (dst / "fonts").mkdir(parents=True, exist_ok=True)
@@ -371,12 +408,12 @@ def split_title(title):
 
 
 def keep_units(h):
-    """Turn the spaces between CJK text and numbers or Latin words into no-break spaces (outside tags)."""
-    return re.sub(r"(<[^>]*>)|( )", lambda m: m.group(1) or "\u00a0", h)
+    """Turn spaces into no-break spaces and allow a break only after '\uff0c\uff1a\uff1b\u3001\u2014\u2014' (outside tags), for keep-all headings."""
+    return re.sub(r"(<[^>]*>)|( )|(\u2014\u2014|[\uff0c\uff1a\uff1b\u3001])", lambda m: m.group(1) or ("\u00a0" if m.group(2) else m.group(3) + "<wbr>"), h)
 
 
 def number_sections(c, body):
-    """Give each '<h2>N. title</h2>' an id and a hanging number; return the section list for the contents."""
+    """Give each '<h2>N. title</h2>' an id and a number span; return the section list for the contents."""
     out = []
     def rep(m):
         n = re.match(r"(\d+)\.\s+(.*)", m.group(1), re.S)
@@ -387,9 +424,16 @@ def number_sections(c, body):
     return re.sub(r"<h2>(.*?)</h2>", rep, body, flags=re.S), out
 
 
+def short_num(label):
+    """'第 4 章' -> '4', '附录 A' -> 'A', '导引一' -> '导一' (the book's own short form, as in '图 导一-1')."""
+    m = re.fullmatch(r"第\s*(\d+)\s*章|附录\s*([A-Z])|导引([一二三])", label)
+    return (m.group(1) or m.group(2) or "导" + m.group(3)) if m else label
+
+
 def toc_html(heads):
+    """Return (contents for the left nav, per-chapter section lists for the right rail)."""
     by_id = {h[0]: h for h in heads}
-    parts = []
+    parts, rail = [], []
     for name, ids in PARTS:
         lis = []
         for c in ids:
@@ -397,14 +441,25 @@ def toc_html(heads):
                 continue
             _, label, topic, plain, sec_list = by_id[c]
             secs = "".join(f'<li><a href="#{sid}"><span class="n">{num}</span><span class="t">{text}</span></a></li>' for sid, num, text in sec_list)
-            lis.append(f'<li class="chap" data-ch="{c}" data-t="{html.escape(plain)}"><a href="#{c}"><span class="n">{label}</span><span class="t">{topic}</span></a>'
+            lis.append(f'<li class="chap" data-ch="{c}" data-t="{html.escape(plain)}"><a href="#{c}" aria-label="{html.escape(plain)}"><span class="n">{short_num(label)}</span><span class="t">{topic}</span></a>'
                        + (f'<ol class="secs">{secs}</ol>' if secs else "") + "</li>")
+            rail.append(f'<ol data-ch="{c}">{secs}</ol>')
         if lis:
-            parts.append('<li class="part">' + (f'<p class="part-name">{name}</p>' if name else "") + f'<ol>{"".join(lis)}</ol></li>')
+            key, _, title = name.rpartition("　")
+            head = f'<p class="part-name">' + (f"<span>{key}</span>" if key else "") + f"{title}</p>" if name else ""
+            parts.append(f'<li class="part">{head}<ol>{"".join(lis)}</ol></li>')
     missing = set(by_id) - {c for _, ids in PARTS for c in ids}
     if missing:
         sys.exit("chapters not in PARTS: " + ", ".join(sorted(missing)))
-    return "".join(parts)
+    return "".join(parts), "".join(rail)
+
+
+def nowrap_code(html):
+    """Short inline code stays on one line."""
+    def mark(m):
+        return '<code class="nw">' if len(re.sub(r"<[^>]+>|&\w+;", "x", m.group(1))) <= 24 else "<code>"
+    parts = re.split(r"(<pre\b.*?</pre>)", html, flags=re.S)
+    return "".join(s if s.startswith("<pre") else re.sub(r"<code>(?=((?:(?!</code>).)*)</code>)", mark, s, flags=re.S) for s in parts)
 
 
 def main():
@@ -452,12 +507,13 @@ def main():
         pn = "".join(f'<a class="{cls}" href="#{h[0]}"><span>{word}</span><b>{h[1] + "　" if h[1] else ""}{h[2]}</b></a>'
                      for cls, word, h in (("prev", "上一章", heads[i - 1] if i else None), ("next", "下一章", heads[i + 1] if i + 1 < len(heads) else None)) if h)
         secs.append(f'<section id="{c}">{bodies[i]}<nav class="pn" aria-label="翻章">{pn}</nav></section>')
-    toc = toc_html(heads)
+    toc, rail = toc_html(heads)
     errors = resolve(items)
     if errors:
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
-    (DOCS / "index.html").write_text(substitute(TMPL.format(book=BOOK, book_nb=keep_units(BOOK), css=CSS + charts.CSS, js=JS, toc=toc, secs="".join(secs)), items))
+    vendor_fonts()
+    (DOCS / "index.html").write_text(nowrap_code(substitute(TMPL.format(book=BOOK, book_nb=keep_units(BOOK), css=CSS + (GOOGLE_CSS if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", js=JS, short=BOOK_SHORT, toc=toc, rail=rail, secs="".join(secs)), items)))
     write_readme(chapters, built, (DOCS / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
