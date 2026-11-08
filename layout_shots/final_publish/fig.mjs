@@ -1,0 +1,12 @@
+import { chromium } from "/Users/yufanfei/tock-sniper/node_modules/playwright-core/index.mjs";
+import { mkdirSync, rmSync } from "node:fs";
+const TMP="layout_shots/final_publish/_t"; mkdirSync(TMP,{recursive:true});
+const br=await chromium.launch({executablePath:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",env:{...process.env,TMPDIR:TMP+"/"}});
+const pg=await br.newPage({viewport:{width:1720,height:860}});
+const bad=[];pg.on("response",r=>{if(r.status()>=400)bad.push(r.url())});
+await pg.goto("http://127.0.0.1:8765/index.html#ch00_0",{waitUntil:"load"});await pg.waitForTimeout(1000);
+const info=await pg.evaluate(()=>{const f=[...document.querySelectorAll("iframe")].find(i=>(i.src||"").includes("archo"));f.scrollIntoView({block:"center"});const d=f.contentDocument;return {h:f.clientHeight,ih:d&&d.documentElement.scrollHeight,iw:d&&d.documentElement.scrollWidth,w:f.clientWidth,katexErr:document.querySelectorAll(".katex-error").length,fonts:[document.fonts.check("16px 'Google Sans'"),document.fonts.check("16px 'Noto Sans SC'")]}});
+await pg.waitForTimeout(800);await pg.screenshot({path:"layout_shots/final_publish/w1720_fig_dy1-1.png"});
+console.log(JSON.stringify(info),bad);
+await pg.evaluate(()=>{const s=document.getElementById("ch00_0-1");s&&s.scrollIntoView()});await pg.waitForTimeout(500);await pg.screenshot({path:"layout_shots/final_publish/w1720_dy1_s1_katex.png"});
+await br.close();rmSync(TMP,{recursive:true,force:true});

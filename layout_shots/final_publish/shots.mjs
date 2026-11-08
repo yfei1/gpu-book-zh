@@ -12,11 +12,16 @@ const engine = process.argv[3] || "chrome";
 mkdirSync(out, { recursive: true });
 const base = "http://127.0.0.1:8765/index.html";
 const VIEWS = [
-  ["w1720_dy1_top", 1720, 860, 1, "ch00_0"],
-  ["w1440_ch04", 1440, 900, 1, "ch04"],
-  ["w1920_ch07", 1920, 1080, 1, "ch07"],
-  ["w900_top_open", 900, 900, 1, "", "open"],
-  ["w390_dy1_s5_open", 390, 844, 2, "ch00_0-5", "open"],
+  ["w1720_dy1_top", 1720, 860, 1, "ch00_0"], ["w1920_ch07", 1920, 1080, 1, "ch07"], ["w900_top_open", 900, 900, 1, "", "open"], ["w390_dy1_s5_open", 390, 844, 2, "ch00_0-5", "open"],
+  ["w1440_ch04b", 1440, 900, 1, "ch04"],
+]; const _OLD = [
+  ["w1720_dy1_s5", 1720, 860, 1, "ch00_0-5"], ["w1720_ch04", 1720, 860, 1, "ch04"], ["w1720_ch04_s2", 1720, 860, 1, "ch04-2"],
+  ["w1440_dy1_s5", 1440, 900, 1, "ch00_0-5"], ["w1440_ch04", 1440, 900, 1, "ch04"], ["w1440_top", 1440, 900, 1, ""],
+  ["w1920_dy1_s5", 1920, 1080, 1, "ch00_0-5"], ["w1920_ch04", 1920, 1080, 1, "ch04"],
+  ["w1180_ch04_s2", 1180, 800, 1, "ch04-2"],
+  ["w900_dy1_s5", 900, 900, 1, "ch00_0-5"], ["w900_ch04", 900, 900, 1, "ch04"],
+  ["w390_dy1_s5", 390, 844, 2, "ch00_0-5"], ["w390_ch04", 390, 844, 2, "ch04"], ["w390_ch04_open", 390, 844, 2, "ch04-2", "open"],
+  ["w900_ch04_open", 900, 900, 1, "ch04-2", "open"],
 ];
 const only = process.argv[4] ? new RegExp(process.argv[4]) : null;
 // Chrome binds its singleton socket under TMPDIR; keep that inside this folder and remove it at exit.
