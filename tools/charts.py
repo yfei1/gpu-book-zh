@@ -11,9 +11,9 @@ STACK = ["#3b5bdb", "#1f9d8f", "#8e5bd6", "#e08a1e", "#d9558a", "#2b9a63", "#6b7
 MINUS = "\u2212"
 
 CSS = """
-.chart{margin:22px 0;padding:14px 16px 10px;background:#fbfbfa;border:1px solid #ddd;border-radius:8px}
-.chart-title{font-weight:600;line-height:1.5}
-.chart-sub{font-size:13px;color:#8c8c90;margin-left:8px;font-weight:400}
+.chart{margin:2.2em 0;padding:16px 0 14px;border-top:1px solid #dedcd1;border-bottom:1px solid #dedcd1;font-family:-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif}
+.chart-title{font-weight:600;font-size:15px;line-height:1.55;margin-bottom:4px}
+.chart-sub{font-size:13px;color:#5e5d59;margin-left:8px;font-weight:400}
 .chart-legend{display:flex;flex-wrap:wrap;gap:2px 14px;margin:4px 0 0;font-size:13px;color:#5b5b63}
 .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .chart-legend i.dash{width:16px;height:0;border-radius:0;border-top:1.5px dashed #5b5b63;vertical-align:3px}

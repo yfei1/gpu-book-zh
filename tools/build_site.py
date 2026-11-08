@@ -20,41 +20,176 @@ PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
 KATEX_CSS_FIG = '<link rel="stylesheet" href="../vendor/katex/katex.min.css">'
 FIG_FIX = "<style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style>"
 CSS = """
-body{margin:0;background:#f2f2ef;color:#2a2a2e;font:16px/1.85 -apple-system,"PingFang SC",system-ui,sans-serif}
-main{max-width:760px;margin:40px auto 120px;padding:0 24px}
-h1{font-size:26px;line-height:1.4;margin:36px 0 12px}
-h2{font-size:20px;line-height:1.5;margin:34px 0 10px}
-code{font:13.5px ui-monospace,Menlo,monospace;background:#e8e8e4;padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+:root{--ivory:#FAF9F5;--oat:#F0EEE6;--slate:#141413;--stone:#5E5D59;--clay:#CC785C;--clay-dk:#A9583E;--rule:#DEDCD1;
+--serif:"Iowan Old Style","Source Han Serif SC","Noto Serif SC","Songti SC",serif;
+--sans:-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--side:0px;--col:38em;--fw:min(780px,100vw - var(--side) - 40px);--tw:min(960px,100vw - var(--side) - 40px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:72px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ivory);color:var(--slate);font:17px/1.9 var(--serif);overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+main{padding:0 20px 160px}
+.col{max-width:var(--col);margin:0 auto}
+p{margin:0 0 1.05em;text-wrap:pretty}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--clay);text-decoration-thickness:1px;text-underline-offset:.22em}
+a:hover{color:var(--clay-dk)}
+:focus-visible{outline:2px solid var(--clay);outline-offset:2px;border-radius:2px}
+strong{font-weight:600}
+h1,h2,h3{font-family:var(--sans);color:var(--slate);font-weight:600;letter-spacing:0;word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
+h2{font-size:21px;line-height:1.5;margin:2.6em 0 .7em;position:relative}
+h3{font-size:17px;line-height:1.6;margin:2em 0 .5em}
+h2 .sn{color:var(--clay);font-weight:500;margin-right:.55em;font-variant-numeric:tabular-nums}
+code{font-family:var(--mono);font-size:.82em;background:var(--oat);padding:.1em .32em;border-radius:3px;overflow-wrap:anywhere}
 td code,th code{overflow-wrap:normal}
-h1 code,h2 code,h3 code{font-size:.85em;padding:0 3px}
-pre{background:#fbfbfa;border:1px solid #ddd;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+h1 code,h2 code,h3 code{font-size:.86em;background:none;padding:0}
+pre{background:var(--oat);margin:1.4em 0;padding:14px 18px;border-radius:4px;font:13.5px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
 pre code{background:none;padding:0;font-size:inherit}
-blockquote{margin:14px 0;padding:8px 16px;border-left:3px solid #8a8a8f;background:#fbfbfa}
-.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px -40px}
-table{border-collapse:collapse;font-size:13px;width:100%}
-td,th{border:1px solid #ccc;padding:5px 8px;vertical-align:top;line-height:1.6}
-hr{border:none;border-top:1px solid #ddd;margin:30px 0}
-ul,ol{padding-left:1.5em}
-li{margin:4px 0}
-li>p{margin:4px 0}
-section{border-top:1px solid #ddd;margin-top:48px;padding-top:8px}
-.toc{background:#fbfbfa;border:1px solid #ddd;border-radius:8px;padding:10px 18px 10px 34px;font-size:15px}
-.map{display:flex;flex-wrap:wrap;gap:2px 0;margin:6px 0 14px;padding:0;list-style:none;font-size:12.5px;line-height:1.6;color:#8c8c90}
-.map li{margin:0}
-.map li+li::before{content:"\\203A";margin:0 7px;color:#b4b4b8}
-.map .here{color:#2a2a2e;font-weight:600}
-.katex{font-size:1em}
-.katex-display{margin:1em 0;padding:2px 0;overflow-x:auto;overflow-y:hidden}
-.fig{margin:22px -40px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+blockquote{margin:1.4em 0;padding:0 0 0 1.1em;border-left:2px solid var(--clay);color:var(--stone)}
+hr{border:none;border-top:1px solid var(--rule);margin:2.6em 0}
+ul,ol{padding-left:1.4em;margin:0 0 1.05em}
+li{margin:.3em 0}
+li>p{margin:.3em 0}
+li::marker{color:var(--stone)}
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:1.6em calc(50% - var(--tw)/2)}
+table{border-collapse:collapse;width:100%;font:14px/1.65 var(--sans)}
+th{text-align:left;font-weight:600;border-bottom:1px solid var(--slate);padding:6px 10px 6px 0;vertical-align:bottom}
+td{border-bottom:1px solid var(--rule);padding:7px 10px 7px 0;vertical-align:top}
+td,th{min-width:4.5em}
+td:first-child,th:first-child{min-width:0;white-space:nowrap}
+.katex{font-size:1.04em}
+.katex-display{margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden}
+.fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .fig iframe{display:block;width:100%;height:900px;border:0}
-@media(max-width:860px){.fig{margin:22px 0}.tbl{margin:14px 0}main{padding:0 14px}}
-@media(max-width:600px){.fig iframe{min-width:640px}pre{font-size:11.5px}table{font-size:12.5px}td,th{min-width:8em}}
+.book{padding:88px 0 8px}
+.book h1{font-size:38px;line-height:1.3;margin:0 0 .45em;font-weight:600;text-wrap:balance}
+.book .sub{font-size:20px;line-height:1.7;color:var(--slate);margin:0 0 1.4em}
+.book .note{font:14px/1.7 var(--sans);color:var(--stone);margin:0}
+section{padding-top:clamp(96px,14vh,150px)}
+.ch-head{margin:0 0 20px}
+.ch-num{font:500 15px/1.5 var(--sans);color:var(--clay);margin:0 0 14px}
+.ch-num .lv{color:var(--stone);margin-left:1em}
+.ch-head h1{font-size:30px;line-height:1.42;margin:0;text-wrap:balance}
+.map{display:flex;flex-wrap:wrap;margin:0 0 2.4em;padding:14px 0 0;border-top:1px solid var(--rule);list-style:none;font:13px/1.7 var(--sans);color:var(--stone)}
+.map li{margin:0}
+.map li:not(:last-child)::after{content:"\\203A";margin:0 7px;color:#b9b7ad}
+.map .here{color:var(--slate);font-weight:600}
+.pn{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:4em 0 0;padding-top:20px;border-top:1px solid var(--rule);font-family:var(--sans)}
+.pn a{text-decoration:none;display:block;line-height:1.55}
+.pn a span{display:block;font-size:13px;color:var(--stone);margin-bottom:4px}
+.pn a b{font-weight:500;font-size:15px}
+.pn a:hover b{color:var(--clay-dk)}
+.pn .next{text-align:right;grid-column:2}
+.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:var(--ivory);border-bottom:1px solid var(--rule);font:14px/1.4 var(--sans)}
+.bar-book{font-weight:600;text-decoration:none;white-space:nowrap}
+.bar-cur{flex:1;min-width:0;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar button,.toc-close{flex-shrink:0;white-space:nowrap;font:500 14px/1 var(--sans);color:var(--slate);background:none;border:1px solid var(--rule);border-radius:4px;padding:8px 12px;cursor:pointer}
+.bar button:hover,.toc-close:hover{border-color:var(--stone)}
+.toc{font:14px/1.5 var(--sans);background:var(--oat);overflow-y:auto;overscroll-behavior:contain}
+.toc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:28px 24px 8px}
+.toc-book{font-weight:600;font-size:15px;line-height:1.5;text-decoration:none}
+.toc ol{list-style:none;margin:0;padding:0}
+.toc li{margin:0}
+.toc .part{padding:14px 0 4px}
+.toc .part-name{margin:0;padding:6px 24px 4px;font-size:12.5px;color:var(--stone)}
+.toc a{text-decoration:none;color:var(--slate)}
+.chap>a{display:grid;grid-template-columns:4.3em 1fr;gap:0 4px;padding:5px 24px 5px 21px;border-left:3px solid transparent}
+.chap>a .n{color:var(--stone);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chap>a .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chap>a:hover .t,.secs a:hover .t{color:var(--clay-dk)}
+.chap.on>a{border-left-color:var(--clay)}
+.chap.on>a .t{font-weight:600}
+.chap.on>a .n{color:var(--slate)}
+.secs{display:none;padding:2px 0 8px!important}
+.chap.on .secs{display:block}
+.secs a{display:grid;grid-template-columns:1.6em 1fr;padding:3px 24px 3px calc(21px + 4.3em + 4px);font-size:13px;line-height:1.55;color:var(--stone)}
+.secs a .n{font-variant-numeric:tabular-nums}
+.secs a.here{color:var(--slate)}
+.secs a.here .n{color:var(--clay);font-weight:600}
+.secs code{background:none;padding:0;font-size:.95em}
+.secs .katex{font-size:1em}
+.scrim{display:none}
+@media(min-width:1180px){
+:root{--side:296px}
+.bar{display:none}
+.toc{position:fixed;top:0;bottom:0;left:0;width:var(--side);border-right:1px solid var(--rule);padding-bottom:48px}
+.toc-close{display:none}
+main{margin-left:var(--side);padding:0 52px 160px}
+td code{overflow-wrap:anywhere}
+h2 .sn{position:absolute;right:100%;margin-right:.9em;top:0}
+}
+@media(max-width:1179px){
+.toc{position:fixed;top:0;bottom:0;left:0;z-index:40;width:min(420px,100%);padding-bottom:48px;transform:translateX(-100%);visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
+body.toc-open{overflow:hidden}
+body.toc-open .toc{transform:none;visibility:visible;transition:transform .22s ease;box-shadow:0 0 40px rgba(20,20,19,.18)}
+body.toc-open .scrim{display:block;position:fixed;inset:0;z-index:30;background:rgba(20,20,19,.28)}
+.book{padding-top:56px}
+}
+@media(max-width:600px){
+body{font-size:16.5px;line-height:1.85}
+main{padding:0 18px 120px}
+.bar{padding:0 14px;gap:10px}
+.bar-cur{display:none}
+.bar-book{flex:1}
+.book{padding-top:40px}
+.book h1{font-size:28px}
+.book .sub{font-size:17.5px}
+.ch-head h1{font-size:24px}
+h2{font-size:19px}
+section{padding-top:80px}
+:root{--fw:100vw}
+.fig iframe{min-width:640px}
+pre{font-size:12px;padding:12px 14px}
+table{font-size:13px}
+td,th{min-width:8em}
+.pn{grid-template-columns:1fr;gap:16px}
+.pn .next{grid-column:1}
+}
+@media(prefers-reduced-motion:reduce){.toc{transition:none!important}}
 """
+JS = """(function(){
+var d=document,b=d.body,nav=d.getElementById("toc"),btn=d.getElementById("toc-btn"),cur=d.getElementById("bar-cur");
+var chs=[].slice.call(d.querySelectorAll("main section[id]")),links={},items={};
+[].forEach.call(nav.querySelectorAll("a[href^='#']"),function(a){links[a.getAttribute("href").slice(1)]=a;});
+[].forEach.call(nav.querySelectorAll(".chap"),function(li){items[li.dataset.ch]=li;});
+var onCh=null,onSec=null;
+function spy(){
+  var y=innerHeight*0.3,ch=null,sec=null;
+  for(var i=0;i<chs.length;i++){if(chs[i].getBoundingClientRect().top<=y)ch=chs[i];else break;}
+  if(ch){var hs=ch.querySelectorAll("h2[id]");for(var j=0;j<hs.length;j++){if(hs[j].getBoundingClientRect().top<=y)sec=hs[j];else break;}}
+  var c=ch&&ch.id,s=sec&&sec.id;
+  if(c!==onCh){if(onCh&&items[onCh])items[onCh].classList.remove("on");if(c&&items[c])items[c].classList.add("on");onCh=c;
+    cur.textContent=c&&items[c]?items[c].dataset.t:"";}
+  if(s!==onSec){if(onSec&&links[onSec]){links[onSec].classList.remove("here");links[onSec].removeAttribute("aria-current");}
+    if(s&&links[s]){links[s].classList.add("here");links[s].setAttribute("aria-current","location");}onSec=s;}
+  var a=(s&&links[s])||(c&&links[c]);
+  if(a&&!b.classList.contains("toc-open")){var r=a.getBoundingClientRect(),n=nav.getBoundingClientRect();if(r.top<n.top+60||r.bottom>n.bottom-40)reveal(a);}
+}
+function reveal(a){nav.scrollTop+=a.getBoundingClientRect().top-nav.getBoundingClientRect().top-nav.clientHeight/3;}
+var t=0;function req(){if(!t)t=requestAnimationFrame(function(){t=0;spy();});}
+addEventListener("scroll",req,{passive:true});addEventListener("resize",req);addEventListener("load",spy);spy();
+function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&links[onSec])||(onCh&&links[onCh]);if(a)reveal(a);nav.querySelector(".toc-close").focus({preventScroll:true});}
+function close(){if(!b.classList.contains("toc-open"))return;b.classList.remove("toc-open");btn.setAttribute("aria-expanded","false");btn.focus({preventScroll:true});}
+btn.addEventListener("click",open);
+nav.querySelector(".toc-close").addEventListener("click",close);
+d.querySelector(".scrim").addEventListener("click",close);
+nav.addEventListener("click",function(e){if(e.target.closest("a"))close();});
+addEventListener("keydown",function(e){if(e.key==="Escape")close();});
+})();"""
+BOOK = "GPU 是怎么工作的，以及怎么优化 GPU 性能"
 TMPL = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GPU 是怎么工作的，以及怎么优化 GPU 性能</title><link rel="stylesheet" href="vendor/katex/katex.min.css"><style>{css}</style>
+<title>{book}</title><link rel="stylesheet" href="vendor/katex/katex.min.css"><style>{css}</style>
 <script>addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";}});}});</script></head>
-<body><main><h1>GPU 是怎么工作的，以及怎么优化 GPU 性能</h1><p>中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p>
-<nav><ol class="toc">{toc}</ol></nav>{secs}</main></body></html>"""
+<body>
+<header class="bar"><a class="bar-book" href="#top">GPU 是怎么工作的</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">目录</button></header>
+<nav class="toc" id="toc" aria-label="目录"><div class="toc-head"><a class="toc-book" href="#top">{book}</a><button class="toc-close" type="button">关闭</button></div><ol>{toc}</ol></nav><div class="scrim"></div>
+<main><div class="col"><header class="book" id="top"><h1>{book_nb}</h1><p class="sub">以一张 H200 为例，从整个大模型一级一级拆到单条指令和比特：GPU 怎样工作，时间花在哪里，怎样让它更快。</p><p class="note">中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p></header>
+{secs}</div></main><script>{js}</script></body></html>"""
+# Parts as listed in book/preface.md section 3 ("目录：每一章回答哪一个问题？").
+PARTS = [("", ["preface"]),
+         ("导引", ["ch00_0", "ch00", "ch00_5"]),
+         ("第一部分　硬件六级放大", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
+         ("第二部分　一层里的主力算子与整层总装", ["ch07", "ch08", "ch09"]),
+         ("第三部分　诊断与跨代", ["ch10", "appA", "appB", "appC"])]
 MAP_PAT = re.compile(r"<p><strong>本书地图：</strong>\s*(.*?)</p>", re.S)
 
 STRAY_BOLD = re.compile(r"\*\*((?:(?!</?(?:p|li|pre|h\d)\b)[^*])+?)\*\*")
@@ -219,6 +354,59 @@ def substitute(page, items):
     return re.sub(r"\ue000[MC](\d+)\ue001", lambda m: items[int(m.group(1))]["html"], page)
 
 
+SHORT_TOPIC = {"导引一": "一句话怎样变成下一个词元", "导引三": "最小的 CUDA 程序", "第 9 章": "一层排上 132 个 SM",
+               "第 10 章": "诊断一个慢 kernel", "附录 A": "改不动的硬件限制", "附录 B": "SASS 指令速查"}
+
+
+def split_title(title):
+    """'第 4 章 [第 4 级]：单个 SMSP——每个周期…？' -> ('第 4 章', '第 4 级', '单个 SMSP——每个周期…？', '单个 SMSP')."""
+    num, sep, rest = title.partition("：")
+    if not sep:
+        return "", "", title, title
+    lv = re.search(r"\[(.*?)\]", num)
+    topic = rest.split("——")[0] if "——" in rest else rest.split("，")[0]
+    num = re.sub(r"\s*\[.*?\]", "", num).strip()
+    return num, lv.group(1) if lv else "", rest, SHORT_TOPIC.get(num, topic)
+
+
+
+def keep_units(h):
+    """Turn the spaces between CJK text and numbers or Latin words into no-break spaces (outside tags)."""
+    return re.sub(r"(<[^>]*>)|( )", lambda m: m.group(1) or "\u00a0", h)
+
+
+def number_sections(c, body):
+    """Give each '<h2>N. title</h2>' an id and a hanging number; return the section list for the contents."""
+    out = []
+    def rep(m):
+        n = re.match(r"(\d+)\.\s+(.*)", m.group(1), re.S)
+        sid = f"{c}-{len(out) + 1}"
+        num, text = (n.group(1), n.group(2)) if n else ("", m.group(1))
+        out.append((sid, num, text))
+        return f'<h2 id="{sid}">' + (f'<span class="sn">{num}</span>' if num else "") + f"{keep_units(text)}</h2>"
+    return re.sub(r"<h2>(.*?)</h2>", rep, body, flags=re.S), out
+
+
+def toc_html(heads):
+    by_id = {h[0]: h for h in heads}
+    parts = []
+    for name, ids in PARTS:
+        lis = []
+        for c in ids:
+            if c not in by_id:
+                continue
+            _, label, topic, plain, sec_list = by_id[c]
+            secs = "".join(f'<li><a href="#{sid}"><span class="n">{num}</span><span class="t">{text}</span></a></li>' for sid, num, text in sec_list)
+            lis.append(f'<li class="chap" data-ch="{c}" data-t="{html.escape(plain)}"><a href="#{c}"><span class="n">{label}</span><span class="t">{topic}</span></a>'
+                       + (f'<ol class="secs">{secs}</ol>' if secs else "") + "</li>")
+        if lis:
+            parts.append('<li class="part">' + (f'<p class="part-name">{name}</p>' if name else "") + f'<ol>{"".join(lis)}</ol></li>')
+    missing = set(by_id) - {c for _, ids in PARTS for c in ids}
+    if missing:
+        sys.exit("chapters not in PARTS: " + ", ".join(sorted(missing)))
+    return "".join(parts)
+
+
 def main():
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
     (DOCS / "figs").mkdir(parents=True, exist_ok=True); (REPO / "book").mkdir(exist_ok=True); (REPO / "figs").mkdir(exist_ok=True)
@@ -240,7 +428,7 @@ def main():
             return f'\n\n<figure class="fig"><iframe src="figs/{nm}.html" loading="lazy" title="{num}"></iframe></figure>\n\n'
         missing.append(num)
         return "\n\n"
-    secs, toc, missing, chapters, items = [], [], [], [], []
+    heads, bodies, missing, chapters, items = [], [], [], [], []
     for c in ORDER:
         p = SRC_BOOK / f"{c}.md"
         if not p.exists():
@@ -249,14 +437,27 @@ def main():
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = protect(t, c, items)
         title_html = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
+        t = re.sub(r"^# .*\n", "", t, count=1, flags=re.M)
         t = escape_table_code_pipes(re.sub(FIG_PAT, fig_rep, t, flags=re.S))
         t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
-        chapters.append((c, title)); secs.append(f'<section id="{c}">{MAP_PAT.sub(map_nav, fix_stray_bold(md.render(t))).replace('<table>', '<div class="tbl"><table>').replace('</table>', '</table></div>')}</section>'); toc.append(f'<li><a href="#{c}">{md.renderInline(title_html)}</a></li>')
+        body = MAP_PAT.sub(map_nav, fix_stray_bold(md.render(t))).replace('<table>', '<div class="tbl"><table>').replace('</table>', '</table></div>')
+        body, sec_list = number_sections(c, body)
+        label, level, question, topic = split_title(title_html)
+        plain = " ".join(x for x in (split_title(title)[0], re.sub(r"[$`]", "", split_title(title)[3])) if x)
+        chapters.append((c, title)); heads.append((c, label, md.renderInline(topic), plain, sec_list))
+        kicker = f'<p class="ch-num">{label}' + (f'<span class="lv">{level}</span>' if level else "") + "</p>" if label else ""
+        bodies.append(f'<header class="ch-head">{kicker}<h1>{keep_units(md.renderInline(question))}</h1></header>{body}')
+    secs = []
+    for i, (c, *_ ) in enumerate(heads):
+        pn = "".join(f'<a class="{cls}" href="#{h[0]}"><span>{word}</span><b>{h[1] + "　" if h[1] else ""}{h[2]}</b></a>'
+                     for cls, word, h in (("prev", "上一章", heads[i - 1] if i else None), ("next", "下一章", heads[i + 1] if i + 1 < len(heads) else None)) if h)
+        secs.append(f'<section id="{c}">{bodies[i]}<nav class="pn" aria-label="翻章">{pn}</nav></section>')
+    toc = toc_html(heads)
     errors = resolve(items)
     if errors:
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
-    (DOCS / "index.html").write_text(substitute(TMPL.format(css=CSS + charts.CSS, toc="".join(toc), secs="".join(secs)), items))
+    (DOCS / "index.html").write_text(substitute(TMPL.format(book=BOOK, book_nb=keep_units(BOOK), css=CSS + charts.CSS, js=JS, toc=toc, secs="".join(secs)), items))
     write_readme(chapters, built, (DOCS / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
