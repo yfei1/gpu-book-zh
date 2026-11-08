@@ -28,8 +28,9 @@
 
 下载后用浏览器直接打开（单文件 HTML，无外部依赖）。
 
-- [图 导一-1 一句话穿过 Muse Spark Open：prefill、decode、verify](figs/ch00_0-a.html)
-- [图 导一-2 一趟 verify：8 行的预测和草稿逐个比较](figs/ch00_0-verify.html)
+- [图 导一-1 Muse Spark Open 的模型结构](figs/ch00_0-archo.html)
+- [图 导一-2 一句话穿过 Muse Spark Open：prefill、decode、verify](figs/ch00_0-a.html)
+- [图 导一-3 一趟 verify：8 行的预测和草稿逐个比较](figs/ch00_0-verify.html)
 - [图 导二-1 一层怎样分到 8 张卡上](figs/ch00-split.html)
 - [图 导二-2 单层模型的八个阶段](figs/ch00-a.html)
 - [图 导二-3 一层模型的依赖图](figs/ch00-dag.html)
