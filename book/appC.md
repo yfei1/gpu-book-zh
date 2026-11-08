@@ -238,5 +238,5 @@
 | warp | 每 32 个连续线程，共用一股指令流、同发一条指令 | 导引三第 3 节、第 3 章第 1 节 |
 | warpgroup | 4 个连续 warp，共 128 个线程 | 第 3 章第 6 节 |
 | `WARPGROUP.DEPBAR.LE` | `wgmma` 的排空等待：等到未算完的组数不超过 N（裸 `DEPBAR.LE` 见附录 B 速查二第 31 项） | 第 6 章第 6 节 |
-| `wgmma`（`m64nNk16`） | 须由整个 warpgroup 一起发出，行高 64 | 第 5 章第 3 节 |
+| `wgmma`（`m64nNk16`；FP8 为 `k32`） | 须由整个 warpgroup 一起发出，行高 64 | 第 5 章第 3 节 |
 | XOR swizzle（交错） | 按 XOR 重排列号，不多占空间就能错开存储体 | 第 3 章第 7 节 |
