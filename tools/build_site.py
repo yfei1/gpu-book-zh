@@ -9,15 +9,24 @@ from markdown_it import MarkdownIt
 
 import charts
 
-SRC_BOOK = Path("/Users/yufanfei/GolandProjects/open-kernel-challenge-triad/audit_out/w25/orch/gpu_tutor/book")
-SRC_FIGS = SRC_BOOK / "figs"
+ZH_BOOK = Path("/Users/yufanfei/GolandProjects/open-kernel-challenge-triad/audit_out/w25/orch/gpu_tutor/book")
+LANG = os.environ.get("BOOK_LANG", "zh")
+if LANG not in ("zh", "en"):
+    sys.exit("BOOK_LANG must be zh or en")
+EN = LANG == "en"
+SRC_BOOK = Path(os.environ.get("BOOK_SRC") or ZH_BOOK)
+SRC_FIGS = Path(os.environ.get("BOOK_FIGS") or ZH_BOOK / "figs")  # zh figures; the en page falls back to them
+SRC_FIGS_EN = Path(os.environ.get("BOOK_FIGS_EN") or SRC_BOOK / "figs_en")  # figs_en/<id>/<id>.html
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
+OUT = DOCS / "en" if EN else DOCS
+UP = "../" if EN else ""  # path from the page to docs/
+OTHER = "../index.html" if EN else "en/index.html"
 ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB", "appC"]
-FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*(图\s*(?:导[一二三]|[A-Z\d.]+)-\d+).*?-->"
+FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*((?:图|Figure|Fig\.)\s*(?:导[一二三]|[A-Z\d.]+)-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
 PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
-KATEX_CSS_FIG = '<link rel="stylesheet" href="../vendor/katex/katex.min.css">'
+KATEX_CSS_FIG = f'<link rel="stylesheet" href="{"../" * (2 if EN else 1)}vendor/katex/katex.min.css">'
 FIG_FIX = "<style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style>"
 CSS = """
 :root{--ivory:#FAF9F5;--oat:#F0EEE6;--slate:#141413;--stone:#5E5D59;--clay:#CC785C;--clay-dk:#A9583E;--rule:#DEDCD1;
@@ -82,6 +91,11 @@ section{padding-top:clamp(112px,16vh,168px)}
 .pn .next{text-align:right;grid-column:2}
 .bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;height:52px;padding:0 20px;background:var(--ivory);border-bottom:1px solid var(--rule);font:14px/1.4 var(--sans)}
 .bar-book{font:600 16px/1.4 var(--serif);text-decoration:none;white-space:nowrap}
+.lang{flex-shrink:0;font:500 13px/1 var(--sans);white-space:nowrap;color:var(--stone)}
+.lang a{text-decoration:none;color:var(--stone)}
+.lang a:hover{color:var(--clay-dk)}
+.lang b{color:var(--slate);font-weight:600}
+.toc-head .lang{margin-left:auto}
 .bar-cur{flex:1;min-width:0;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar button,.toc-close{flex-shrink:0;white-space:nowrap;font:500 14px/1 var(--sans);color:var(--slate);background:none;border:1px solid var(--rule);border-radius:4px;padding:8px 12px;cursor:pointer}
 .bar button:hover,.toc-close:hover{border-color:var(--stone)}
@@ -115,6 +129,9 @@ section{padding-top:clamp(112px,16vh,168px)}
 .bar{display:none}
 .frame{display:grid;grid-template-columns:var(--rail) minmax(0,1fr) var(--rail);max-width:var(--frame);margin:0 auto}
 .toc,.rail{position:sticky;top:0;align-self:start;height:100vh;padding-bottom:48px}
+.toc-head{flex-wrap:wrap}
+.toc-book{flex:1 1 100%}
+.toc-head .lang{margin-left:var(--hang)}
 .toc-close{display:none}
 .toc .chap.on .secs{display:none}
 .rail{display:block;--hang:28px;font-size:13.5px;padding:40px 32px 48px 4px}
@@ -183,32 +200,48 @@ var t=0;function req(){if(!t)t=requestAnimationFrame(function(){t=0;spy();});}
 addEventListener("scroll",req,{passive:true});addEventListener("resize",req);addEventListener("load",spy);spy();
 function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&navA[onSec])||(onCh&&navA[onCh]);if(a)reveal(nav,a);nav.querySelector(".toc-close").focus({preventScroll:true});}
 function close(){if(!b.classList.contains("toc-open"))return;b.classList.remove("toc-open");btn.setAttribute("aria-expanded","false");btn.focus({preventScroll:true});}
+[].forEach.call(d.querySelectorAll(".lang a"),function(a){a.addEventListener("click",function(e){var id=onSec||onCh;e.preventDefault();location.href=a.dataset.base+(id?"#"+id:location.hash);});});
 btn.addEventListener("click",open);
 nav.querySelector(".toc-close").addEventListener("click",close);
 d.querySelector(".scrim").addEventListener("click",close);
 nav.addEventListener("click",function(e){if(e.target.closest("a"))close();});
 addEventListener("keydown",function(e){if(e.key==="Escape")close();});
 })();"""
-BOOK = "GPU 是怎么工作的，以及怎么优化 GPU 性能"
-BOOK_SHORT = "GPU 是怎么工作的"
-TMPL = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{book}</title><link rel="stylesheet" href="vendor/katex/katex.min.css"><style>{css}</style>
+UI = {
+    "zh": dict(html="zh-CN", book="GPU 是怎么工作的，以及怎么优化 GPU 性能", short="GPU 是怎么工作的", toc="目录", close="关闭", rail="本章", rail_aria="本章各节",
+               sub="以一张 H200 为例，从整个大模型一级一级拆到单条指令和比特：GPU 怎样工作，时间花在哪里，怎样让它更快。",
+               note="中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。", prev="上一章", next="下一章", pn_aria="翻章",
+               tog='<b>中文</b> / <a href="{o}" data-base="{o}" hreflang="en">English</a>'),
+    "en": dict(html="en", book="How a GPU Works, and How to Optimize Its Performance", short="How a GPU Works", toc="Contents", close="Close", rail="This chapter", rail_aria="Sections in this chapter",
+               sub="Using one H200 as the example, we zoom from a whole large model down to a single instruction and bit: how the GPU works, where the time goes, and how to make it faster.",
+               note="A draft GPU tutorial, under review round by round. Every figure is interactive: press the buttons, drag the timeline.", prev="Previous chapter", next="Next chapter", pn_aria="Chapter navigation",
+               tog='<a href="{o}" data-base="{o}" hreflang="zh-CN">中文</a> / <b>English</b>'),
+}[LANG]
+BOOK = UI["book"]
+BOOK_SHORT = UI["short"]
+TMPL = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{book}</title><link rel="stylesheet" href="{up}vendor/katex/katex.min.css"><style>{css}</style>
 <script>addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";}});}});</script></head>
 <body>
-<header class="bar"><a class="bar-book" href="#top">{short}</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">目录</button></header>
+<header class="bar"><a class="bar-book" href="#top">{short}</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">{ui_toc}</button><span class="lang">{tog}</span></header>
 <div class="frame">
-<nav class="toc" id="toc" aria-label="目录"><div class="toc-head"><a class="toc-book" href="#top">{short}</a><button class="toc-close" type="button">关闭</button></div><ol>{toc}</ol></nav><div class="scrim"></div>
-<main><div class="col"><header class="book" id="top"><h1>{book_nb}</h1><p class="sub">以一张 H200 为例，从整个大模型一级一级拆到单条指令和比特：GPU 怎样工作，时间花在哪里，怎样让它更快。</p><p class="note">中文 GPU 教程草稿，正在逐轮审读。图都可以操作：点按钮、拖时间轴。</p></header>
+<nav class="toc" id="toc" aria-label="{ui_toc}"><div class="toc-head"><a class="toc-book" href="#top">{short}</a><span class="lang">{tog}</span><button class="toc-close" type="button">{ui_close}</button></div><ol>{toc}</ol></nav><div class="scrim"></div>
+<main><div class="col"><header class="book" id="top"><h1>{book_nb}</h1><p class="sub">{sub}</p><p class="note">{note}</p></header>
 {secs}</div></main>
-<aside class="rail" id="rail" aria-label="本章各节"><p class="rail-head">本章</p>{rail}</aside>
+<aside class="rail" id="rail" aria-label="{rail_aria}"><p class="rail-head">{ui_rail}</p>{rail}</aside>
 </div><script>{js}</script></body></html>"""
 # Parts as listed in book/preface.md section 3 ("目录：每一章回答哪一个问题？").
-PARTS = [("", ["preface"]),
+PARTS_EN = [("", ["preface"]),
+            ("Orientation", ["ch00_0", "ch00", "ch00_5"]),
+            ("Part 1　Six Levels of Hardware Zoom", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
+            ("Part 2　The Main Operators in One Layer, and the Whole Layer", ["ch07", "ch08", "ch09"]),
+            ("Part 3　Diagnosis and Across Generations", ["ch10", "appA", "appB", "appC"])]
+PARTS = PARTS_EN if EN else [("", ["preface"]),
          ("导引", ["ch00_0", "ch00", "ch00_5"]),
          ("第一部分　硬件六级放大", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
          ("第二部分　一层里的主力算子与整层总装", ["ch07", "ch08", "ch09"]),
          ("第三部分　诊断与跨代", ["ch10", "appA", "appB", "appC"])]
-MAP_PAT = re.compile(r"<p><strong>本书地图：</strong>\s*(.*?)</p>", re.S)
+MAP_PAT = re.compile(r"<p><strong>(?:本书地图：|Book map:)</strong>\s*(.*?)</p>", re.S)
 
 STRAY_BOLD = re.compile(r"\*\*((?:(?!</?(?:p|li|pre|h\d)\b)[^*])+?)\*\*")
 SKIP = re.compile(r"(<pre.*?</pre>)", re.S)
@@ -226,7 +259,7 @@ def map_nav(m):
     items = [x.strip() for x in m.group(1).split("→")]
     li = []
     for x in items:
-        cur = re.fullmatch(r"<strong>【(.*?)】</strong>", x)
+        cur = re.fullmatch(r"<strong>[【\[](.*?)[】\]]</strong>", x)
         li.append(f'<li class="here">{cur.group(1)}</li>' if cur else f"<li>{x}</li>")
     return '<ul class="map">' + "".join(li) + "</ul>"
 
@@ -359,8 +392,8 @@ def resolve(items):
 
 BOOK_FONT = os.environ.get("BOOK_FONT", "google")
 GOOGLE_CSS = """
-@font-face{font-family:"Google Sans";src:url('fonts/GoogleSans-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
-@font-face{font-family:"Noto Sans SC";src:url('fonts/NotoSansSC-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:"Google Sans";src:url('@UP@fonts/GoogleSans-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:"Noto Sans SC";src:url('@UP@fonts/NotoSansSC-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
 :root{--sans:"Google Sans","Noto Sans SC",-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;--serif:var(--sans)}
 body{font-weight:400;line-height:1.85}
 h1,h2,h3{font-weight:650}
@@ -395,20 +428,29 @@ SHORT_TOPIC = {"导引一": "一句话怎样变成下一个词元", "导引三":
                "第 10 章": "诊断一个慢 kernel", "附录 A": "改不动的硬件限制", "附录 B": "SASS 指令速查"}
 
 
+SHORT_TOPIC_EN = {"Intro 1": "How a sentence becomes the next token", "Intro 3": "The smallest CUDA program", "Chapter 9": "One layer on 132 SMs",
+                  "Chapter 10": "Diagnosing a slow kernel", "Appendix A": "Hardware limits you cannot change", "Appendix B": "SASS instruction cheat sheet"}
+
+
 def split_title(title):
     """'第 4 章 [第 4 级]：单个 SMSP——每个周期…？' -> ('第 4 章', '第 4 级', '单个 SMSP——每个周期…？', '单个 SMSP')."""
-    num, sep, rest = title.partition("：")
+    num, sep, rest = re.split(r"(?<=\S)([：:])\s*", title, maxsplit=1) if re.search(r"[：:]", title) else (title, "", "")
     if not sep:
         return "", "", title, title
     lv = re.search(r"\[(.*?)\]", num)
-    topic = rest.split("——")[0] if "——" in rest else rest.split("，")[0]
+    if EN:
+        topic = re.split(r"\s+[—–]\s+|—|,", rest)[0].strip()
+    else:
+        topic = rest.split("——")[0] if "——" in rest else rest.split("，")[0]
     num = re.sub(r"\s*\[.*?\]", "", num).strip()
-    return num, lv.group(1) if lv else "", rest, SHORT_TOPIC.get(num, topic)
+    return num, lv.group(1) if lv else "", rest, (SHORT_TOPIC_EN if EN else SHORT_TOPIC).get(num, topic)
 
 
 
 def keep_units(h):
     """Turn spaces into no-break spaces and allow a break only after '\uff0c\uff1a\uff1b\u3001\u2014\u2014' (outside tags), for keep-all headings."""
+    if EN:
+        return h
     return re.sub(r"(<[^>]*>)|( )|(\u2014\u2014|[\uff0c\uff1a\uff1b\u3001])", lambda m: m.group(1) or ("\u00a0" if m.group(2) else m.group(3) + "<wbr>"), h)
 
 
@@ -426,8 +468,11 @@ def number_sections(c, body):
 
 def short_num(label):
     """'第 4 章' -> '4', '附录 A' -> 'A', '导引一' -> '导一' (the book's own short form, as in '图 导一-1')."""
-    m = re.fullmatch(r"第\s*(\d+)\s*章|附录\s*([A-Z])|导引([一二三])", label)
-    return (m.group(1) or m.group(2) or "导" + m.group(3)) if m else label
+    m = re.fullmatch(r"第\s*(\d+)\s*章|附录\s*([A-Z])|导引([一二三])|Chapter\s+(\d+)|Appendix\s+([A-Z])|Intro\s+(\d)", label)
+    if not m:
+        return label
+    g = m.groups()
+    return g[0] or g[1] or (g[2] and "导" + g[2]) or g[3] or g[4] or "I" + g[5]
 
 
 def toc_html(heads):
@@ -464,23 +509,32 @@ def nowrap_code(html):
 
 def main():
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
-    (DOCS / "figs").mkdir(parents=True, exist_ok=True); (REPO / "book").mkdir(exist_ok=True); (REPO / "figs").mkdir(exist_ok=True)
+    (OUT / "figs").mkdir(parents=True, exist_ok=True)
+    if not EN:
+        (REPO / "book").mkdir(exist_ok=True); (REPO / "figs").mkdir(exist_ok=True)
     built = {}
-    for old in list((DOCS / "figs").glob("*.html")) + list((REPO / "figs").glob("*.html")):
+    for old in list((OUT / "figs").glob("*.html")) + ([] if EN else list((REPO / "figs").glob("*.html"))):
         old.unlink()
+    def emit(h):
+        t = h.read_text()
+        (OUT / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + KATEX_CSS_FIG + POST_H + "</body>"))
+    en_figs = set()
     for d in sorted(SRC_FIGS.iterdir()):
         h = d / f"{d.name}.html"
         if d.is_dir() and not d.name.startswith("_") and h.exists():
             built[d.name] = h
-            t = h.read_text()
-            (DOCS / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + KATEX_CSS_FIG + POST_H + "</body>"))
-            shutil.copy2(h, REPO / "figs" / h.name)
+            he = SRC_FIGS_EN / d.name / f"{d.name}.html"
+            if EN and he.exists():
+                emit(he); en_figs.add(d.name)
+            elif not EN:
+                emit(h); shutil.copy2(h, REPO / "figs" / h.name)
     nums = {}
     def fig_rep(m):
         nm, num = m.group(1).strip(), m.group(2)
         if nm in built:
             nums[nm] = num
-            return f'\n\n<figure class="fig"><iframe src="figs/{nm}.html" loading="lazy" title="{num}"></iframe></figure>\n\n'
+            src = f"figs/{nm}.html" if nm in en_figs or not EN else f"../figs/{nm}.html"
+            return f'\n\n<figure class="fig"><iframe src="{src}" loading="lazy" title="{num}"></iframe></figure>\n\n'
         missing.append(num)
         return "\n\n"
     heads, bodies, missing, chapters, items = [], [], [], [], []
@@ -488,7 +542,9 @@ def main():
         p = SRC_BOOK / f"{c}.md"
         if not p.exists():
             continue
-        t = p.read_text(); shutil.copy2(p, REPO / "book" / p.name)
+        t = p.read_text()
+        if not EN:
+            shutil.copy2(p, REPO / "book" / p.name)
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = protect(t, c, items)
         title_html = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
@@ -505,20 +561,21 @@ def main():
     secs = []
     for i, (c, *_ ) in enumerate(heads):
         pn = "".join(f'<a class="{cls}" href="#{h[0]}"><span>{word}</span><b>{h[1] + "　" if h[1] else ""}{h[2]}</b></a>'
-                     for cls, word, h in (("prev", "上一章", heads[i - 1] if i else None), ("next", "下一章", heads[i + 1] if i + 1 < len(heads) else None)) if h)
-        secs.append(f'<section id="{c}">{bodies[i]}<nav class="pn" aria-label="翻章">{pn}</nav></section>')
+                     for cls, word, h in (("prev", UI["prev"], heads[i - 1] if i else None), ("next", UI["next"], heads[i + 1] if i + 1 < len(heads) else None)) if h)
+        secs.append(f'<section id="{c}">{bodies[i]}<nav class="pn" aria-label="{UI["pn_aria"]}">{pn}</nav></section>')
     toc, rail = toc_html(heads)
     errors = resolve(items)
     if errors:
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
     vendor_fonts()
-    (DOCS / "index.html").write_text(nowrap_code(substitute(TMPL.format(book=BOOK, book_nb=keep_units(BOOK), css=CSS + (GOOGLE_CSS if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", js=JS, short=BOOK_SHORT, toc=toc, rail=rail, secs="".join(secs)), items)))
-    write_readme(chapters, built, (DOCS / "index.html").read_text(), nums)
+    (OUT / "index.html").write_text(nowrap_code(substitute(TMPL.format(lang=UI["html"], up=UP, tog=UI["tog"].format(o=OTHER), ui_toc=UI["toc"], ui_close=UI["close"], ui_rail=UI["rail"], rail_aria=UI["rail_aria"], sub=UI["sub"], note=UI["note"], book=BOOK, book_nb=keep_units(BOOK), css=CSS + (GOOGLE_CSS.replace("@UP@", UP) if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", js=JS, short=BOOK_SHORT, toc=toc, rail=rail, secs="".join(secs)), items)))
+    if not EN:
+        write_readme(chapters, built, (OUT / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
     print(f"math expressions rendered: {sum(1 for it in items if it['kind'] == 'M')}, charts: {sum(1 for it in items if it['kind'] == 'C')}")
-    print(f"chapters {len(secs)}, figures embedded {sum(1 for _ in re.finditer('<iframe', (DOCS/'index.html').read_text()))}")
+    print(f"chapters {len(secs)}, figures embedded {sum(1 for _ in re.finditer('<iframe', (OUT/'index.html').read_text()))}")
 
 if __name__ == "__main__":
     main()

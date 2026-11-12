@@ -1,0 +1,201 @@
+<!doctype html><html lang="en"><head><script>(()=>{
+// Shared figure controls: playback speed, click-to-seek on the timeline, click a box to jump to its step, step buttons.
+const R=window.requestAnimationFrame.bind(window);
+let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
+const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
+window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
+const SPEEDS=[0.1,0.25,0.5,1];
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
+addEventListener("DOMContentLoaded",()=>{
+  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
+  if(!play||!tIn) return;
+  const st=document.createElement("style");
+  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
+  document.head.appendChild(st);
+  const box=document.createElement("span"); box.className="spd";
+  box.innerHTML='<button type="button" data-k="-1" title="上一步">◀ 上一步</button><button type="button" data-k="1" title="下一步">下一步 ▶</button><span class="sep"></span>速度 '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
+  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
+  const isPlaying=()=>play.textContent.trim()==="暂停";
+  const pause=()=>{ if(isPlaying()) play.click(); };
+  const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
+  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
+  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
+  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
+  let map=null, mapKey="";
+  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
+  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const stripBoxes=()=>{ const out=[]; document.querySelectorAll("#algO *, .ao, .sb.on, text.st.on").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width&&r.height) out.push([r.left,r.top,r.right,r.bottom]); }); return out; };
+  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
+    const probe=t=>{ setT(t); return stepOf(); };
+    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
+      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers(),a:stripBoxes()}); } prevK=k; }
+      prevT=t; }
+    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
+    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
+  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
+  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi();
+    for(const f of [0.3,0.5,0.7,0.9,1]){ setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*f))); if(stepOf()===k) return; } setT(Math.min(hi(), t0+(t1-t0)*0.3)); };
+  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.s) return setSpeed(+b.dataset.s);
+    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
+    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
+  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
+  const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
+  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
+    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const X=e.clientX, Y=e.clientY;
+    let cand=[...new Set(m.filter(([k,v])=>(v.a||[]).some(b=>X>=b[0]&&X<=b[2]&&Y>=b[1]&&Y<=b[3])).map(x=>x[0]))];
+    if(!cand.length){ let bd=Infinity; const near=[];
+      m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-X,y-Y); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
+      cand=[...new Set(near)]; }
+    cand.sort((a,b)=>a-b); if(!cand.length) return false;
+    const k0=stepOf(), i0=cand.indexOf(k0); const k= i0<0 ? cand[0] : cand[(i0+1)%cand.length]; goStep(k); return true; };
+  const tl=cur?cur.ownerSVGElement:null;
+  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
+    svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
+      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
+      pause(); jumpToBox(e); }); });
+  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
+});
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Figure I-1 Part I Six-Level Map</title><style>
+.iso{
+  --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
+  --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
+  --anatomy-shade-0:#0f0f0f;--anatomy-shade-1:#121212;--anatomy-shade-2:#151515;--anatomy-shade-3:#181818;
+  --anatomy-lit-top:#262626;--anatomy-lit-shade:#1d1d1d;
+  --anatomy-hi:#d4d4d4;--anatomy-mid:#6a6a6a;--anatomy-lo:#3e3e3e;--anatomy-faint:#2a2a2a;--anatomy-lit:#ffffff;
+  --anatomy-halo:#050505;--anatomy-halo-opacity:.9;--anatomy-dot:#e6e6e6;
+  --anatomy-red:#ff6b6b;--anatomy-green:#6be0a0;--anatomy-blue:#6b9bff;
+  --anatomy-weight:.6px;--anatomy-ease:cubic-bezier(.32,.72,0,1);
+  --anatomy-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff0a,inset 0 0 0 1px #ffffff06,0 0 0 1px #00000026,0 1px 1px -.5px #00000014,0 3px 3px -1.5px #00000014,0 6px 6px -3px #00000014,0 12px 12px -6px #00000014;
+}
+.iso[data-theme="light"]{
+  --anatomy-page:#f2f2ef;--anatomy-card:#fbfbfa;--anatomy-text:#57575a;--anatomy-strong:#18181a;--anatomy-muted:#8c8c90;
+  --anatomy-paper:#fbfbfa;--anatomy-face:#ffffff;--anatomy-top:#ffffff;
+  --anatomy-shade-0:#dcdcd9;--anatomy-shade-1:#e5e5e2;--anatomy-shade-2:#ededea;--anatomy-shade-3:#f4f4f1;
+  --anatomy-lit-top:#ffffff;--anatomy-lit-shade:#eeeeeb;
+  --anatomy-hi:#26262a;--anatomy-mid:#8a8a8f;--anatomy-lo:#b4b4b8;--anatomy-faint:#d4d4d6;--anatomy-lit:#000000;
+  --anatomy-halo:#8a8a80;--anatomy-halo-opacity:.32;--anatomy-dot:#3a3a3e;
+  --anatomy-red:#e5484d;--anatomy-green:#30a46c;--anatomy-blue:#3e63dd;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff,0 0 0 1px #0000000f,0 1px 1px -.5px #0000000a,0 3px 3px -1.5px #0000000a,0 6px 6px -3px #0000000a,0 12px 12px -6px #0000000a;
+}
+.iso-svg{display:block;width:100%;height:auto;overflow:visible}
+.iso-svg path,.iso-svg circle{vector-effect:non-scaling-stroke}
+.iso-fill{fill:var(--anatomy-paper);stroke:none}
+.iso-solid[data-lit]>.iso-fill{fill:var(--anatomy-face)}
+.iso-shade,.iso-top{stroke:none}
+.iso-shade[data-shade="0"]{fill:var(--anatomy-shade-0)}
+.iso-shade[data-shade="1"]{fill:var(--anatomy-shade-1)}
+.iso-shade[data-shade="2"]{fill:var(--anatomy-shade-2)}
+.iso-shade[data-shade="3"]{fill:var(--anatomy-shade-3)}
+.iso-top{fill:var(--anatomy-top)}
+.iso-solid[data-lit]>.iso-top{fill:var(--anatomy-lit-top)}
+.iso-solid[data-lit]>.iso-shade{fill:var(--anatomy-lit-shade)}
+.iso-solid[data-seamless]>.iso-shade,.iso-solid[data-seamless]>.iso-top{stroke-width:.4;stroke-linejoin:round}
+.iso-solid[data-seamless]>.iso-shade[data-shade="0"]{stroke:var(--anatomy-shade-0)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="1"]{stroke:var(--anatomy-shade-1)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="2"]{stroke:var(--anatomy-shade-2)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="3"]{stroke:var(--anatomy-shade-3)}
+.iso-solid[data-seamless]>.iso-top{stroke:var(--anatomy-top)}
+.iso-solid[data-seamless][data-lit]>.iso-top{stroke:var(--anatomy-lit-top)}
+.iso-solid[data-seamless][data-lit]>.iso-shade{stroke:var(--anatomy-lit-shade)}
+.iso-solid[data-lit]>.iso-edge{stroke:var(--anatomy-lit)}
+.iso-halo{fill:var(--anatomy-halo);stroke:none;filter:blur(9px);opacity:var(--anatomy-halo-opacity);transform:translateY(3px)}
+.iso-line{fill:none;stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight);stroke-linecap:round;stroke-linejoin:round}
+.iso-line[data-tone="hi"]{stroke:var(--anatomy-hi)}
+.iso-line[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.iso-line[data-tone="lo"]{stroke:var(--anatomy-lo)}
+.iso-line[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.iso-line[data-tone="lit"]{stroke:var(--anatomy-lit)}
+.iso-line[data-tone="red"]{stroke:var(--anatomy-red)}
+.iso-line[data-tone="green"]{stroke:var(--anatomy-green)}
+.iso-line[data-tone="blue"]{stroke:var(--anatomy-blue)}
+.iso-line[data-dotted]{stroke-dasharray:.01 3.5;stroke-width:1}
+.iso-line[data-dashed]{stroke-dasharray:3 3}
+.iso-line[data-flow]{stroke-dasharray:2 6}
+.iso-wire-end{fill:var(--anatomy-paper);stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight)}
+.iso-wire[data-tone="hi"] .iso-wire-end{stroke:var(--anatomy-hi)}
+.iso-wire[data-tone="mid"] .iso-wire-end{stroke:var(--anatomy-mid)}
+.iso-wire[data-tone="faint"] .iso-wire-end{stroke:var(--anatomy-faint)}
+.iso-wire[data-tone="lit"] .iso-wire-end{stroke:var(--anatomy-lit)}
+.iso-dots circle{fill:var(--anatomy-dot);stroke:none;opacity:.32}
+.iso-dots[data-tone="hi"] circle{opacity:.85}
+.iso-dots[data-tone="mid"] circle{opacity:.45}
+.iso-dots[data-tone="lo"] circle{opacity:.22}
+.iso-dots[data-tone="faint"] circle{opacity:.12}
+.iso-face-text{fill:var(--anatomy-mid);font-family:var(--anatomy-mono);letter-spacing:.04em}
+.iso-face-text[data-tone="hi"]{fill:var(--anatomy-hi)}
+.iso-face-text[data-tone="lo"]{fill:var(--anatomy-lo)}
+.iso-face-text[data-tone="faint"]{fill:var(--anatomy-faint)}
+.tb-body{fill:var(--anatomy-shade-2);stroke:none}
+.tb-shine{fill:var(--anatomy-top);stroke:none}
+.tb-shade{fill:var(--anatomy-shade-0);stroke:none}
+.tb-ring{fill:none;stroke:var(--anatomy-lo);stroke-width:.45;stroke-linecap:butt;stroke-linejoin:round}
+.tb-ring[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.tb-ring[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.tb-ring[data-tone="hi"]{stroke:var(--anatomy-hi)}
+@keyframes iso-flow{to{stroke-dashoffset:-32}}
+@keyframes iso-pulse{0%,100%{opacity:.18}12%{opacity:1}40%{opacity:.18}}
+.iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
+.iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
+.iso-figure{margin:32px 0 36px}
+.iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
+.iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
+.iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+.iso-plate-corner[data-corner="fig"]{top:0;left:0;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="title"]{top:0;right:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="hint"]{bottom:0;left:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="readout"]{right:0;bottom:0;color:var(--anatomy-text);font-variant-numeric:tabular-nums}
+.iso-plate .iso-svg{margin:0 auto}
+.iso-legend{display:grid;gap:8px;margin-top:12px;color:var(--anatomy-muted);font-size:13px;line-height:1.55}
+.iso-keys{display:flex;flex-wrap:wrap;gap:6px 18px}
+.iso-key{display:inline-flex;align-items:center;gap:7px}
+.iso-swatch{width:16px;height:10px;flex:none;overflow:visible}
+.iso-swatch path{fill:none;stroke:var(--anatomy-hi);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.iso-swatch[data-mark="raised"] path,.iso-swatch[data-mark="flat"] path{stroke:var(--anatomy-mid)}
+.iso-swatch[data-mark="lit"] path{stroke:var(--anatomy-lit)}
+.iso-swatch[data-mark="dim"] path{stroke:var(--anatomy-lo)}
+.iso-swatch[data-mark="dotted"] path{stroke-dasharray:.01 3;stroke-width:1.4}
+.iso-swatch[data-mark="dashed"] path{stroke-dasharray:3 2.5}
+.iso-swatch[data-mark="red"] path{stroke:var(--anatomy-red)}
+.iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
+.iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
+.iso-swatch-crease{stroke:var(--anatomy-lo)!important}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
+
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body[data-theme="light"]{color-scheme:light}
+body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
+.f3 .map{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+.f3 .lv{display:grid;grid-template-columns:4.4em 10.2em minmax(0,1fr) 5.2em;gap:4px 12px;align-items:center;text-align:left;font:inherit;font-size:13.5px;line-height:1.5;padding:10px 12px;border:1px solid var(--anatomy-lo);border-radius:8px;background:var(--anatomy-card);color:var(--anatomy-text);cursor:pointer}
+.f3 .lv .no{font-weight:600;color:var(--anatomy-muted)}
+.f3 .lv .nm{font-weight:700;color:var(--anatomy-strong)}
+.f3 .lv .ch{text-align:right;color:var(--anatomy-muted)}
+.f3 .lv[aria-pressed=true]{border-color:var(--anatomy-blue);box-shadow:inset 0 0 0 1px var(--anatomy-blue)}
+.f3 .lv[aria-pressed=true] .nm{color:var(--anatomy-blue)}
+@media(max-width:600px){.f3 .lv{grid-template-columns:1fr auto}.f3 .lv .qq{grid-column:1/-1;grid-row:2}.f3 .lv .nm{grid-column:1}.f3 .lv .no{display:none}}
+.cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure I-1</span><span class="iso-plate-corner" data-corner="title">Part I Six-Level Map: Zooming In from Timeline to Instructions and Bits</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f3"><div class="map"><button class="lv" data-i="0" aria-pressed="false"><span class="no">Level 1</span><span class="nm">Timeline</span><span class="qq">Where do the gaps between back-to-back steps come from, and how do we minimize them?</span><span class="ch">Chapter 1</span></button><button class="lv" data-i="1" aria-pressed="false"><span class="no">Level 2</span><span class="nm">Full Chip</span><span class="qq">How are hundreds or thousands of tasks distributed across the chip's compute units, and how do they exchange data safely?</span><span class="ch">Chapter 2</span></button><button class="lv" data-i="2" aria-pressed="false"><span class="no">Level 3</span><span class="nm">Single SM</span><span class="qq">Which resource runs out first, and how does data move into on-chip shared memory?</span><span class="ch">Chapter 3</span></button><button class="lv" data-i="3" aria-pressed="false"><span class="no">Level 4</span><span class="nm">SM Sub-Partition</span><span class="qq">How does the scheduler pick a thread group to issue an instruction each cycle so data-wait latency stays hidden?</span><span class="ch">Chapter 4</span></button><button class="lv" data-i="4" aria-pressed="false"><span class="no">Level 5</span><span class="nm">Execution Pipelines</span><span class="qq">Once an instruction is issued, which execution datapath computes it?</span><span class="ch">Chapter 5</span></button><button class="lv" data-i="5" aria-pressed="false"><span class="no">Level 6</span><span class="nm">Instructions & Bits</span><span class="qq">How does a line of source code become machine instructions and bits in registers?</span><span class="ch">Chapter 6</span></button></div></div></div></figure><p class="cap">Each level answers one question; from Level 1 down to Level 6, each step zooms closer to the hardware. Click any level to highlight it.</p></main><script type="module">
+const rs=[...document.querySelectorAll(".lv")];
+rs.forEach((b)=>b.addEventListener("click",()=>{ const on=b.getAttribute("aria-pressed")!=="true"; rs.forEach((x)=>x.setAttribute("aria-pressed","false")); b.setAttribute("aria-pressed",on?"true":"false"); }));
+</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

@@ -1,0 +1,372 @@
+<!doctype html><html lang="en"><head><script>(()=>{
+// Shared figure controls: playback speed, click-to-seek on the timeline, click a box to jump to its step, step buttons.
+const R=window.requestAnimationFrame.bind(window);
+let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
+const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
+window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
+const SPEEDS=[0.1,0.25,0.5,1];
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
+addEventListener("DOMContentLoaded",()=>{
+  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
+  if(!play||!tIn) return;
+  const st=document.createElement("style");
+  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
+  document.head.appendChild(st);
+  const box=document.createElement("span"); box.className="spd";
+  box.innerHTML='<button type="button" data-k="-1" title="上一步">◀ 上一步</button><button type="button" data-k="1" title="下一步">下一步 ▶</button><span class="sep"></span>速度 '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
+  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
+  const isPlaying=()=>play.textContent.trim()==="暂停";
+  const pause=()=>{ if(isPlaying()) play.click(); };
+  const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
+  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
+  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
+  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
+  let map=null, mapKey="";
+  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
+  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const stripBoxes=()=>{ const out=[]; document.querySelectorAll("#algO *, .ao, .sb.on, text.st.on").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width&&r.height) out.push([r.left,r.top,r.right,r.bottom]); }); return out; };
+  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
+    const probe=t=>{ setT(t); return stepOf(); };
+    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
+      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers(),a:stripBoxes()}); } prevK=k; }
+      prevT=t; }
+    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
+    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
+  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
+  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi();
+    for(const f of [0.3,0.5,0.7,0.9,1]){ setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*f))); if(stepOf()===k) return; } setT(Math.min(hi(), t0+(t1-t0)*0.3)); };
+  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.s) return setSpeed(+b.dataset.s);
+    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
+    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
+  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
+  const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
+  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
+    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const X=e.clientX, Y=e.clientY;
+    let cand=[...new Set(m.filter(([k,v])=>(v.a||[]).some(b=>X>=b[0]&&X<=b[2]&&Y>=b[1]&&Y<=b[3])).map(x=>x[0]))];
+    if(!cand.length){ let bd=Infinity; const near=[];
+      m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-X,y-Y); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
+      cand=[...new Set(near)]; }
+    cand.sort((a,b)=>a-b); if(!cand.length) return false;
+    const k0=stepOf(), i0=cand.indexOf(k0); const k= i0<0 ? cand[0] : cand[(i0+1)%cand.length]; goStep(k); return true; };
+  const tl=cur?cur.ownerSVGElement:null;
+  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
+    svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
+      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
+      pause(); jumpToBox(e); }); });
+  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
+});
+})();
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+addEventListener("DOMContentLoaded",()=>{
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+});
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Figure 8-13 Prefill: Sizing the Grid and Dispatching Tiles to SMs</title><style>
+.iso{
+  --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
+  --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
+  --anatomy-shade-0:#0f0f0f;--anatomy-shade-1:#121212;--anatomy-shade-2:#151515;--anatomy-shade-3:#181818;
+  --anatomy-lit-top:#262626;--anatomy-lit-shade:#1d1d1d;
+  --anatomy-hi:#d4d4d4;--anatomy-mid:#6a6a6a;--anatomy-lo:#3e3e3e;--anatomy-faint:#2a2a2a;--anatomy-lit:#ffffff;
+  --anatomy-halo:#050505;--anatomy-halo-opacity:.9;--anatomy-dot:#e6e6e6;
+  --anatomy-red:#ff6b6b;--anatomy-green:#6be0a0;--anatomy-blue:#6b9bff;
+  --anatomy-weight:.6px;--anatomy-ease:cubic-bezier(.32,.72,0,1);
+  --anatomy-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff0a,inset 0 0 0 1px #ffffff06,0 0 0 1px #00000026,0 1px 1px -.5px #00000014,0 3px 3px -1.5px #00000014,0 6px 6px -3px #00000014,0 12px 12px -6px #00000014;
+}
+.iso[data-theme="light"]{
+  --anatomy-page:#f2f2ef;--anatomy-card:#fbfbfa;--anatomy-text:#57575a;--anatomy-strong:#18181a;--anatomy-muted:#8c8c90;
+  --anatomy-paper:#fbfbfa;--anatomy-face:#ffffff;--anatomy-top:#ffffff;
+  --anatomy-shade-0:#dcdcd9;--anatomy-shade-1:#e5e5e2;--anatomy-shade-2:#ededea;--anatomy-shade-3:#f4f4f1;
+  --anatomy-lit-top:#ffffff;--anatomy-lit-shade:#eeeeeb;
+  --anatomy-hi:#26262a;--anatomy-mid:#8a8a8f;--anatomy-lo:#b4b4b8;--anatomy-faint:#d4d4d6;--anatomy-lit:#000000;
+  --anatomy-halo:#8a8a80;--anatomy-halo-opacity:.32;--anatomy-dot:#3a3a3e;
+  --anatomy-red:#e5484d;--anatomy-green:#30a46c;--anatomy-blue:#3e63dd;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff,0 0 0 1px #0000000f,0 1px 1px -.5px #0000000a,0 3px 3px -1.5px #0000000a,0 6px 6px -3px #0000000a,0 12px 12px -6px #0000000a;
+}
+.iso-svg{display:block;width:100%;height:auto;overflow:visible}
+.iso-svg path,.iso-svg circle{vector-effect:non-scaling-stroke}
+.iso-fill{fill:var(--anatomy-paper);stroke:none}
+.iso-solid[data-lit]>.iso-fill{fill:var(--anatomy-face)}
+.iso-shade,.iso-top{stroke:none}
+.iso-shade[data-shade="0"]{fill:var(--anatomy-shade-0)}
+.iso-shade[data-shade="1"]{fill:var(--anatomy-shade-1)}
+.iso-shade[data-shade="2"]{fill:var(--anatomy-shade-2)}
+.iso-shade[data-shade="3"]{fill:var(--anatomy-shade-3)}
+.iso-top{fill:var(--anatomy-top)}
+.iso-solid[data-lit]>.iso-top{fill:var(--anatomy-lit-top)}
+.iso-solid[data-lit]>.iso-shade{fill:var(--anatomy-lit-shade)}
+.iso-solid[data-seamless]>.iso-shade,.iso-solid[data-seamless]>.iso-top{stroke-width:.4;stroke-linejoin:round}
+.iso-solid[data-seamless]>.iso-shade[data-shade="0"]{stroke:var(--anatomy-shade-0)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="1"]{stroke:var(--anatomy-shade-1)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="2"]{stroke:var(--anatomy-shade-2)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="3"]{stroke:var(--anatomy-shade-3)}
+.iso-solid[data-seamless]>.iso-top{stroke:var(--anatomy-top)}
+.iso-solid[data-seamless][data-lit]>.iso-top{stroke:var(--anatomy-lit-top)}
+.iso-solid[data-seamless][data-lit]>.iso-shade{stroke:var(--anatomy-lit-shade)}
+.iso-solid[data-lit]>.iso-edge{stroke:var(--anatomy-lit)}
+.iso-halo{fill:var(--anatomy-halo);stroke:none;filter:blur(9px);opacity:var(--anatomy-halo-opacity);transform:translateY(3px)}
+.iso-line{fill:none;stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight);stroke-linecap:round;stroke-linejoin:round}
+.iso-line[data-tone="hi"]{stroke:var(--anatomy-hi)}
+.iso-line[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.iso-line[data-tone="lo"]{stroke:var(--anatomy-lo)}
+.iso-line[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.iso-line[data-tone="lit"]{stroke:var(--anatomy-lit)}
+.iso-line[data-tone="red"]{stroke:var(--anatomy-red)}
+.iso-line[data-tone="green"]{stroke:var(--anatomy-green)}
+.iso-line[data-tone="blue"]{stroke:var(--anatomy-blue)}
+.iso-line[data-dotted]{stroke-dasharray:.01 3.5;stroke-width:1}
+.iso-line[data-dashed]{stroke-dasharray:3 3}
+.iso-line[data-flow]{stroke-dasharray:2 6}
+.iso-wire-end{fill:var(--anatomy-paper);stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight)}
+.iso-wire[data-tone="hi"] .iso-wire-end{stroke:var(--anatomy-hi)}
+.iso-wire[data-tone="mid"] .iso-wire-end{stroke:var(--anatomy-mid)}
+.iso-wire[data-tone="faint"] .iso-wire-end{stroke:var(--anatomy-faint)}
+.iso-wire[data-tone="lit"] .iso-wire-end{stroke:var(--anatomy-lit)}
+.iso-dots circle{fill:var(--anatomy-dot);stroke:none;opacity:.32}
+.iso-dots[data-tone="hi"] circle{opacity:.85}
+.iso-dots[data-tone="mid"] circle{opacity:.45}
+.iso-dots[data-tone="lo"] circle{opacity:.22}
+.iso-dots[data-tone="faint"] circle{opacity:.12}
+.iso-face-text{fill:var(--anatomy-mid);font-family:var(--anatomy-mono);letter-spacing:.04em}
+.iso-face-text[data-tone="hi"]{fill:var(--anatomy-hi)}
+.iso-face-text[data-tone="lo"]{fill:var(--anatomy-lo)}
+.iso-face-text[data-tone="faint"]{fill:var(--anatomy-faint)}
+.tb-body{fill:var(--anatomy-shade-2);stroke:none}
+.tb-shine{fill:var(--anatomy-top);stroke:none}
+.tb-shade{fill:var(--anatomy-shade-0);stroke:none}
+.tb-ring{fill:none;stroke:var(--anatomy-lo);stroke-width:.45;stroke-linecap:butt;stroke-linejoin:round}
+.tb-ring[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.tb-ring[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.tb-ring[data-tone="hi"]{stroke:var(--anatomy-hi)}
+@keyframes iso-flow{to{stroke-dashoffset:-32}}
+@keyframes iso-pulse{0%,100%{opacity:.18}12%{opacity:1}40%{opacity:.18}}
+.iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
+.iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
+.iso-figure{margin:32px 0 36px}
+.iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
+.iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
+.iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+.iso-plate-corner[data-corner="fig"]{top:0;left:0;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="title"]{top:0;right:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="hint"]{bottom:0;left:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="readout"]{right:0;bottom:0;color:var(--anatomy-text);font-variant-numeric:tabular-nums}
+.iso-plate .iso-svg{margin:0 auto}
+.iso-legend{display:grid;gap:8px;margin-top:12px;color:var(--anatomy-muted);font-size:13px;line-height:1.55}
+.iso-keys{display:flex;flex-wrap:wrap;gap:6px 18px}
+.iso-key{display:inline-flex;align-items:center;gap:7px}
+.iso-swatch{width:16px;height:10px;flex:none;overflow:visible}
+.iso-swatch path{fill:none;stroke:var(--anatomy-hi);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.iso-swatch[data-mark="raised"] path,.iso-swatch[data-mark="flat"] path{stroke:var(--anatomy-mid)}
+.iso-swatch[data-mark="lit"] path{stroke:var(--anatomy-lit)}
+.iso-swatch[data-mark="dim"] path{stroke:var(--anatomy-lo)}
+.iso-swatch[data-mark="dotted"] path{stroke-dasharray:.01 3;stroke-width:1.4}
+.iso-swatch[data-mark="dashed"] path{stroke-dasharray:3 2.5}
+.iso-swatch[data-mark="red"] path{stroke:var(--anatomy-red)}
+.iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
+.iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
+.iso-swatch-crease{stroke:var(--anatomy-lo)!important}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
+
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body[data-theme="light"]{color-scheme:light}
+body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
+.f3 svg{display:block;width:100%;height:auto;font-family:inherit}
+.f3 .k1{--anatomy-face:#3e63dd;--anatomy-top:#6885e4;--anatomy-shade-0:#2b459b;--anatomy-shade-1:#304dac;--anatomy-shade-2:#3757c2;--anatomy-shade-3:#3b5ed2;--anatomy-hi:#253b85;--anatomy-mid:#253b85}
+.f3 .k2{--anatomy-face:#d9822b;--anatomy-top:#e19e5a;--anatomy-shade-0:#985b1e;--anatomy-shade-1:#a96522;--anatomy-shade-2:#bf7226;--anatomy-shade-3:#ce7c29;--anatomy-hi:#824e1a;--anatomy-mid:#824e1a}
+.f3 .k3{--anatomy-face:#2f9e6b;--anatomy-top:#5db38c;--anatomy-shade-0:#216f4b;--anatomy-shade-1:#257b53;--anatomy-shade-2:#298b5e;--anatomy-shade-3:#2d9666;--anatomy-hi:#1c5f40;--anatomy-mid:#1c5f40}
+.f3 .k4{--anatomy-face:#8a5cd0;--anatomy-top:#a480da;--anatomy-shade-0:#614092;--anatomy-shade-1:#6c48a2;--anatomy-shade-2:#7951b7;--anatomy-shade-3:#8357c6;--anatomy-hi:#53377d;--anatomy-mid:#53377d}
+.f3 .kr{--anatomy-face:#d64545;--anatomy-top:#df6e6e;--anatomy-shade-0:#963030;--anatomy-shade-1:#a73636;--anatomy-shade-2:#bc3d3d;--anatomy-shade-3:#cb4242;--anatomy-hi:#802929;--anatomy-mid:#802929}
+.f3 .kw{--anatomy-face:#9aa0a6;--anatomy-top:#b0b5ba;--anatomy-shade-0:#6c7074;--anatomy-shade-1:#787d81;--anatomy-shade-2:#888d92;--anatomy-shade-3:#92989e;--anatomy-hi:#5c6064;--anatomy-mid:#5c6064}
+.f3 .kd{--anatomy-face:#2a2a2e;--anatomy-top:#59595c;--anatomy-shade-0:#1d1d20;--anatomy-shade-1:#212124;--anatomy-shade-2:#252528;--anatomy-shade-3:#28282c;--anatomy-hi:#19191c;--anatomy-mid:#19191c}
+.f3 .kl{--anatomy-face:#cfd6f5;--anatomy-top:#dadff7;--anatomy-shade-0:#9196ac;--anatomy-shade-1:#a1a7bf;--anatomy-shade-2:#b6bcd8;--anatomy-shade-3:#c5cbe9;--anatomy-hi:#7c8093;--anatomy-mid:#7c8093}
+.f3 .km{--anatomy-face:#8ea2ea;--anatomy-top:#a7b6ef;--anatomy-shade-0:#6371a4;--anatomy-shade-1:#6f7eb7;--anatomy-shade-2:#7d8fce;--anatomy-shade-3:#879ade;--anatomy-hi:#55618c;--anatomy-mid:#55618c}
+.f3 .busy{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a;--anatomy-hi:#111;--anatomy-mid:#444}
+.f3 .gone{opacity:.22}
+.f3 .off{display:none}
+.f3 .lab{font-size:11.5px;fill:var(--anatomy-strong);font-weight:600;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3.5px}
+.f3 .lab2{font-size:11.5px;fill:var(--anatomy-text)}
+.f3 .lk{fill:none;stroke:var(--anatomy-blue);stroke-width:1.3;opacity:.4;stroke-dasharray:4 3}
+.f3 .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}
+.f3 .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
+.f3 .hl{stroke:var(--anatomy-red);stroke-width:1;opacity:.7}
+.f3 .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
+.f3 .bar{stroke:none}
+.f3 .b-k1{fill:#3e63dd}.f3 .b-k2{fill:#d9822b}.f3 .b-k3{fill:#2f9e6b}.f3 .b-k4{fill:#8a5cd0}.f3 .b-kr{fill:#d64545}.f3 .b-kw{fill:#9aa0a6}.f3 .b-kd{fill:#2a2a2e}.f3 .b-kl{fill:#cfd6f5}.f3 .b-km{fill:#8ea2ea}
+.f3 .b-wait{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.6}.f3 .b-free{fill:var(--anatomy-green);opacity:.28}
+.f3 .bt{font-size:9.5px;fill:#fff;text-anchor:middle;font-weight:600}.f3 .bt.d{fill:var(--anatomy-strong)}
+.f3 .ax{font-size:10px;fill:var(--anatomy-muted);text-anchor:middle}.f3 .axl{stroke:var(--anatomy-faint);stroke-width:.6}
+.f3 .tn{font-size:10.5px;fill:var(--anatomy-text)}
+.f3 .ac{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:.7}
+.f3 .ac.c-k1{fill:#3e63dd;stroke:#284090}.f3 .ac.c-k2{fill:#d9822b;stroke:#8d551c}.f3 .ac.c-k3{fill:#2f9e6b;stroke:#1f6746}.f3 .ac.c-k4{fill:#8a5cd0;stroke:#5a3c87}.f3 .ac.c-kr{fill:#d64545;stroke:#8b2d2d}.f3 .ac.c-kw{fill:#9aa0a6;stroke:#64686c}.f3 .ac.c-kd{fill:#2a2a2e;stroke:#1b1b1e}.f3 .ac.c-kl{fill:#cfd6f5;stroke:#878b9f}.f3 .ac.c-km{fill:#8ea2ea;stroke:#5c6998}
+.f3 .ac.gone{opacity:.3}.f3 .an{font-size:10.5px;fill:#fff;text-anchor:middle;font-weight:600}.f3 .an.d{fill:var(--anatomy-text)}
+.f3 .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}
+.f3 .mvc{stroke:var(--anatomy-card);stroke-width:1}.f3 .mvt{font-size:8.5px;fill:#fff;text-anchor:middle;font-weight:700}
+.f3 .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}.f3 .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
+.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
+.ctl .modes label{border:1px solid var(--anatomy-lo);border-radius:6px;padding:3px 10px;cursor:pointer;background:var(--anatomy-card)}
+.ctl .modes input{margin-right:5px}
+.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
+.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+.lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
+.lg i{display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo);border-radius:2px}
+.lg i.k1{background:#3e63dd}.lg i.k2{background:#d9822b}.lg i.k3{background:#2f9e6b}.lg i.k4{background:#8a5cd0}.lg i.kr{background:#d64545}.lg i.kw{background:#9aa0a6}.lg i.kd{background:#2a2a2e}.lg i.kl{background:#cfd6f5}.lg i.km{background:#8ea2ea}
+.lg i.wait{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}
+.lg i.free{background:color-mix(in srgb,var(--anatomy-green) 28%,transparent)}
+.cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0}
+.kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
+.iso-plate{padding-bottom:58px}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%;text-wrap:balance}
+@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+.f3 .nar{margin:14px 8px 8px;min-height:15em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.f3 .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
+.iso-plate{padding-bottom:76px}</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure 8-13</span><span class="iso-plate-corner" data-corner="title">Prefill: Sizing the Grid and Dispatching Tiles to SMs</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="f3"><svg class="flat" viewBox="0 0 640 62" role="img" aria-label="Algorithm">
+<text id="algT" class="lab2" x="18" y="16"></text><g id="algB"></g><g id="algO"></g></svg><svg id="top" class="flat" viewBox="0 0 640 252" role="img" aria-label="CTA and SM layout diagram"><g id="topG"></g><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="flat" viewBox="0 0 640 150" role="img" aria-label="Timeline"></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. gemm1 grid: 1,056 → 288 + 132</label><label><input type="radio" name="mode" value="2">2. gemm2 dispatch: persistent 264 CTAs vs. 9,216 standard CTAs</label></div>
+<label>T <input id="Tin" type="range" min="0" max="1" step="1" value="1"> <span id="Tlab">T = 16,384</span></label>
+<button id="play">Pause</button><label>Time <input id="tIn" type="range" min="0" max="40" step="0.05" value="0"></label></div><div class="lg"><span><i class="k1"></i>Active CTA / busy SM</span><span><i class="kw"></i>Empty-exit CTA / finished</span><span><i class="k4"></i>Fallback kernel CTA</span><span><i class="kr"></i>Idle SM waiting on stragglers</span></div><p class="cap">Switch modes and T to see which CTAs in the grid have valid work and when individual SMs go idle. Cell counts, shaded areas, and bar lengths are schematic; only the numbers in the readout are measured.</p><template id="c1b_0_t">Grid dimensions must be fixed at CUDA Graph capture time, so the grid is sized for the worst case</template><template id="c1b_0_f"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>N</mi><mtext>grid</mtext></msub><mo>=</mo><mo stretchy="false">⌈</mo><mn>8</mn><mi>T</mi><mi mathvariant="normal">/</mi><mn>128</mn><mo stretchy="false">⌉</mo><mo>+</mo><mn>32</mn><mo>=</mo><mn>1,024</mn><mo>+</mo><mn>32</mn><mo>=</mo><mn>1,056</mn></mrow><annotation encoding="application/x-tex">N_{\text{grid}} = \lceil 8T / 128 \rceil + 32 = 1{,}024 + 32 = 1{,}056</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.109em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">grid</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">⌈</span><span class="mord">8</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mord">/128</span><span class="mclose">⌉</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">1</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">024</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">1</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">056</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>16,384</mn></mrow><annotation encoding="application/x-tex">T = 16{,}384</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">16</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">384</span></span></span></span></template><template id="c1b_0_i">All 8 slots of every token land on this GPU: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8</mn><mi>T</mi></mrow><annotation encoding="application/x-tex">8T</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord">8</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span></span></span></span> hit pairs plus 1 padding tile per local expert (32 experts); tile height <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mi>M</mi><mo>=</mo><mn>128</mn></mrow><annotation encoding="application/x-tex">BM = 128</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mord mathnormal" style="margin-right:0.109em;">M</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">128</span></span></span></span></template><template id="c1b_0_o">1,056 CTAs, each responsible for one tile</template><template id="c1b_0_x">Each CTA checks upon entry whether its tile has valid work</template><template id="c1b_0_c">Requires pre-allocating a fixed-size worst-case buffer in device memory reused across CUDA Graph replays</template><template id="c1b_1_t">Under the benchmark workload, 77% of CTAs find no work on entry and exit immediately</template><template id="c1b_1_f">Each GPU receives an average of <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8</mn><mi>T</mi><mi mathvariant="normal">/</mi><mn>8</mn><mo>=</mo><mi>T</mi></mrow><annotation encoding="application/x-tex">8T / 8 = T</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mord">/8</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span></span></span></span> hit pairs regardless of routing skew</template><template id="c1b_1_i">1,056 CTAs</template><template id="c1b_1_o">~77% exit empty, ~23% (~243 tiles) do useful work (grid shaded at 77%, schematic)</template><template id="c1b_1_x">Truncate the grid at twice the average local hit-pair count (~T) plus padding</template><template id="c1b_1_c">Empty-exiting CTAs do no useful work while still incurring scheduling overhead</template><template id="c1b_2_t">Truncate the main grid to 288 tiles and hand any overflow tiles to 132 persistent fallback CTAs</template><template id="c1b_2_f"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>n</mi><mtext>cap</mtext></msub><mo>=</mo><mo stretchy="false">⌈</mo><mo stretchy="false">(</mo><mn>2</mn><mi>T</mi><mo>+</mo><mn>32</mn><mo>×</mo><mn>127</mn><mo stretchy="false">)</mo><mi mathvariant="normal">/</mi><mn>128</mn><mo stretchy="false">⌉</mo><mo>=</mo><mo stretchy="false">⌈</mo><mn>36,832</mn><mi mathvariant="normal">/</mi><mn>128</mn><mo stretchy="false">⌉</mo><mo>=</mo><mn>288</mn></mrow><annotation encoding="application/x-tex">n_{\text{cap}} = \lceil (2T + 32 \times 127) / 128 \rceil = \lceil 36{,}832 / 128 \rceil = 288</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">n</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">cap</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">⌈(</span><span class="mord">2</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">127</span><span class="mclose">)</span><span class="mord">/128</span><span class="mclose">⌉</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">⌈</span><span class="mord">36</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">832/128</span><span class="mclose">⌉</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">288</span></span></span></span></template><template id="c1b_2_i">Twice the average local hit-pair count (~T) as routing-skew headroom, plus at most 127 padding rows per expert</template><template id="c1b_2_o">288 main-grid CTAs; fallback kernel launches 1 CTA per SM (132 CTAs total)</template><template id="c1b_2_x">Enabled only for <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>&gt;</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T &gt; 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7224em;vertical-align:-0.0391em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">&gt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span></template><template id="c1b_2_c">gemm1 2,905 → 2,831 µs, gemm2 1,406 → 1,376 µs (single layer 1.07% faster); 0 overflow in benchmarks, empty fallback kernel ~1.25 µs; factor of 2 is a design choice not calibrated to worst-case skew</template><template id="c1a_0_t">Grid is again sized for the worst case at capture time</template><template id="c1a_0_f"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>N</mi><mtext>grid</mtext></msub><mo>=</mo><mo stretchy="false">⌈</mo><mn>8</mn><mi>T</mi><mi mathvariant="normal">/</mi><mn>128</mn><mo stretchy="false">⌉</mo><mo>+</mo><mn>32</mn><mo>=</mo><mn>189</mn><mo>+</mo><mn>32</mn><mo>=</mo><mn>221</mn></mrow><annotation encoding="application/x-tex">N_{\text{grid}} = \lceil 8T / 128 \rceil + 32 = 189 + 32 = 221</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.109em;">N</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.109em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">grid</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">⌈</span><span class="mord">8</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mord">/128</span><span class="mclose">⌉</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">189</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">221</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T = 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span></template><template id="c1a_0_i">All 8 slots of every token land on this GPU: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8</mn><mi>T</mi></mrow><annotation encoding="application/x-tex">8T</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord">8</span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span></span></span></span> hit pairs plus 32 expert padding tiles; tile height <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mi>M</mi><mo>=</mo><mn>128</mn></mrow><annotation encoding="application/x-tex">BM = 128</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span><span class="mord mathnormal" style="margin-right:0.109em;">M</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">128</span></span></span></span></template><template id="c1a_0_o">221 CTAs, each responsible for one tile</template><template id="c1a_0_x">Each CTA checks upon entry whether its tile has valid work</template><template id="c1a_0_c">Empty-exit fraction not measured</template><template id="c1a_1_t">Truncation is disabled for <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>≤</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T \le 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8193em;vertical-align:-0.136em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≤</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span>: the worst-case grid is used directly</template><template id="c1a_1_f">Truncation enabled only for <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>&gt;</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T &gt; 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7224em;vertical-align:-0.0391em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">&gt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span></template><template id="c1a_1_i">221 CTAs</template><template id="c1a_1_o">No truncation, no fallback kernel</template><template id="c1a_1_x">—</template><template id="c1a_1_c">Empty-tile fraction and break-even threshold were not measured, so truncation is enabled only for <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>&gt;</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T &gt; 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7224em;vertical-align:-0.0391em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">&gt;</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span></template><template id="c2b_0_t">Persistent kernel: 264 CTAs (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mo>×</mo><mn>132</mn></mrow><annotation encoding="application/x-tex">2 \times 132</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">132</span></span></span></span>) claim tiles at a fixed stride</template><template id="c2b_0_f">CTA <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi></mrow><annotation encoding="application/x-tex">c</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord mathnormal">c</span></span></span></span> claims tiles <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi><mo separator="true">,</mo><mtext> </mtext><mi>c</mi><mo>+</mo><mn>264</mn><mo separator="true">,</mo><mtext> </mtext><mi>c</mi><mo>+</mo><mn>528</mn><mo separator="true">,</mo><mtext> </mtext><mo>…</mo></mrow><annotation encoding="application/x-tex">c,\ c + 264,\ c + 528,\ \dots</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7778em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">c</span><span class="mpunct">,</span><span class="mspace"> </span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">c</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">264</span><span class="mpunct">,</span><span class="mspace"> </span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">c</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">528</span><span class="mpunct">,</span><span class="mspace"> </span><span class="mspace" style="margin-right:0.1667em;"></span><span class="minner">…</span></span></span></span></template><template id="c2b_0_i">9,216 tiles (288 row tiles × 32 column tiles of width 128)</template><template id="c2b_0_o">Each CTA processes a fixed sequence of tiles</template><template id="c2b_0_x">Tile completion times vary widely, and fixed-stride claiming cannot move work from slow SMs to fast SMs</template><template id="c2b_0_c">60.3 µs intra-kernel SM idle time (profiler); the successor RMSNorm kernel spin-waits ~118 µs inside PDL wait</template><template id="c2b_1_t">Switch to 9,216 standard CTAs: hardware block distributor dispatches the next tile to whichever SM frees up first</template><template id="c2b_1_f"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>288</mn><mo>×</mo><mn>32</mn><mo>=</mo><mn>9,216</mn></mrow><annotation encoding="application/x-tex">288 \times 32 = 9{,}216</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">288</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">32</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">9</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">216</span></span></span></span> CTAs, 1 tile per CTA</template><template id="c2b_1_i">9,216 tiles</template><template id="c2b_1_o">Whichever SM frees up first receives the next tile</template><template id="c2b_1_x">When tasks are long and numerous, the hardware block distributor acts as zero-barrier dynamic work claiming</template><template id="c2b_1_c">Intra-kernel SM idle time drops to 18.6 µs; per-tile CTA launch overhead was not measured separately</template><template id="c2b_2_t">Total cost: SM idle time drops from 60.3 to 18.6 µs</template><template id="c2b_2_f"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>60.3</mn><mo>−</mo><mn>18.6</mn><mo>=</mo><mn>41.7</mn><mtext> </mtext><mi>μ</mi><mtext>s</mtext></mrow><annotation encoding="application/x-tex">60.3 - 18.6 = 41.7\ \mu\text{s}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">60.3</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">18.6</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">41.7</span><span class="mspace"> </span><span class="mord mathnormal">μ</span><span class="mord text"><span class="mord">s</span></span></span></span></span> idle time reduction</template><template id="c2b_2_i">Same gemm2 at <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>16,384</mn></mrow><annotation encoding="application/x-tex">T = 16{,}384</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">16</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">384</span></span></span></span></template><template id="c2b_2_o">Individual gemm2 kernel latency 1,468.96 → 1,443.17 µs, saving 25.8 µs (separate measurement)</template><template id="c2b_2_x">In-kernel atomic dynamic work claiming was not benchmarked on this kernel</template><template id="c2b_2_c">Reason for the gap between the 41.7 µs SM idle drop and the 25.8 µs kernel speedup is not determined</template><template id="c2a_0_t">At <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>3,012</mn></mrow><annotation encoding="application/x-tex">T = 3{,}012</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8389em;vertical-align:-0.1944em;"></span><span class="mord">3</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">012</span></span></span></span>, SM idle time for the two gemm2 dispatch modes was not measured</template><template id="c2a_0_f">—</template><template id="c2a_0_i">—</template><template id="c2a_0_o">—</template><template id="c2a_0_x">—</template><template id="c2a_0_c">not measured</template></main><script type="module">const CARDS_N={"1b":3,"1a":2,"2b":3,"2a":1};
+const PAL={"k1":"#3e63dd","k2":"#d9822b","k3":"#2f9e6b","k4":"#8a5cd0","kr":"#d64545","kw":"#9aa0a6","kd":"#2a2a2e","kl":"#cfd6f5","km":"#8ea2ea"};
+
+const NV=243, NG=1056;   // 23% of 1056 drawn as busy (schematic)
+const MODES={};
+const bar=(r,a,b,c,l)=>({r,a,b,c,l:l||""});
+const TP=(m,i,f)=>document.getElementById("c"+m+"_"+i+"_"+f).innerHTML;
+const rect=(x,y,w,h,c,extra)=>'<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+c+'"'+(extra||"")+'/>';
+const txt=(x,y,s,cls,a)=>'<text class="'+(cls||"tn")+'" x="'+x+'" y="'+y+'"'+(a?' text-anchor="'+a+'"':"")+'>'+s+'</text>';
+// ---- schematic simulation for mode 2 (tile times vary; same 9216 tiles for both ways)
+let seed=7; const rnd=()=>{ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; };
+const DUR=Array.from({length:9216},()=>0.5+1.5*Math.pow(rnd(),3));
+function simulate(){
+  const Fp=new Float64Array(264); DUR.forEach((d,i)=>{ Fp[i%264]+=d; });
+  const smP=[...Array(132).keys()].map(s=>Math.max(Fp[2*s],Fp[2*s+1]));
+  const Fd=new Float64Array(264); for(let i=0;i<9216;i++){ let j=0; for(let s=1;s<264;s++) if(Fd[s]<Fd[j]) j=s; Fd[j]+=DUR[i]; }
+  const smD=[...Array(132).keys()].map(s=>Math.max(Fd[2*s],Fd[2*s+1]));
+  const norm=(a)=>{ const m=Math.max(...a); return a.map(v=>10*v/m); };
+  return {p:norm(smP),d:norm(smD)}; }
+const SIM=simulate();
+const TOPY=40;
+function gridCells(x0,y0,cols,n,pitch,size,colorOf){ let h=""; for(let i=0;i<n;i++){ const c=i%cols, r=(i-c)/cols; h+=rect(x0+c*pitch,y0+r*pitch,size,size,colorOf(i),' stroke="#9aa0a6" stroke-width=".4"'); } return h; }
+function getM(md){
+  const b=TSEL===1, key=md+(b?"b":"a");
+  const ncard=CARDS_N[key];
+  const steps=[]; for(let i=0;i<ncard;i++){ const s={n:String(i+1)}; for(const f of ["f","i","o","x","c"]) s[f]=TP(key,i,f); s.h=TP(key,i,"t"); steps.push(s); }
+  if(md===1&&b){ Object.assign(steps[0],{t:0,alg:0,focus:[21,29],r:9}); Object.assign(steps[1],{t:3,alg:1,focus:[46,106],r:9}); Object.assign(steps[2],{t:8,alg:2,focus:[304,152],r:9});
+    return {ro:"Grid CTAs: 1,056 → 288 + 132 (fallback)\nEmpty-exit fraction: 77%\nSM idle time: N/A (see Mode 2)", end:13, tend:13, still:12, tlTitle:"Left: original worst-case grid; Right: truncated grid. X-axis shows order only (schematic)", axis:[[0,"Before"],[8,"After"]],
+      rows:["Active (~23%)","Empty exit (~77%)","Truncated main","Fallback grid"],
+      bars:[bar(0,0,8,"k1","Active"),bar(1,0,3,"kw","Exit on entry"),bar(2,8,13,"k1","Active"),bar(3,8,13,"k4","Empty run ~1.25 µs")], steps,
+      init(){ $("algT").textContent="Algorithm: gemm1 grid, 128-row tile per CTA; grid size must be fixed at CUDA Graph capture time";
+        $("algB").innerHTML=ab(0,"Worst-case: ⌈8T / 128⌉ + 32")+ab(1,"77% empty exits")+ab(2,"Truncate 288 + fallback 132"); },
+      paint(t){ let h=txt(18,18,"Worst-case grid: 1,056 CTAs (1 per cell)","lab2")+txt(300,18,"Truncated: 288 main + 132 fallback CTAs","lab2");
+        const f=Math.max(0,Math.min(1,(t-3)/2)), nGrey=Math.round((NG-NV)*f);
+        h+=gridCells(18,26,33,NG,6.4,5.6,i=> i<NV?PAL.k1:(i-NV<nGrey?PAL.kw:"#fff"));
+        const on=t>=8, op=on?1:0.2;
+        h+='<g opacity="'+op+'">'+gridCells(300,26,24,288,8.6,7.6,i=>i<NV?PAL.k1:PAL.kw)+gridCells(300,148,12,132,8.6,7.6,()=>PAL.k4)+'</g>';
+        h+=txt(412,200,"Fallback kernel: 1 CTA/SM,","tn")+txt(412,214,"132 CTAs total","tn");
+        h+=txt(18,246,"(Cell count shaded at 77%, schematic)","tn"); $("topG").innerHTML=h; } }; }
+  if(md===1){ Object.assign(steps[0],{t:0,alg:0,focus:[24,34],r:10}); Object.assign(steps[1],{t:4,alg:1,focus:[219,99],r:10});
+    return {ro:"Grid CTAs: 221 (untruncated)\nEmpty-exit fraction: not measured\nSM idle time: not measured", end:8, tend:8, still:7, tlTitle:"X-axis shows order only (schematic)", axis:[[0,"Entry"]],
+      rows:["Worst-case 221"], bars:[bar(0,0,8,"kl","Empty-exit fraction not measured")], steps,
+      init(){ $("algT").textContent="Algorithm: gemm1 grid, 128-row tile per CTA; grid size must be fixed at CUDA Graph capture time";
+        $("algB").innerHTML=ab(0,"Worst-case: ⌈8T / 128⌉ + 32")+ab(1,"T ≤ 3,012: no truncation")+ab(2,"Truncate only for T > 3,012"); },
+      paint(t){ let h=txt(18,18,"Grid: 221 CTAs (1 per cell)","lab2");
+        h+=gridCells(18,28,17,221,13,11,()=>"#fff"); h+=txt(300,120,"T ≤ 3,012 disables truncation: no right-hand panel","tn"); h+=txt(300,138,"Empty-exit fraction not measured, so cells stay unshaded","tn");
+        $("topG").innerHTML=h; } }; }
+  if(md===2&&b){ Object.assign(steps[0],{t:0,alg:0,focus:[66,46],r:10}); Object.assign(steps[1],{t:4,alg:1,focus:[366,46],r:10}); Object.assign(steps[2],{t:9.8,alg:2,focus:[291,118],r:40});
+    const order=(a)=>a.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]);
+    return {ro:"Grid CTAs: 264 (persistent) → 9,216 (standard)\nEmpty-exit fraction: N/A\nSM idle time: 60.3 → 18.6 µs (profiler)", end:10, tend:10, still:9.8, curH:200, steps,
+      init(){ $("algT").textContent="Algorithm: down projection gemm2 has 288 × 32 = 9,216 tiles (4,096 cols) with uneven completion times";
+        $("algB").innerHTML=ab(0,"Persistent: 264 CTAs, fixed stride")+ab(1,"Standard: 9,216 CTAs, HW dispatch")+ab(2,"SM idle 60.3 → 18.6 µs"); },
+      flat(){ const f=$("flat"), H=TY0+200+34; f.setAttribute("viewBox","0 0 640 "+H);
+        let h='<text class="lab2" x="'+TL0+'" y="'+(TY0-10)+'">X-axis shows order only; red idle width is schematic (132 SMs sorted by completion time)</text>';
+        const lbl=(y0,title)=>txt(TL0-8,y0+44,title[0],"rl")+txt(TL0-8,y0+58,title[1],"rl")+'<rect class="row" x="'+TL0+'" y="'+y0+'" width="'+(TL1-TL0)+'" height="92"/>';
+        const panel=(y0,title,fin)=>{ let g="";
+          order(fin).forEach(([v,i],r)=>{ const y=y0+1+r*(90/132), hh=0.78; g+=rect(TL0,y,TX(v)-TL0,hh,PAL.k1)+rect(TX(v),y,TX(10)-TX(v),hh,PAL.kr); }); return g; };
+        h+=lbl(TY0,["Persistent","264 CTAs"])+lbl(TY0+108,["Standard CTAs","9,216 CTAs"]);
+        h+='<clipPath id="clipT"><rect id="clipR" x="'+TL0+'" y="'+(TY0-4)+'" width="0" height="210"/></clipPath><g clip-path="url(#clipT)">'+panel(TY0,["Persistent","264 CTAs"],SIM.p)+panel(TY0+108,["Standard CTAs","9,216 CTAs"],SIM.d)+'</g><path id="cur" class="cur" d=""/>';
+        f.innerHTML=h; },
+      paint(t){ let h=txt(18,18,"Persistent kernel: 264 CTAs (2/SM)","lab2")+txt(318,18,"9,216 standard CTAs, HW dispatch","lab2");
+        const m=(x0,fin)=>{ let g=""; for(let s=0;s<132;s++){ const c=s%12, r=(s-c)/12; const col=t>=9.97?PAL.kw:(t<fin[s]?PAL.k1:PAL.kr); g+=rect(x0+c*13.5,TOPY+r*13.5,12,12,col,' stroke="#9aa0a6" stroke-width=".4"'); } return g; };
+        h+=m(60,SIM.p)+m(360,SIM.d)+txt(291,110,"SM idle","tn","middle")+txt(291,126,"60.3 → 18.6 µs","tn","middle"); h+=txt(60,TOPY+158,"1 cell/SM (132 total); blue = busy, red = idle","tn")+txt(360,TOPY+158,"Red SMs wait for straggler SMs to finish","tn");
+        $("topG").innerHTML=h; } }; }
+  Object.assign(steps[0],{t:0,alg:0,focus:[320,110],r:26});
+  return {ro:"Grid CTAs: not measured\nEmpty-exit fraction: not measured\nSM idle time: not measured", end:10, tend:10, still:5, tlTitle:"X-axis shows order only", axis:[[0,"Start"]], rows:["Not measured"], bars:[], steps,
+    init(){ $("algT").textContent="Algorithm: how down-projection gemm2 tiles are dispatched to SMs"; $("algB").innerHTML=ab(0,"T = 3,012: not measured"); },
+    paint(t){ $("topG").innerHTML=txt(320,114,"Not measured","lab","middle")+txt(320,170,"T = 3,012: SM idle time for these two gemm2 modes was not measured","tn","middle"); } };
+}
+const AB=[[18,30,200,22],[230,30,200,22],[442,30,180,22]];
+const ALGBOX=(i)=>AB[i];
+const ab=(i,s)=>'<rect class="ac" x="'+AB[i][0]+'" y="'+AB[i][1]+'" width="'+AB[i][2]+'" height="'+AB[i][3]+'" rx="3" style="fill:#e5e7eb"/>'+'<text class="an d" x="'+(AB[i][0]+AB[i][2]/2)+'" y="'+(AB[i][1]+15)+'">'+s+'</text>';
+const SPEED=2.4;
+let TSEL=1;
+
+
+const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
+const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const NS_="http://www.w3.org/2000/svg";
+const chipSvg=(p,n,c)=>'<circle class="mvc" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="6.2" fill="'+PAL[c]+'"/><text class="mvt" x="'+p[0].toFixed(1)+'" y="'+(p[1]+3).toFixed(1)+'">'+n+'</text>';
+function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); segs.push(d); Lt+=d;} let s=Math.max(0,Math.min(1,u))*Lt; for(let i=0;i<segs.length;i++){ if(s<=segs[i]){const f=segs[i]?s/segs[i]:0; return [pts[i][0]+(pts[i+1][0]-pts[i][0])*f, pts[i][1]+(pts[i+1][1]-pts[i][1])*f];} s-=segs[i];} return pts[pts.length-1]; }
+const prog=(t,a,b)=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+const pd=(pts)=>"M"+pts.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join("L");
+const TL0=132,TL1=620,TY0=26,RH=24;
+let mode=1,M=null,end=1,tend=1,t=0;
+const AXMAP=(v)=>{ const m=M.map; if(!m) return v; if(v<=m[0][0]) return m[0][1]; for(let i=1;i<m.length;i++){ if(v<=m[i][0]){ const f=(v-m[i-1][0])/(m[i][0]-m[i-1][0]||1); return m[i-1][1]+(m[i][1]-m[i-1][1])*f; } } return m[m.length-1][1]; };
+const TX=(v)=>TL0+(TL1-TL0)*v/end;
+function drawFlat(){
+  const n=M.rows.length, H=TY0+n*RH+(M.axis?22:8), f=$("flat"); f.setAttribute("viewBox","0 0 640 "+H);
+  let h='<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs>';
+  h+='<text class="lab2" x="'+TL0+'" y="'+(TY0-10)+'">'+esc_(M.tlTitle)+'</text>';
+  M.rows.forEach((r,i)=>{ h+='<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*RH+13)+'">'+esc_(r)+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*RH)+'" width="'+(TL1-TL0)+'" height="18"/>'; });
+  if(M.axis) M.axis.forEach(a=>{ h+='<path class="axl" d="M'+TX(a[0]).toFixed(1)+' '+(TY0-2)+'V'+(TY0+n*RH-4)+'"/><text class="ax" x="'+TX(a[0]).toFixed(1)+'" y="'+(TY0+n*RH+10)+'">'+esc_(a[1])+'</text>'; });
+  h+='<clipPath id="clipT"><rect id="clipR" x="'+TL0+'" y="'+(TY0-4)+'" width="0" height="'+(n*RH+8)+'"/></clipPath><g clip-path="url(#clipT)">';
+  M.bars.forEach(b=>{ const y=TY0+b.r*RH, x0=TX(b.a), w=b.b>b.a?TX(b.b)-x0:2.2;
+    h+='<rect class="bar b-'+b.c+'" x="'+x0.toFixed(1)+'" y="'+(y+2)+'" width="'+w.toFixed(1)+'" height="14"/>';
+    if(b.l&&w>=18) h+='<text class="bt'+(b.d?" d":"")+'" x="'+(x0+w/2).toFixed(1)+'" y="'+(y+12.5)+'">'+esc_(b.l)+'</text>'; });
+  h+='</g><path id="cur" class="cur" d=""/>';
+  f.innerHTML=h; }
+function splitCard(a){ document.getElementById("stepT").innerHTML=a.h||"";
+  const K=$("stepK"); if(!a.f){ K.innerHTML=""; return; }
+  K.innerHTML=[["Formula",a.f],["Input",a.i],["Output",a.o],["Hand-off",a.x],["Cost",a.c]].map(r=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); }
+function narrate(){ const S=M.steps; let k=-1; for(let i=0;i<S.length;i++){ if(S[i].t<=t+1e-9) k=i; else break; }
+  const n=$("stepN");
+  if(k<0){ n.textContent=""; splitCard({h:"Press Play or drag the timeline"}); $("focus").innerHTML=""; $("algO").innerHTML=""; return; }
+  n.textContent="Step "+(k+1); const s=S[k]; splitCard(s);
+  $("focus").innerHTML = s.focus ? '<circle class="fr" cx="'+s.focus[0].toFixed(1)+'" cy="'+s.focus[1].toFixed(1)+'" r="'+(s.r||7.5)+'"/><text class="fn" x="'+s.focus[0].toFixed(1)+'" y="'+(s.focus[1]-(s.r||7.5)-3.5).toFixed(1)+'">'+esc_(s.n||String(k+1))+'</text>' : "";
+  if(s.alg!=null){ const b=ALGBOX(s.alg); $("algO").innerHTML='<rect class="ao" x="'+(b[0]-1.5)+'" y="'+(b[1]-1.5)+'" width="'+(b[2]+3)+'" height="'+(b[3]+3)+'" rx="3"/>'; } else $("algO").innerHTML=""; }
+function show(){ const e=AXMAP(Math.min(t,tend));
+  $("clipR").setAttribute("width",Math.max(0,TX(e)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(e).toFixed(1)+" "+(TY0-4)+"V"+(TY0+(M.curH||M.rows.length*RH))); $("tIn").value=String(t);
+  if(M.paint) M.paint(t); else paint(t); narrate(); }
+function setMode(md){ mode=md; M=getM(md); end=M.end; tend=M.tend||M.end; $("tIn").max=String(tend); if(M.flat) M.flat(); else drawFlat(); readout.textContent=M.ro; t=Math.min(t,tend); if(M.init) M.init(); }
+const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let playing=!still, last=0, hold=0, raf=0;
+function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if(playing){ if(t<tend) t=Math.min(tend,t+dt*(typeof SPEED!=="undefined"?SPEED:2.5)); else { hold+=dt; if(hold>3){hold=0;t=0;} } } show(); raf=playing?requestAnimationFrame(loop):0; }
+const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
+const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"Pause":"Play"; if(p){ if(t>=tend){t=0;hold=0;} start(); } else show(); };
+play.addEventListener("click",()=>setPlay(!playing));
+$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
+document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); t=0; hold=0; setPlay(true); }));
+const q=new URLSearchParams(location.search); TSEL=(q.get('T')==='3012')?0:1; $('Tin').value=String(TSEL); $('Tlab').textContent=TSEL?'T = 16,384':'T = 3,012';
+$('Tin').addEventListener('input',()=>{ TSEL=+$('Tin').value; $('Tlab').textContent=TSEL?'T = 16,384':'T = 3,012'; t=0; setMode(mode); setPlay(false); show(); }); const m0=+(q.get("mode")||q.get("m")||1);
+document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
+t = q.has("t") ? +q.get("t") : (still ? M.still : 0); show(); if(playing) start(); else play.textContent="Play";
+
+const T_SEL_Q=new URLSearchParams(location.search).get("T"); </script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
