@@ -1,7 +1,10 @@
 """Build-time chart blocks: a fenced ```chart block with YAML becomes an inline SVG figure. No JS."""
 import html
 import re
+import os
 import yaml
+
+EN = os.environ.get("BOOK_LANG", "zh") == "en"
 
 W = 640
 BLUE, GREY, GREEN, RED, INK, DASH = "#3b5bdb", "#b9bcc6", "#2b9a63", "#d6404d", "#2a2a2e", "#5b5b63"
@@ -344,7 +347,7 @@ def stacked_svg(spec, unit, lower, dec):
         out.append(f'<rect x="{left:.1f}" y="{yy-11:.1f}" width="9" height="9" rx="2" fill="{col}"/>')
         out.append(text(left + 13, yy - 2, lab, 12, "start"))
         x += v
-    out.append(text(px(total), y_bar - 6, f"合计 {fmt(total, dec)} {unit}", 12.5, "end" if px(total) > W / 2 else "start", weight=600))
+    out.append(text(px(total), y_bar - 6, (f"total {fmt(total, dec)} {unit}" if EN else f"合计 {fmt(total, dec)} {unit}"), 12.5, "end" if px(total) > W / 2 else "start", weight=600))
     marks = ""
     for spec_line, col in ((floor, FLOOR_COLOR), (base, DASH)):
         if spec_line:
@@ -382,15 +385,16 @@ def render(body):
         height, svg_body, legend, notes = BUILDERS[kind](spec, unit, lower, None)
     except (ArithmeticError, KeyError, TypeError, ValueError, IndexError) as e:
         raise ChartError(f"{kind}: {type(e).__name__}: {e}")
-    direction = "越低越好" if lower else "越高越好"
-    head = f'<div class="chart-title">{esc(spec["title"])}<span class="chart-sub">{esc(unit)}，{direction}</span></div>'
+    direction = ("lower is better" if lower else "higher is better") if EN else ("越低越好" if lower else "越高越好")
+    sep = ", " if EN else "，"
+    head = f'<div class="chart-title">{esc(spec["title"])}<span class="chart-sub">{esc(unit)}{sep}{direction}</span></div>'
     leg = ""
     if legend:
         sw = lambda c: f'<i class="dash" style="border-top-color:{c[1]}"></i>' if isinstance(c, tuple) else f'<i style="background:{c}"></i>'
         leg = '<div class="chart-legend">' + "".join(f"<span>{sw(c)}{esc(n)}</span>" for c, n in legend) + "</div>"
     note_list = ""
     if notes:
-        note_list = '<ul class="chart-notes">' + "".join(f"<li><b>{esc(a)}</b>：{esc(b)}</li>" for a, b in notes) + "</ul>"
+        note_list = '<ul class="chart-notes">' + "".join(f"<li><b>{esc(a)}</b>{": " if EN else "："}{esc(b)}</li>" for a, b in notes) + "</ul>"
     cap = f'<div class="chart-note">{esc(spec["note"])}</div>' if spec.get("note") else ""
     svg = (f'<svg viewBox="0 0 {W} {height:.0f}" role="img" aria-label="{esc(spec["title"])}" '
            f'font-family="inherit">{svg_body}</svg>')

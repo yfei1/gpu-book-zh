@@ -14,6 +14,7 @@ LANG = os.environ.get("BOOK_LANG", "zh")
 if LANG not in ("zh", "en"):
     sys.exit("BOOK_LANG must be zh or en")
 EN = LANG == "en"
+FIG_OPEN = "Open figure at full size" if EN else "在新标签页查看原尺寸大图"
 SRC_BOOK = Path(os.environ.get("BOOK_SRC") or ZH_BOOK)
 SRC_FIGS = Path(os.environ.get("BOOK_FIGS") or ZH_BOOK / "figs")  # zh figures; the en page falls back to them
 SRC_FIGS_EN = Path(os.environ.get("BOOK_FIGS_EN") or SRC_BOOK / "figs_en")  # figs_en/<id>/<id>.html
@@ -70,6 +71,7 @@ td:first-child,th:first-child{min-width:0;white-space:nowrap}
 .katex-display{margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden}
 .fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .fig iframe{display:block;width:100%;height:900px;border:0}
+.fig-open{display:inline-block;padding:12px 0;font-size:13px}
 .book{padding:104px 0 8px}
 .book h1{font-size:48px;line-height:1.25;margin:0 0 .5em}
 .book .sub{font-size:21px;line-height:1.7;margin:0 0 1.2em}
@@ -165,7 +167,6 @@ main{padding:0 18px 120px}
 h2{font-size:21px}
 section{padding-top:88px}
 :root{--fw:100vw}
-.fig iframe{min-width:640px}
 pre{font-size:12px;padding:12px 14px}
 table{font-size:13px}
 td,th{min-width:8em}
@@ -233,9 +234,9 @@ TMPL = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta n
 # Parts as listed in book/preface.md section 3 ("目录：每一章回答哪一个问题？").
 PARTS_EN = [("", ["preface"]),
             ("Orientation", ["ch00_0", "ch00", "ch00_5"]),
-            ("Part 1　Six Levels of Hardware Zoom", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
-            ("Part 2　The Main Operators in One Layer, and the Whole Layer", ["ch07", "ch08", "ch09"]),
-            ("Part 3　Diagnosis and Across Generations", ["ch10", "appA", "appB", "appC"])]
+            ("Part 1: Six Levels of Hardware Zoom", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
+            ("Part 2: The Main Operators in One Layer, and the Whole Layer", ["ch07", "ch08", "ch09"]),
+            ("Part 3: Diagnosis and Across Generations", ["ch10", "appA", "appB", "appC"])]
 PARTS = PARTS_EN if EN else [("", ["preface"]),
          ("导引", ["ch00_0", "ch00", "ch00_5"]),
          ("第一部分　硬件六级放大", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
@@ -490,7 +491,7 @@ def toc_html(heads):
                        + (f'<ol class="secs">{secs}</ol>' if secs else "") + "</li>")
             rail.append(f'<ol data-ch="{c}">{secs}</ol>')
         if lis:
-            key, _, title = name.rpartition("　")
+            key, _, title = name.rpartition(": " if EN else "　")
             head = f'<p class="part-name">' + (f"<span>{key}</span>" if key else "") + f"{title}</p>" if name else ""
             parts.append(f'<li class="part">{head}<ol>{"".join(lis)}</ol></li>')
     missing = set(by_id) - {c for _, ids in PARTS for c in ids}
@@ -507,7 +508,19 @@ def nowrap_code(html):
     return "".join(s if s.startswith("<pre") else re.sub(r"<code>(?=((?:(?!</code>).)*)</code>)", mark, s, flags=re.S) for s in parts)
 
 
+def check_control_chars():
+    """Fail on any control character other than newline in a source .md (a lost TeX backslash shows up as TAB/BEL)."""
+    bad = []
+    for p in sorted(SRC_BOOK.glob("*.md")):
+        for n, line in enumerate(p.read_text(encoding="utf-8").split("\n"), 1):
+            for ch in sorted({c for c in line if ord(c) < 32 or ord(c) == 127}):
+                bad.append(f"{p}:{n}: control character U+{ord(ch):04X}")
+    if bad:
+        sys.exit("source contains control characters (TeX backslash lost?):\n" + "\n".join(bad))
+
+
 def main():
+    check_control_chars()
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
     (OUT / "figs").mkdir(parents=True, exist_ok=True)
     if not EN:
@@ -517,6 +530,8 @@ def main():
         old.unlink()
     def emit(h):
         t = h.read_text()
+        if not EN:
+            t = t.replace('<html lang="en">', '<html lang="zh-Hans">', 1)
         (OUT / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + KATEX_CSS_FIG + POST_H + "</body>"))
     en_figs = set()
     for d in sorted(SRC_FIGS.iterdir()):
@@ -534,7 +549,7 @@ def main():
         if nm in built:
             nums[nm] = num
             src = f"figs/{nm}.html" if nm in en_figs or not EN else f"../figs/{nm}.html"
-            return f'\n\n<figure class="fig"><iframe src="{src}" loading="lazy" title="{num}"></iframe></figure>\n\n'
+            return f'\n\n<figure class="fig"><iframe src="{src}" loading="lazy" title="{num}"></iframe><a class="fig-open" href="{src}" target="_blank" rel="noopener">{FIG_OPEN}</a></figure>\n\n'
         missing.append(num)
         return "\n\n"
     heads, bodies, missing, chapters, items = [], [], [], [], []
@@ -560,7 +575,7 @@ def main():
         bodies.append(f'<header class="ch-head">{kicker}<h1>{keep_units(md.renderInline(question))}</h1></header>{body}')
     secs = []
     for i, (c, *_ ) in enumerate(heads):
-        pn = "".join(f'<a class="{cls}" href="#{h[0]}"><span>{word}</span><b>{h[1] + "　" if h[1] else ""}{h[2]}</b></a>'
+        pn = "".join(f'<a class="{cls}" href="#{h[0]}"><span>{word}</span><b>{h[1] + (" " if EN else "　") if h[1] else ""}{h[2]}</b></a>'
                      for cls, word, h in (("prev", UI["prev"], heads[i - 1] if i else None), ("next", UI["next"], heads[i + 1] if i + 1 < len(heads) else None)) if h)
         secs.append(f'<section id="{c}">{bodies[i]}<nav class="pn" aria-label="{UI["pn_aria"]}">{pn}</nav></section>')
     toc, rail = toc_html(heads)

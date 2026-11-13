@@ -196,7 +196,7 @@ function drawTL(){ let h=""; const w=(TL1-TL0)/N();
  for(let i=1;i<=N();i++){ const x=TL0+(i-1)*w, lastS=i===N(); const col= !lastS?"var(--ok)":(K<7?"var(--anatomy-red)":"var(--anatomy-blue)");
   h+='<rect x="'+(x+1).toFixed(1)+'" y="'+(TY0+3)+'" width="'+(w-2).toFixed(1)+'" height="12" fill="'+col+'"/><text class="tn" x="'+(x+w/2).toFixed(1)+'" y="'+(TY0+13)+'" text-anchor="middle" style="fill:#fff;font-weight:700">'+i+'</text>';
   h+='<rect x="'+(x+1).toFixed(1)+'" y="'+(TY0+24+17-2*i)+'" width="'+(w-2).toFixed(1)+'" height="'+(2*i)+'" fill="var(--anatomy-blue)"/>';
-  const g=16*(8.996/i)/9; h+='<rect x="'+(x+1).toFixed(1)+'" y="'+(TY0+48+17-g).toFixed(1)+'" width="'+(w-2).toFixed(1)+'" height="'+g.toFixed(1)+'" fill="var(--anatomy-mid)"/>'; }
+  const g=16*(8.995340288/i)/9; h+='<rect x="'+(x+1).toFixed(1)+'" y="'+(TY0+48+17-g).toFixed(1)+'" width="'+(w-2).toFixed(1)+'" height="'+g.toFixed(1)+'" fill="var(--anatomy-mid)"/>'; }
  $("tl").innerHTML=h; }
 
 function show(){ const st=stepOf();
