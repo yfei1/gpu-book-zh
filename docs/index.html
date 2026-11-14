@@ -2851,7 +2851,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <p><strong>接下来的问题：</strong> 书里的一个术语在哪一节讲过？→ 附录 C。</p>
 <nav class="pn" aria-label="翻章"><a class="prev" href="#appA"><span>上一章</span><b>附录 A　改不动的硬件限制</b></a><a class="next" href="#appC"><span>下一章</span><b>附录 C　术语索引</b></a></nav></section><section id="appC"><header class="ch-head"><p class="ch-num">附录 C</p><h1>术语索引</h1></header><ul class="map"><li>前言</li><li>导引一</li><li>导引二</li><li>导引三</li><li>第 1 章 [第 1 级]</li><li>第 2 章 [第 2 级]</li><li>第 3 章 [第 3 级]</li><li>第 4 章 [第 4 级]</li><li>第 5 章 [第 5 级]</li><li>第 6 章 [第 6 级]</li><li>第 7–9 章</li><li>第 10 章</li><li class="here">附录 C：术语索引</li></ul>
 <p>本附录收书中出现过不止一次的术语、指令族和符号。每个术语只列一行，“在哪里讲”写它被定义的那一节。</p>
-<p>排序规则：汉字开头的术语在前，按拼音排；拉丁字母或符号开头的术语在后，忽略反引号、$、句点、% 和下划线后按 A–Z 排；中英混写的术语，按第一个字符归类。指令名按助记符查 SASS，请见附录 B。</p>
+<p>排序规则：汉字开头的术语在前，按拼音排；拉丁字母、数字或符号开头的术语在后，忽略反引号、$、句点、% 和下划线后按数字在 A–Z 之前的顺序排；中英混写的术语，按第一个字符归类。指令名按助记符查 SASS，请见附录 B。</p>
 <div class="tbl"><table>
 <thead>
 <tr>
@@ -2888,8 +2888,8 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>部分和</td>
-<td>沿 K 拆开的各段内积，之后再相加</td>
-<td>第 2 章第 5 节</td>
+<td>沿 K 拆成多份算出的内积（每线程一份，或 Split-K 下每 CTA 一份），最后归约相加</td>
+<td>导引三第 4 节、第 2 章第 5 节</td>
 </tr>
 <tr>
 <td>残差流（stream）</td>
@@ -3183,7 +3183,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>命名屏障（named barrier）</td>
-<td>带编号 0..15 的硬件屏障，只等指定数目的线程</td>
+<td>每个 CTA 内带编号 0..15 的硬件屏障，只等待指定数量的线程到齐</td>
 <td>第 5 章第 7 节、第 7 章第 7 节</td>
 </tr>
 <tr>
@@ -3199,7 +3199,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <tr>
 <td>内存同步域（memory synchronization domain）</td>
 <td>CUDA 给每次启动标的标签，默认所有 kernel 在同一个域里</td>
-<td>第 9 章第 5 节</td>
+<td>第 8 章第 8 节、第 9 章第 5 节</td>
 </tr>
 <tr>
 <td>内存序（relaxed / release / acquire）</td>
@@ -3233,7 +3233,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>平衡点（ridge point）</td>
-<td>算术强度的分界值，H200 为 206 FLOP/B</td>
+<td>算术强度的分界点，H200 上稠密 BF16 为 206 FLOP/B</td>
 <td>导引二第 4 节</td>
 </tr>
 <tr>
@@ -3257,14 +3257,9 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>导引二第 5 节</td>
 </tr>
 <tr>
-<td>子任务表</td>
-<td>持久 wgmma kernel 里，各 CTA 在共享内存里排出同一份子任务顺序，用全局计数器动态取号领活</td>
-<td>第 8 章第 9 节</td>
-</tr>
-<tr>
 <td>全卡内存屏障</td>
 <td><code class="nw">gpu</code> 作用域的内存屏障序列（<code class="nw">MEMBAR.ALL.GPU</code> 等），等待本线程此前的写入落到 L2 并使本 SM 的 L1 失效</td>
-<td>第 8 章第 11 节、附录 B 第 2 节</td>
+<td>第 2 章第 6 节、第 8 章第 11 节、附录 B 第 2 节</td>
 </tr>
 <tr>
 <td>全网格屏障（grid barrier）</td>
@@ -3328,7 +3323,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>提交组（<code class="nw">commit_group</code> / <code class="nw">wait_group&lt;N&gt;</code>）</td>
-<td>等到未算完的提交组不超过 N 个才继续</td>
+<td>等到尚未完成的提交组（<code class="nw">cp.async</code> 单线程拷贝组或 <code class="nw">wgmma</code> 矩阵乘组）至多剩 N 个时再继续</td>
 <td>第 5 章第 5 节</td>
 </tr>
 <tr>
@@ -3403,7 +3398,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>线程块集群 / GPC / DSMEM</td>
-<td>同时驻留的 CTA 组；相邻 SM 簇；互读共享内存</td>
+<td>保证同时驻留的一组 CTA（可移植上限为 8，显式开启后可达 16）；相邻 SM 组成的簇；跨 CTA 互读共享内存</td>
 <td>第 7 章第 12 节</td>
 </tr>
 <tr>
@@ -3439,7 +3434,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <tr>
 <td>依赖延迟</td>
 <td>上一条发出到下一条能用其结果之间的周期数</td>
-<td>第 5 章第 1 节</td>
+<td>第 3 章第 7 节、第 5 章第 1 节</td>
 </tr>
 <tr>
 <td>隐藏维度（hidden size）</td>
@@ -3532,6 +3527,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>导引一第 6 节</td>
 </tr>
 <tr>
+<td>子任务表</td>
+<td>持久 wgmma kernel 里，各 CTA 在共享内存里排出同一份子任务顺序，用全局计数器动态取号领活</td>
+<td>第 8 章第 9 节</td>
+</tr>
+<tr>
 <td>自旋等待（spin-wait）</td>
 <td>反复读标志直到成立，要求两个 CTA 同时驻留</td>
 <td>第 2 章第 6 节</td>
@@ -3550,6 +3550,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>作用范围（scope）</td>
 <td>release / acquire 生效的范围</td>
 <td>第 2 章第 6 节</td>
+</tr>
+<tr>
+<td>2:4 结构化稀疏</td>
+<td>16 位与 8 位的稀疏 Tensor Core 指令（<code class="nw">mma.sp</code> / <code class="nw">wgmma.mma_async.sp</code>）要求左矩阵每 4 个相邻元素里至多 2 个非零并附 2 位索引元数据，使 <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span> 与规格书算力峰值翻倍；本书权重稠密，不用</td>
+<td>导引二第 4 节、第 5 章第 3 节</td>
 </tr>
 <tr>
 <td><code class="nw">.aligned</code> 后缀</td>
@@ -3673,8 +3678,8 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>F2F 与 F2FP</td>
-<td>标量浮点转换指令 F2F 占用 SFU；打包转换指令 F2FP 则不占 SFU</td>
-<td>第 8 章第 16 节</td>
+<td>标量浮点转换 <code class="nw">F2F</code> 走 SFU；把两个 FP32 打包成 BF16 或 FP16 的 <code class="nw">F2FP</code> 不占 SFU（FP8 打包与解包 <code class="nw">F2FP</code> 走哪条管线没有测）</td>
+<td>第 7 章第 9 节、第 8 章第 16 节、附录 B 第 2、3、5 节</td>
 </tr>
 <tr>
 <td><code class="nw">fence.sc</code></td>
@@ -3760,6 +3765,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>K 步三段时间 H / D / M</td>
 <td>HBM 读、解码、矩阵乘三段；有缓冲时取最长者</td>
 <td>第 6 章第 4 节</td>
+</tr>
+<tr>
+<td>L2 分区 / LTC Fabric</td>
+<td>H200 的 60 MiB 二级缓存经分区交叉开关分成两个分区（对每个 SM 来说一近一远），两分区靠 L2 互连（剖析器里叫 <code class="nw">LTC Fabric</code>）互通</td>
+<td>第 2 章第 2 节</td>
 </tr>
 <tr>
 <td>L2 留存提示</td>
@@ -3852,6 +3862,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>第 6 章第 2 节</td>
 </tr>
 <tr>
+<td><code class="nw">quad</code></td>
+<td>warp 内连续 4 条通道组成的一组（组号 <code class="nw">g = lane &gt;&gt; 2</code>，组内序号 <code class="nw">lane &amp; 3</code>）：<code class="nw">mma</code> 左矩阵 <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi></mrow><annotation encoding="application/x-tex">A</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">A</span></span></span></span> 与累加器的寄存器片段把同一行分在同一组的 4 条通道上（第 <code class="nw">g</code> 组拿第 <code class="nw">g</code> 行与第 <code class="nw">g+8</code> 行，右矩阵 <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi></mrow><annotation encoding="application/x-tex">B</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span></span></span></span> 则是同组共持第 <code class="nw">g</code> 列），<code class="nw">ldmatrix</code> 也按每组收一行 16 B 数据</td>
+<td>第 5 章第 3 节</td>
+</tr>
+<tr>
 <td><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>R</mi></mrow><annotation encoding="application/x-tex">R</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span></span></span></span>（要预测的行数）</td>
 <td>prefill、decode 取 1 行；verify 取 8</td>
 <td>导引一第 3 节</td>
@@ -3885,6 +3900,16 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 <td>SM</td>
 <td>执行指令的计算单元，H200 上有 132 个</td>
 <td>导引三第 1 节</td>
+</tr>
+<tr>
+<td><code class="nw">sm_90a</code>（架构专属编译目标）</td>
+<td>计算能力 9.0 带架构专属（architecture-specific）后缀 <code class="nw">a</code> 的编译目标：<code class="nw">wgmma</code> 与 <code class="nw">setmaxnreg</code> 必须用 <code class="nw">sm_90a</code> 且编译产物只能在计算能力 9.0 的 GPU 上运行，而 TMA、集群、<code class="nw">elect.sync</code> 与 <code class="nw">griddepcontrol</code> 只需 <code class="nw">sm_90</code></td>
+<td>第 5 章第 3 节、附录 A 开头</td>
+</tr>
+<tr>
+<td>SMEM/L1 分区（carveout）</td>
+<td>按每个 kernel 设定的配比，把每个 SM 的 256 KiB 统一片上存储按固定档位划给共享内存（上限 228 KiB，扣除 1 KiB 系统保留后单 CTA 最多 227 KiB；超过 48 KiB 须用动态共享内存并显式开启），其余留给 L1</td>
+<td>第 3 章第 1、4 节</td>
 </tr>
 <tr>
 <td>SMSP（SM 子分区）</td>
@@ -3968,7 +3993,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">�
 </tr>
 <tr>
 <td>TMA（张量内存加速器）</td>
-<td>单线程发起异步大块搬运的硬件单元（Hopper 张量模式支持矩形分块与 <code class="nw">im2col</code>，另有一维连续拷贝）</td>
+<td>单线程发起异步大块搬运的硬件单元（Hopper <code class="nw">sm_90a</code> 张量模式支持矩形分块与基础卷积 <code class="nw">im2col</code>，另有一维连续拷贝）</td>
 <td>第 3 章第 3 节</td>
 </tr>
 <tr>

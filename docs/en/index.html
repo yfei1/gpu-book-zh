@@ -2872,6 +2872,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td>Primer 1, Section 4</td>
 </tr>
 <tr>
+<td>2:4 structured sparsity</td>
+<td>Sparse 16-bit and 8-bit Tensor Core instructions (<code class="nw">mma.sp</code> / <code class="nw">wgmma.mma_async.sp</code>) require at most 2 non-zeros per 4 adjacent elements in matrix A plus 2-bit index metadata, doubling <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span> and datasheet peak throughput; unused on this book's dense weights</td>
+<td>Primer 2, Section 4; Chapter 5, Section 3</td>
+</tr>
+<tr>
 <td>A/A null-hypothesis control</td>
 <td>Runs the exact same code as both A and B through the same paired benchmark and uses the maximum difference as the winning threshold</td>
 <td>Chapter 7, Section 1; Chapter 10, Section 3</td>
@@ -3043,7 +3048,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>commit group (<code class="nw">commit_group</code> / <code class="nw">wait_group&lt;N&gt;</code>)</td>
-<td>Waits until at most N committed groups remain incomplete before continuing</td>
+<td>Waits until no more than N committed groups (per-thread <code class="nw">cp.async</code> copy groups or warpgroup <code class="nw">wgmma</code> matrix-multiply groups) are still incomplete before continuing</td>
 <td>Chapter 5, Section 5</td>
 </tr>
 <tr>
@@ -3139,7 +3144,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <tr>
 <td>dependent-instruction latency</td>
 <td>The number of clock cycles from when an instruction issues until a dependent instruction can use its result</td>
-<td>Chapter 5, Section 1</td>
+<td>Chapter 3, Section 7; Chapter 5, Section 1</td>
 </tr>
 <tr>
 <td><code class="nw">desc[URn]</code> (uniform-register memory descriptor)</td>
@@ -3149,7 +3154,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <tr>
 <td>device-wide memory barrier</td>
 <td>A <code class="nw">gpu</code>-scope memory barrier sequence (<code class="nw">MEMBAR.ALL.GPU</code>, etc.) that waits for this thread's prior writes to reach L2 and invalidates L1 on this SM</td>
-<td>Chapter 8, Section 11; Appendix B, Section 2</td>
+<td>Chapter 2, Section 6; Chapter 8, Section 11; Appendix B, Section 2</td>
 </tr>
 <tr>
 <td>diagnostic tree (six-level)</td>
@@ -3208,8 +3213,8 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td><code class="nw">F2F</code> and <code class="nw">F2FP</code></td>
-<td>Scalar floating-point conversion <code class="nw">F2F</code> executes on the SFU, whereas packed conversion <code class="nw">F2FP</code> does not occupy the SFU</td>
-<td>Chapter 8, Section 16</td>
+<td>Scalar floating-point conversion <code class="nw">F2F</code> runs on the SFU, while paired FP32-to-BF16/FP16 packing <code class="nw">F2FP</code> does not use the SFU (which pipeline FP8 pack/unpack <code class="nw">F2FP</code> uses was not measured)</td>
+<td>Chapter 7, Section 9; Chapter 8, Section 16; Appendix B, Sections 2, 3, and 5</td>
 </tr>
 <tr>
 <td>feed-forward network (FFN)</td>
@@ -3255,11 +3260,6 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td><code class="nw">gemv</code> (matrix-vector multiplication)</td>
 <td>Matrix-vector multiplication <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>y</mi><mo>=</mo><mi>W</mi><mi>x</mi></mrow><annotation encoding="application/x-tex">y = Wx</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0359em;">y</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="mord mathnormal">x</span></span></span></span> â€” matrix multiplication at <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">T = 1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></td>
 <td>Primer 2, Section 2</td>
-</tr>
-<tr>
-<td>subtask table</td>
-<td>In the persistent wgmma kernel, each CTA builds the same subtask order in shared memory and dynamically claims subtasks via a global counter</td>
-<td>Chapter 8, Section 9</td>
 </tr>
 <tr>
 <td><code class="nw">%globaltimer</code></td>
@@ -3367,6 +3367,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td>Chapter 2, Section 2</td>
 </tr>
 <tr>
+<td>L2 partitions / LTC Fabric</td>
+<td>H200's 60 MiB L2 cache is split across a partitioned crossbar into two partitions (one near and one far relative to each SM) joined by the L2 communication fabric (<code class="nw">ltcfabric</code> in NCU)</td>
+<td>Chapter 2, Section 2</td>
+</tr>
+<tr>
 <td>L2 residency hint (cache policy)</td>
 <td>A policy attached to load instructions that controls eviction priority in L2</td>
 <td>Chapter 2, Section 4</td>
@@ -3464,7 +3469,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <tr>
 <td>memory synchronization domain</td>
 <td>A label CUDA attaches to each launch; by default, all kernels belong to the same domain</td>
-<td>Chapter 9, Section 5</td>
+<td>Chapter 8, Section 8; Chapter 9, Section 5</td>
 </tr>
 <tr>
 <td>memory-bound (HBM-bound) / compute-bound (Tensor Core-bound)</td>
@@ -3498,7 +3503,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>named barrier</td>
-<td>A hardware barrier numbered 0..15 that waits only for a specified number of threads</td>
+<td>A per-CTA hardware barrier numbered 0..15 that waits only for the specified count of threads</td>
 <td>Chapter 5, Section 7; Chapter 7, Section 7</td>
 </tr>
 <tr>
@@ -3568,8 +3573,8 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>partial sum</td>
-<td>The dot product of each segment split along K, summed together afterward</td>
-<td>Chapter 2, Section 5</td>
+<td>Each piece of a dot product split along K (one per thread, or one per CTA under Split-K), reduced into a single sum afterward</td>
+<td>Primer 3, Section 4; Chapter 2, Section 5</td>
 </tr>
 <tr>
 <td>PDL (Programmatic Dependent Launch)</td>
@@ -3637,6 +3642,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td>Chapter 6, Section 2</td>
 </tr>
 <tr>
+<td><code class="nw">quad</code></td>
+<td>A 4-lane group of consecutive lanes in a warp (<code class="nw">g = lane &gt;&gt; 2</code>, <code class="nw">lane &amp; 3</code> within the group): in <code class="nw">mma</code> register fragments for matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi></mrow><annotation encoding="application/x-tex">A</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal">A</span></span></span></span> and the accumulator, one row sits across the 4 lanes of a quad (quad <code class="nw">g</code> holds rows <code class="nw">g</code> and <code class="nw">g + 8</code>, whereas for matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi></mrow><annotation encoding="application/x-tex">B</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0502em;">B</span></span></span></span> the 4 lanes hold column <code class="nw">g</code>), and <code class="nw">ldmatrix</code> likewise delivers one 16 B row per quad</td>
+<td>Chapter 5, Section 3</td>
+</tr>
+<tr>
 <td><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>R</mi></mrow><annotation encoding="application/x-tex">R</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span></span></span></span> (number of rows to predict)</td>
 <td>Takes 1 row in prefill and decode; takes 8 rows in verify</td>
 <td>Primer 1, Section 3</td>
@@ -3683,7 +3693,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>ridge point</td>
-<td>The crossover value of arithmetic intensity; 206 FLOP/B on H200</td>
+<td>The crossover point of arithmetic intensity; 206 FLOP/B for dense BF16 on H200</td>
 <td>Primer 2, Section 4</td>
 </tr>
 <tr>
@@ -3772,6 +3782,16 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td>Primer 3, Section 1</td>
 </tr>
 <tr>
+<td><code class="nw">sm_90a</code> (architecture-specific target)</td>
+<td>Compilation target carrying the architecture-specific <code class="nw">a</code> suffix for compute capability 9.0: required for <code class="nw">wgmma</code> and <code class="nw">setmaxnreg</code> (binaries run only on CC 9.0 GPUs), whereas TMA, clusters, <code class="nw">elect.sync</code>, and <code class="nw">griddepcontrol</code> need only <code class="nw">sm_90</code></td>
+<td>Chapter 5, Section 3; Appendix A, opening</td>
+</tr>
+<tr>
+<td>SMEM/L1 carveout</td>
+<td>Per-kernel partitioning of each SM's 256 KiB unified storage into discrete shared-memory steps up to 228 KiB (at most 227 KiB per CTA after the 1 KiB system reserve; &gt; 48 KiB requires dynamic shared-memory opt-in), with the remainder serving as L1</td>
+<td>Chapter 3, Sections 1 and 4</td>
+</tr>
+<tr>
 <td>SMSP (SM sub-partition)</td>
 <td>4 per SM, each with its own warp scheduler</td>
 <td>Chapter 4, Section 1</td>
@@ -3830,6 +3850,11 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 <td>subnormal number</td>
 <td>Floating-point numbers whose exponent bits are all 0; they are evenly spaced and fill the smallest range</td>
 <td>Chapter 6, Section 3</td>
+</tr>
+<tr>
+<td>subtask table</td>
+<td>In the persistent wgmma kernel, each CTA builds the same subtask order in shared memory and dynamically claims subtasks via a global counter</td>
+<td>Chapter 8, Section 9</td>
 </tr>
 <tr>
 <td>swap-AB (swapping operands A and B)</td>
@@ -3893,7 +3918,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>thread block cluster / GPC / DSMEM</td>
-<td>A group of co-resident CTAs; a cluster of adjacent SMs; cross-CTA shared-memory reads</td>
+<td>A group of guaranteed co-resident CTAs (up to 8 portably, or 16 with explicit opt-in); a cluster of adjacent SMs; cross-CTA shared-memory reads</td>
 <td>Chapter 7, Section 12</td>
 </tr>
 <tr>
@@ -3918,7 +3943,7 @@ M1001 80h400000v40h-400000z"/></svg></span></span></span><span class="vlist-s">â
 </tr>
 <tr>
 <td>TMA (Tensor Memory Accelerator)</td>
-<td>Hardware unit where a single thread initiates asynchronous bulk copies (on Hopper, tensor copies support rectangular tiles and <code class="nw">im2col</code>, plus 1D contiguous copies)</td>
+<td>Hardware unit where a single thread initiates asynchronous bulk copies (on Hopper <code class="nw">sm_90a</code>, tensor copies support rectangular tiles and plain convolution <code class="nw">im2col</code>, plus 1D contiguous copies)</td>
 <td>Chapter 3, Section 3</td>
 </tr>
 <tr>
