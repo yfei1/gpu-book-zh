@@ -28,7 +28,7 @@
 
 下载后用浏览器直接打开（单文件 HTML，无外部依赖）。
 
-- [图 导一-1 Muse Spark Open 的模型结构](figs/ch00_0-archo.html)
+- [图 导一-1 · Muse Spark Open 的模型结构](figs/ch00_0-archo.html)
 - [图 导一-2 一句话穿过 Muse Spark Open：prefill、decode、verify](figs/ch00_0-a.html)
 - [图 导一-3 一趟 verify：8 行的预测和草稿逐个比较](figs/ch00_0-verify.html)
 - [图 导二-1 一层怎样分到 8 张卡上](figs/ch00-split.html)
@@ -38,7 +38,7 @@
 - [图 导三-1 gemv_kernel：一个线程怎样算出 y 的一个元素](figs/ch00_5-a.html)
 - [图 I-1 第一部分六级地图](figs/part1-map.html)
 - [图 1-1 同一条三 kernel 链的三种下发方式](figs/ch01-a.html)
-- [图 1-2 把归一化并进 gemv：同一个循环多累加一个平方和](figs/ch01-fuse-gemv.html)
+- [图 1-2 把归一化与后处理并进 gemv：循环顺手算平方和，尾声缩放并做后处理](figs/ch01-fuse-gemv.html)
 - [图 1-3 PDL 交接：归一化触发之后，gemv 提前派上 SM 读权重](figs/ch01-pdl.html)
 - [图 2-1 132 个 SM 怎样做完 2,304 个 CTA](figs/ch02-a.html)
 - [图 2-2 一次读取走过哪几层：HBM、L2、SM](figs/ch02-mem.html)
