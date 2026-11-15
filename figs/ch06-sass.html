@@ -111,91 +111,547 @@ html{color-scheme:dark}
 body[data-theme="light"]{color-scheme:light}
 body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
-</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
-.fg svg{display:block;width:100%;height:auto;font-family:inherit}
-.fg .busy{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a;--anatomy-hi:#111;--anatomy-mid:#444;--anatomy-lo:#555;--anatomy-faint:#666}
-.fg .issue{--anatomy-face:#3e63dd;--anatomy-top:#5b7bea;--anatomy-hi:#22389a;--anatomy-mid:#22389a;--anatomy-shade-0:#2c4bb0;--anatomy-shade-1:#3352c0;--anatomy-shade-2:#3a5bd0;--anatomy-shade-3:#4466dd}
-.fg .warm{--anatomy-face:#d9791f;--anatomy-top:#ec9540;--anatomy-hi:#a85a10;--anatomy-mid:#a85a10;--anatomy-shade-0:#b0600f;--anatomy-shade-1:#c26c16;--anatomy-shade-2:#d07a22;--anatomy-shade-3:#dc8a34}
-.fg .off{display:none}
-.fg .lab{font-size:11.5px;fill:var(--anatomy-strong);font-weight:600;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3.5px}
-.fg .lab2{font-size:11.5px;fill:var(--anatomy-text)}
-.fg .lk{fill:none;stroke:var(--anatomy-blue);stroke-width:1.4;opacity:.45;stroke-dasharray:4 3}
-.fg .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}
-.fg .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
-.fg .tn{font-size:10.5px;fill:var(--anatomy-text)}
-.fg .bn{font-size:10px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
-.fg .blk{stroke:var(--anatomy-card);stroke-width:1}
-.fg .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
-.fg .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}
-.fg .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
-.fg .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}
-.fg .tx{font-size:10.5px;fill:var(--anatomy-text)}.fg .tx.c{text-anchor:middle}.fg .tx.e{text-anchor:end}
-.fg .txs{font-size:10.5px;fill:var(--anatomy-strong);font-weight:600}
-.fg .nar{margin:14px 8px 8px;min-height:11.5em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}
-.fg .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
-.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
-.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
-.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0}
-.kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
-.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
-.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
-.ctl .modes label{border:1px solid var(--anatomy-lo);border-radius:6px;padding:3px 10px;cursor:pointer;background:var(--anatomy-card)}
-.ctl .modes input{margin-right:5px}
-.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
-.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><!-- class="katex" --><style>
+.iso-plate svg.p{display:block;width:100%;height:auto;font-family:inherit}
+.iso-plate .t{fill:var(--anatomy-text)}
+.iso-plate .tm{fill:var(--anatomy-muted)}
+.iso-plate .ts{fill:var(--anatomy-strong);font-weight:600}
+.iso-plate .cd{font-family:var(--anatomy-mono);fill:var(--anatomy-strong)}
+.iso-plate .cm{font-family:var(--anatomy-mono);fill:var(--anatomy-text)}
+.iso-plate .bn{fill:#ffffff;font-weight:600;pointer-events:none}
+.iso-plate .bi{fill:#141413;font-weight:600;pointer-events:none}
+.iso-plate .rl{fill:var(--anatomy-text)}
+.iso-plate .halo{paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px;stroke-linejoin:round}
+.iso-plate .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
+.iso-plate .cur{stroke:var(--anatomy-strong);stroke-width:1.3;fill:none}
+.iso-plate .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
+.iso-plate .br{fill:none;stroke:var(--anatomy-strong);stroke-width:1.5}
+.iso-plate .cp{fill:var(--anatomy-card);stroke:var(--anatomy-strong);stroke-width:1.4}
+.iso-plate .ld{fill:none;stroke:var(--anatomy-strong);stroke-width:1.1;opacity:.85}.iso-plate .ldd{fill:var(--anatomy-strong)}
+.iso-plate .wt{fill:none;stroke:var(--anatomy-lo);stroke-width:.7}
+.iso-plate .box{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
+.iso-plate .unk{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1.2;stroke-dasharray:4 2}
+.iso-plate .slot{fill:var(--anatomy-face);fill-opacity:.45;stroke:var(--anatomy-lo);stroke-width:.9}
+.iso-plate .strip{fill:#c7cad4;stroke:#8d91a0;stroke-width:1}
+.iso-plate .badge{fill:none;stroke:var(--anatomy-mid);stroke-width:.8}
+.iso-plate .conn{fill:none;stroke-linecap:round}
+.iso-plate .lk{fill:none;stroke:var(--anatomy-lo);stroke-width:1}
 .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
-.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo)}
+.lg span{display:inline-flex;align-items:baseline;min-width:0}
+.lg i{display:inline-block;flex:none;width:18px;height:10px;margin-right:6px;border:1px solid var(--anatomy-lo);box-sizing:border-box}
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
-.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55;max-width:100%;text-wrap:balance}
-.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.cap:empty{display:none}
+.cap code{font-family:var(--anatomy-mono);font-size:.92em}
+.cap .katex,.kard dd .katex{font-size:1em}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh>b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0;overflow-wrap:anywhere}
 .iso-plate{padding-bottom:58px}
-.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-.fg .cd{font-family:var(--anatomy-mono);font-size:8.5px;fill:var(--anatomy-strong)}.ctl .modes{display:none}.iso-plate{padding-bottom:58px}</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 6-5</span><span class="iso-plate-corner" data-corner="title">同一段解码从 CUDA C++ 到 PTX 再到 SASS</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 64" role="img" aria-label="不是一对一的两例">
-<text class="lab2" x="8" y="14">不是一对一的两例</text>
-<text class="cd" x="8" y="38">cvt.f32.bf16 f, h</text><path d="M128 34h26" stroke="#777" stroke-width="1.2" marker-end="url(#ar2)"/><rect x="160" y="24" width="168" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="166" y="38">PRMT R0, RZ, 0x7610, R0</text>
-<text class="tx" x="8" y="58">BF16 是 FP32 的高 16 位：转换只挪字节，1 条 PRMT 或移位</text>
-<text class="cd" x="346" y="38">wgmma.commit_group</text><path d="M456 34h22" stroke="#777" stroke-width="1.2" marker-end="url(#ar2)"/><rect x="484" y="24" width="150" height="21" rx="3" fill="#9ca3af" opacity=".25" stroke="#6b7280" stroke-dasharray="3 3"/><text class="tx c" x="559" y="38">无独立指令</text>
-<text class="tx" x="346" y="58">变成最后一条 HGMMA 上的分组标志（gsb0）</text>
-<defs><marker id="ar2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
-<g id="algO"></g></svg><svg class="flat" viewBox="0 0 640 267" role="img" aria-label="同一段解码：CUDA C++、PTX、SASS 三列">
-<text class="lab" x="8" y="18">CUDA C++</text><text class="lab" x="166" y="18">PTX（虚拟寄存器）</text><text class="lab" x="384" y="18">SASS（示意；寄存器编号为举例）</text>
-<text class="cd" x="8" y="45">__device__ void c12_dec(</text><text class="cd" x="8" y="66">  u32 la, u32 lb, u32 cd,</text><text class="cd" x="8" y="87">  u32&amp; o0, u32&amp; o1,</text><text class="cd" x="8" y="108">  u32&amp; o2, u32&amp; o3) {</text><text class="cd" x="8" y="129">  asm("shf.r.wrap.b32 …;</text><text class="cd" x="8" y="150">       and.b32 …; add.u32 …;</text><text class="cd" x="8" y="171">       prmt.b32 … ×4;"</text><text class="cd" x="8" y="192">      : "=r"(o0) …</text><text class="cd" x="8" y="213">      : "r"(la), "r"(lb), …);</text><text class="cd" x="8" y="234">}</text><path d="M150 140L160 140" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/>
-<defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
-<rect x="166" y="34" width="172" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><circle cx="175" cy="44.5" r="6.5" fill="#3e63dd"/><text class="bn" style="font-size:8.5px" x="175" y="47.5">1</text><text class="cd" x="185" y="48">shf.r.wrap.b32 rt, cd, cd, 4</text><rect x="166" y="59" width="172" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><circle cx="175" cy="69.5" r="6.5" fill="#d9791f"/><text class="bn" style="font-size:8.5px" x="175" y="72.5">2</text><text class="cd" x="185" y="73">and.b32 ha, cd, 0x87878787</text><rect x="166" y="84" width="172" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><circle cx="175" cy="94.5" r="6.5" fill="#d9791f"/><text class="bn" style="font-size:8.5px" x="175" y="97.5">3</text><text class="cd" x="185" y="98">and.b32 hb, rt, 0x87878787</text><rect x="166" y="109" width="172" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><circle cx="175" cy="119.5" r="6.5" fill="#1a9a7a"/><text class="bn" style="font-size:8.5px" x="175" y="122.5">4</text><text class="cd" x="185" y="123">add.u32 ha, ha, EXP_BASE</text><rect x="166" y="134" width="172" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><circle cx="175" cy="144.5" r="6.5" fill="#1a9a7a"/><text class="bn" style="font-size:8.5px" x="175" y="147.5">5</text><text class="cd" x="185" y="148">add.u32 hb, hb, EXP_BASE</text><rect x="166" y="159" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="169.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="172.5">6</text><text class="cd" x="185" y="173">prmt.b32 o0, la, ha, 0x5140</text><rect x="166" y="184" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="194.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="197.5">7</text><text class="cd" x="185" y="198">prmt.b32 o1, la, ha, 0x7362</text><rect x="166" y="209" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="219.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="222.5">8</text><text class="cd" x="185" y="223">prmt.b32 o2, lb, hb, 0x5140</text><rect x="166" y="234" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="244.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="247.5">9</text><text class="cd" x="185" y="248">prmt.b32 o3, lb, hb, 0x7362</text><g class="lay" data-l="1" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 194.5L348 194.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="184" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 219.5L348 219.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="209" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/></g><g class="lay" data-l="2" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 219.5L348 219.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="184" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 194.5L348 194.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="209" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/></g><g class="lay" data-l="3" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="48">要等谁 / 隔几拍</text><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="73">要等谁 / 隔几拍</text><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="98">要等谁 / 隔几拍</text><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="123">要等谁 / 隔几拍</text><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="148">要等谁 / 隔几拍</text><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="173">要等谁 / 隔几拍</text><path d="M338 219.5L348 219.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="184" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="198">要等谁 / 隔几拍</text><path d="M338 194.5L348 194.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="209" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="223">要等谁 / 隔几拍</text><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="248">要等谁 / 隔几拍</text></g>
-<g id="dots"></g><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 126" role="img" aria-label="三步的先后">
-<text class="lab2" x="118" y="14">只表示先后</text>
-<text class="rl" x="110" y="43">寄存器</text><rect class="row" x="118" y="30" width="506" height="20"/><text class="rl" x="110" y="69">指令顺序</text><rect class="row" x="118" y="56" width="506" height="20"/><text class="rl" x="110" y="95">控制信息</text><rect class="row" x="118" y="82" width="506" height="20"/>
-<clipPath id="clipT"><rect id="clipR" x="118" y="26" width="0" height="90"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. 一段 PTX 变成 SASS</label></div>
-<input id="tIn" type="range" hidden min="0" max="10" step="0.02" value="0"></div><div class="lg"><span><i style="background:#3e63dd"></i>移位</span><span><i style="background:#d9791f"></i>按位与</span><span><i style="background:#1a9a7a"></i>整数加</span><span><i style="background:#8a5fd0"></i>字节置换</span><span><i style="background:#9ca3af"></i>控制信息</span><span><i style="border-color:var(--anatomy-red);border-width:2px"></i>当前步骤</span></div><p class="cap">第 2 节的 9 行 PTX 变成 9 条 SASS，每条 16 B；ptxas 分配寄存器、重排、再写好每条的等待标记（控制位模型见逆向工程研究，NVIDIA 未公开编码）。图中寄存器编号与换位为示意。</p></main><script type="module">const TL0=118,TL1=624,TLY0=30,TLY1=112,STILL_T=3.5;
-const MODES={1:{ro:"9 行 PTX → 9 条 SASS · 每条 16 B",X:[118,244.5,371,497.5,624],tl:"<rect x=\"120\" y=\"32\" width=\"122.5\" height=\"16\" fill=\"#3e63dd\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"181.3\" y=\"44\">7 个物理寄存器</text><rect x=\"246.5\" y=\"58\" width=\"122.5\" height=\"16\" fill=\"#d9791f\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"307.8\" y=\"70\">重排发射顺序（示意）</text><rect x=\"373\" y=\"84\" width=\"122.5\" height=\"16\" fill=\"#1a9a7a\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"434.3\" y=\"96\">9 条 × 16 B 指令字（各带控制信息）</text><rect x=\"497.5\" y=\"30\" width=\"126.5\" height=\"72\" fill=\"#999\" opacity=\".13\"/><text class=\"txs\" text-anchor=\"middle\" x=\"560.8\" y=\"69\">合计</text>",steps:[{"layer":1,"s":"ptxas 给每个虚拟寄存器分配物理寄存器（图中寄存器编号为示意）。","f":"虚拟寄存器 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">t</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">a</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">b</mi></mrow><mo>→</mo></mrow><annotation encoding=\"application/x-tex\">\\mathrm{rt}, \\mathrm{ha}, \\mathrm{hb} \\to</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">rt</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">ha</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">hb</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">→</span></span></span></span> 物理寄存器（整数加法编成 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext mathvariant=\"monospace\">VIADD</mtext></mrow><annotation encoding=\"application/x-tex\">\\texttt{VIADD}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6111em;\"></span><span class=\"mord text\"><span class=\"mord texttt\">VIADD</span></span></span></span></span> 或 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext mathvariant=\"monospace\">IADD3</mtext></mrow><annotation encoding=\"application/x-tex\">\\texttt{IADD3}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6111em;\"></span><span class=\"mord text\"><span class=\"mord texttt\">IADD3</span></span></span></span></span>）","i":"9 行 PTX：虚拟寄存器 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">t</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">a</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">b</mi></mrow></mrow><annotation encoding=\"application/x-tex\">\\mathrm{rt}, \\mathrm{ha}, \\mathrm{hb}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">rt</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">ha</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">hb</span></span></span></span></span> 没有物理编号，可以有任意多个；图中以 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>l</mi><mi>a</mi><mo separator=\"true\">,</mo><mi>l</mi><mi>b</mi><mo separator=\"true\">,</mo><mi>c</mi><mi>d</mi></mrow><annotation encoding=\"application/x-tex\">la, lb, cd</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0197em;\">l</span><span class=\"mord mathnormal\">a</span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0197em;\">l</span><span class=\"mord mathnormal\">b</span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\">c</span><span class=\"mord mathnormal\">d</span></span></span></span> 在 R0、R6、R7 为例（实际的 12 位 gemv kernel 第一组解码在 R8、R12、R4）","o":"9 条 SASS，操作数都是物理寄存器；图中 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mi>o</mi><mn>0</mn></msub><mo>…</mo><msub><mi>o</mi><mn>3</mn></msub></mrow><annotation encoding=\"application/x-tex\">o_0 \\ldots o_3</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.5806em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">o</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">0</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"minner\">…</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">o</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">3</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span></span></span></span> 落在 R11、R7、R3、R9（实际 kernel 的第一组落在 R22、R8、R4、R12）","x":"寄存器填好的 9 条 SASS 进入下一步：重排","c":"每线程寄存器数由这一步决定，进而决定驻留（第 3 章第 1 节）：实际的 12 位 gemv kernel 第一组解码复用后只占 7 个物理寄存器（R4、R8、R12、R17、R20、R21、R22）","ring":[[380,44.5],1,10],"mv":[]},{"layer":2,"s":"ptxas 重排指令（图中换位为示意）。","f":"PTX 书写顺序 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mo>→</mo></mrow><annotation encoding=\"application/x-tex\">\\to</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.3669em;\"></span><span class=\"mrel\">→</span></span></span></span> SASS 发射顺序（共 9 条）","i":"第 1 步得到的 9 条 SASS（按 PTX 顺序）","o":"9 条 SASS（发射顺序）：图中画两行互换作示意；实际 kernel 把 SHF 排到第一条 PRMT 之后，并与别的指令交错发射","x":"排好序的 9 条 SASS 进入下一步：写控制信息","c":"指令条数不变，9 → 9","ring":[[380,194.5],2,10],"mv":[]},{"layer":3,"s":"ptxas 给每条 SASS 写控制信息。","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mtext> 条</mtext><mo>×</mo><mn>16</mn><mtext> </mtext><mi mathvariant=\"normal\">B</mi><mo>=</mo><mn>144</mn><mtext> </mtext><mi mathvariant=\"normal\">B</mi><mtext> 指令字</mtext></mrow><annotation encoding=\"application/x-tex\">9 \\text{ 条} \\times 16\\ \\mathrm{B} = 144\\ \\mathrm{B} \\text{ 指令字}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7667em;vertical-align:-0.0833em;\"></span><span class=\"mord\">9</span><span class=\"mord text\"><span class=\"mord\"> </span><span class=\"mord cjk_fallback\">条</span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord\">16</span><span class=\"mspace\"> </span><span class=\"mord mathrm\">B</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord\">144</span><span class=\"mspace\"> </span><span class=\"mord mathrm\">B</span><span class=\"mord text\"><span class=\"mord\"> </span><span class=\"mord cjk_fallback\">指令字</span></span></span></span></span>","i":"排好序的 9 条 SASS","o":"按公开的逆向工程研究，每条 16 B（Volta 及以后的架构，含 Hopper）里带有“要等谁、隔几拍”的标记；NVIDIA 没有公开这部分编码，反汇编文本里也不显示，本图不画","x":"按这一逆向分析模型，运行时 warp 调度器主要照这些标记来等前面的结果（第 4 章第 1、2 节）","c":"标记放在哪，管线就在哪停；每条 16 B","ring":[[380,169.5],3,10],"mv":[]},{"layer":3,"s":"合计：9 行 PTX 变成 9 条 SASS，每条 16 B。","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mo>→</mo><mn>9</mn></mrow><annotation encoding=\"application/x-tex\">9 \\to 9</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">9</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">→</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">9</span></span></span></span> 条，<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mo>×</mo><mn>2</mn><mo>=</mo><mn>18</mn></mrow><annotation encoding=\"application/x-tex\">9 \\times 2 = 18</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">9</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">2</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">18</span></span></span></span> 个 ALU 周期","i":"9 行 PTX","o":"9 条 SASS = 144 B 指令字","x":"—","c":"总代价：每线程 7 个寄存器；9 条 ALU 管线指令，每条 2 个周期（第 5 章第 1 节），每 8 个权重 18 个周期","ring":null,"mv":[]}]}};
+@media(max-width:600px){.kard{grid-template-columns:minmax(0,1fr)}.kard dt{margin-top:4px}}
+.iso-plate .nar{margin:14px 8px 8px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}
+.nar .nh>b{display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:#3e63dd;color:#ffffff;font-weight:600;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+.iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
+</style><figure class="iso-figure" aria-label="图 6-5 同一段解码从 CUDA C++ 到 PTX 再到 SASS 交互示意图（1 种模式共 4 步，只表示编译与核对先后，三步按讲解顺序拆开，ptxas 内部先后与交错未公开）：上方对照面板展示两条非一对一例子（cvt.f32.bf16 编成 1 条 PRMT 或左移，如 BF16 在高 16 位时的示例 PRMT R0, RZ, 0x7610, R0，其中 RZ 为零寄存器；BF16 的 wgmma 编成 HGMMA、FP8 编成 QGMMA，而 wgmma.commit_group 编成 0 条独立指令、变成末条 HGMMA 上的 gsb0 分组标记）；中部主面板展示 c12_dec 的 9 行内联 PTX 按 v10 第 1 组重排后编成 0x400..0x5f0 的 9 条 16 B（共 144 B）SASS 指令（0x450 原地复用 R4，触及全线程 53 个寄存器中的 7 个，占 18 个管线占用周期 = ALU 14 + FMA 4，流逝周期没有单测；同一条 add.u32 在不同组编成 VIADD 或 IADD3，选择规则未公开），并在每条 16 B 指令字内写入逆向解码的发射前记分牌掩码与发射后间隔周期（切分示意，Hopper 位段未公开；前序 16 B 读取返回先后未定，SB4 由 lb 与 3 条输入向量 x 读取共用），底部附仅供运行期对照的 1 个 SMSP 目标硬件条；下方时间线汇总 9→9 条、144 B、触 7/全线程 53 与 18 个管线占用周期。"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 6-5</span><span class="iso-plate-corner" data-corner="title">同一段解码从 CUDA C++ 到 PTX 再到 SASS</span><span class="iso-plate-corner" data-corner="readout" data-readout>v10 第 1 组解码：9 行 PTX → 9 条 SASS · 每条指令字 16 B（共 144 B）
+本组触及 7 个物理寄存器（全线程 53 个）· 18 个管线占用周期（ALU 14 + FMA 4）</span></div><svg id="alg" class="p" viewBox="0 0 640 80" role="img" aria-label="对照面板：PTX 到 SASS 并非逐条照搬的两例——cvt.f32.bf16 f, h 编成 1 条 PRMT 或左移（BF16 在高 16 位时的示例 PRMT R0, RZ, 0x7610, R0，RZ 为零寄存器，只挪字节）；wgmma.commit_group 编成 0 条独立指令，只变成末条 HGMMA 上的 gsb0 分组标记（BF16 的 wgmma 编成 HGMMA，FP8 编成 QGMMA）。"><g id="algH"></g><g id="algE"></g><g id="algO"></g></svg><svg id="code" class="p" viewBox="0 0 640 440" role="img" aria-label="主编译与运行期对照硬件面板：上方前序读取栏列出各 16 B 的 0x380 la（挂记分牌 2 SB2）、0x390 cd（挂 SB3）以及共用 SB4 的 0x3b0 lb 与 3 条输入向量 x 读取 0x3d0–0x3f0（返回先后未定）；中段从 CUDA C++ 与 9 行 PTX 虚拟寄存器指令经交叉连线重排为 v10 第 1 组的 9 条非连续地址（0x400..0x5f0，夹升宽/FFMA/第 2 组解码）SASS 指令与每条 16 B 指令字内的逆向解码控制位示意条（发射前等待掩码与发射后间隔周期），下附 Hopper 位段与 ptxas 内部各步先后未公开的虚线说明框；底部为仅供运行期对照的单个 SMSP 目标硬件条（含调度器、LSU 读取返回口、16,384 寄存器堆［全线程 53、上限 9 CTA/SM、网格均分约 17.5 warp/SM、实测活跃约 16 warp/SM、本组触及 7］、16 通道 ALU 与 32 通道 FMA 管线）。"><defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="var(--anatomy-text)"/></marker><marker id="arInk" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M0 0L5 2.5L0 5z" fill="var(--anatomy-strong)"/></marker></defs><g id="cA"></g><g id="cL"></g><g id="cC1"></g><g id="cC2"></g><g id="cU"></g><g id="cS"></g><g id="cB"></g><g id="focus"></g></svg><div class="card nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="p" viewBox="0 0 640 154" role="img" aria-label="底部编译与核对先后时间线（只表示先后，宽度不按耗时比例；三步按讲解顺序拆开，ptxas 内部先后与交错未公开）：三行依次为指令重排（9 行虚拟重排）、生成 SASS 与寄存器（触 7 / 全线程 53）、写控制位（9 条指令字写控制位），第 4 列汇总 9→9 条、9×16 B = 144 B 指令字、触 7 寄存器（全线程 53）与 18 个管线占用周期（ALU 14 + FMA 4）。"><g id="flS"></g><text class="rl" id="rl0" data-rowlabel>指令重排</text><text class="rl" id="rl1" data-rowlabel>生成 SASS 与寄存器</text><text class="rl" id="rl2" data-rowlabel>写控制位</text><clipPath id="clipT"><rect id="clipR" x="0" y="0" width="0" height="154"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></figure><div class="ctl"><input id="tIn" type="range" hidden min="0" max="4" step="0.01" value="0" autocomplete="off"></div><div class="lg"><span><i style="background:#3e63dd;border-color:#3e63dd"></i>移位（SHF）</span><span><i style="background:#0b9f8c;border-color:#0b9f8c"></i>按位与（LOP3）</span><span><i style="background:#d98200;border-color:#d98200"></i>整数加（VIADD）</span><span><i style="background:#8e4ec6;border-color:#8e4ec6"></i>字节置换（PRMT）</span><span><i style="background:#5b6b7f;border-color:#5b6b7f"></i>编译步骤</span><span><i style="background:#c7cad4;border:1px solid #8d91a0"></i>控制位（16 B 指令字的一部分；切分示意）</span><span><i style="background:#ffffff;border:1.8px solid var(--anatomy-strong)"></i>本步焦点</span><span><i style="background:var(--anatomy-face);border:1.2px dashed var(--anatomy-lo)"></i>未公开实现 / 未定返回先后</span></div><p class="cap">主面板按讲解顺序分三步拆解 <code>v10</code> 第 1 组 <code>c12_dec</code>（<code>ptxas</code> 内部各步先后与交错未公开）：先在虚拟寄存器层把 <code>shf</code> 排到 <code>and ha</code> 之后（同 warp 藏延迟靠行间穿插的升宽、<code>FFMA</code> 等外部独立指令），再生成 <code>9</code> 条非连续地址（<code>0x400..0x5f0</code>）的 <code>16 B</code>（<code>128</code> 位，共 <code>144 B</code>）SASS 指令并触及全线程 <code>53</code> 个物理寄存器中的 <code>7</code> 个（<code>0x450</code> 原地复用 <code>R4</code>；寄存器上限 <code>9</code> CTA/SM，<code>576 × 4</code> 网格均分约 <code>17.5</code> warp/SM，剖析器实测平均活跃约 <code>16</code> warp/SM［<code>25.1%</code>］；本组占 <code>18</code> 个管线占用周期 = <code>ALU 14 + FMA 4</code>，流逝周期长于 <code>18</code> 且没有单测；反汇编中同一条 <code>add.u32</code> 在第 1 组编成 <code>VIADD</code>、在第 2 组编成 <code>IADD3</code>，<code>ptxas</code> 按什么规则挑选未公开），最后在每条 <code>16 B</code> 指令字内写入逆向解码的发射前记分牌掩码与发射后间隔周期（切分示意，Hopper 位段未公开；前序读取各 <code>16 B</code> 且返回先后未定，其中 <code>SB4</code> 由 <code>0x3b0 lb</code> 与 <code>3</code> 条输入向量 <code>x</code> 读取 <code>0x3d0..0x3f0</code> 共用）。上方对照面板给出非一对一两例（<code>cvt.f32.bf16</code> 编成 <code>1</code> 条 <code>PRMT</code> 或左移；<code>wgmma.commit_group</code> 编成 <code>0</code> 条独立指令、只作末条 <code>HGMMA</code> 上的 <code>gsb0</code> 分组标记），底部硬件条仅供运行期对照（编译期不执行），下方时间线只表示编译与核对先后，宽度不按耗时比例。</p></main><script type="module">(function page(D) {
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const F = window.FIG || (window.FIG = {});
+  const L = D.L, M = D.M, C = D.C;
+  const tin = $("tIn"), STEPQ = +tin.step || 0.01, LO = +tin.min || 0, EPS = 1e-9;
+  const STEPT = [0, 1, 2, 3], END = 4;
+  const f1 = (v) => +(+v).toFixed(1);
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, key) => (v[key] !== undefined ? v[key] : m));
+  const Ln = (key) => L[key].split("<br>");
+  const hx = (n) => "0x" + n.toString(16);
+  const mk = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); if (text != null) e.textContent = text; return e; };
 
-const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
-const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-const PALJ=["#3e63dd","#d9791f","#1a9a7a","#8a5fd0","#c2417a","#6b7280","#0e7490","#a16207"];
-function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); segs.push(d); Lt+=d;} let s=Math.max(0,Math.min(1,u))*Lt; for(let i=0;i<segs.length;i++){ if(s<=segs[i]){const f=segs[i]?s/segs[i]:0; return [pts[i][0]+(pts[i+1][0]-pts[i][0])*f, pts[i][1]+(pts[i+1][1]-pts[i][1])*f];} s-=segs[i];} return pts[pts.length-1]; }
-const pd=(pts)=>"M"+pts.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join("L");
-function card(c){ $("stepT").textContent=c.s||"";
-  $("stepK").innerHTML=[["公式",c.f],["输入",c.i],["输出",c.o],["交给下一步",c.x],["代价",c.c]].map(r=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join("");
-  document.querySelectorAll(".lay").forEach(g=>{ g.style.display = (+g.dataset.l===c.layer) ? "" : "none"; }); }
-let mode=1, S=[], N=1, t=0, prevLit=[];
-function tx(tt){ const X=MODES[mode].X, f=Math.min(Math.max(tt,0),N), k=Math.min(N-1,Math.floor(f)); return X[k]+(X[k+1]-X[k])*(f-k); }
-function setMode(m){ mode=m; const d=MODES[m]; S=d.steps; N=S.length; $("tl").innerHTML=d.tl; $("tIn").max=String(N); readout.textContent=d.ro; t=Math.min(t,N); if(d.setup) d.setup(); }
-function show(){
-  const d=MODES[mode], f=Math.min(t,N); let k=Math.min(N-1,Math.floor(f)); const u=f>=N?1:f-k, s=S[k];
-  prevLit.forEach(e=>e.classList.remove("issue","warm")); prevLit=[];
-  (s.lit||[]).forEach(sel=>{ const cls=sel.startsWith("!")?"warm":"issue"; document.querySelectorAll(sel.replace(/^!/,"")).forEach(e=>{e.classList.add(cls); prevLit.push(e);}); });
-  let h=""; (s.blocks?s.blocks(u):(s.mv||[]).filter(m=>u>=(m.s||0)).map(m=>({p:along(m.path,(u-(m.a||0))/((m.b||0.7)-(m.a||0))),n:m.n,l:m.l,r:m.r}))).forEach(b=>{ h+='<g><circle class="blk" cx="'+b.p[0].toFixed(1)+'" cy="'+b.p[1].toFixed(1)+'" r="'+(b.r||7)+'" fill="'+PALJ[(b.n-1)%PALJ.length]+'"/><text class="bn" x="'+b.p[0].toFixed(1)+'" y="'+(b.p[1]+3.4).toFixed(1)+'">'+(b.l||b.n)+'</text></g>'; });
-  $("dots").innerHTML=h;
-  $("focus").innerHTML = s.ring ? '<circle class="fr" cx="'+s.ring[0][0]+'" cy="'+s.ring[0][1]+'" r="'+(s.ring[2]||11)+'"/><text class="fn" x="'+s.ring[0][0]+'" y="'+(s.ring[0][1]-(s.ring[2]||11)-3)+'">'+s.ring[1]+'</text>' : "";
-  $("algO").innerHTML = s.alg ? '<rect class="ao" x="'+s.alg[0]+'" y="'+s.alg[1]+'" width="'+s.alg[2]+'" height="'+s.alg[3]+'" rx="3"/>' : "";
-  $("stepN").textContent=FIG.stepLabel(); card(s);
-  const x=tx(f); $("clipR").setAttribute("width",Math.max(0,x-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+x.toFixed(1)+" "+(TLY0-4)+"V"+TLY1); $("tIn").value=String(t);
-}
-$("tIn").addEventListener("input",()=>{ t=+$("tIn").value; show(); });
-document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); show(); }));
-const q=new URLSearchParams(location.search); const m0=+(q.get("m")||1);
-document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
-FIG.timeline({ steps: () => S.map((s, i) => ({ t: i, title: s.s })), end: () => N, rate: 0.45 });
-t=0; show();
-</script></body></html>
+  // ---- the player axis: the same rule as player.js settled(k); the step k of a time v
+  const settled = (k) => { if (k >= STEPT.length - 1) return END; let v = STEPT[k + 1] - 1e-6; v = LO + Math.floor((v - LO) / STEPQ + EPS) * STEPQ; return +Math.max(v, STEPT[k]).toFixed(6); };
+  const idxOf = (v) => { let k = 0; STEPT.forEach((s, i) => { if (s <= v + EPS) k = i; }); return k; };
+
+  // ================================================================ FIG.hw state (ux_review/HW_RULES.md part 2). Pure: it reads D only, never the DOM.
+  // Times are positions on the order-only axis (tUnit "order"). The run-time events of the compiled block (six 16 B prior loads, nine group-0 issues) lie in 2.01..2.90.
+  const CONSTS = { sm: 132, smspPerSm: 4, lanes: 32, regsPerSm: 65536, smemPerSmB: 233472, warpSlots: 64, ctaSlots: 32 };
+  const UNITS = [
+    { id: "sm0", kind: "sm", n: 1, subsetOf: "sm:132", cap: { warps: 64, ctas: 32, regs: 65536, smemB: 233472 } },
+    { id: "smsp0", kind: "smsp", parent: "sm0", n: 1, subsetOf: 4, servers: 1 },
+    { id: "mem_ret", kind: "queue", n: 1, located: false, order: "unknown" },
+    { id: "lsu0", kind: "lsu", parent: "smsp0", n: 1, order: "unknown" },
+    { id: "regfile0", kind: "regfile", parent: "smsp0", n: 1, cap: { regs: 16384 } },
+    { id: "alu0", kind: "pipe", parent: "smsp0", n: 1, lanes: 16 },
+    { id: "fma0", kind: "pipe", parent: "smsp0", n: 1, lanes: 32 },
+  ];
+  const DEPS = [["ldg_cd_arr"], ["iss_0"], ["ldg_la_arr", "iss_1"], ["ldg_cd_arr"], ["iss_3"], ["ldg_la_arr", "iss_1"], ["iss_4"], ["ldg_lb_arr", "ldg_x1_arr", "ldg_x2_arr", "ldg_x3_arr", "iss_6"], ["ldg_lb_arr", "iss_6"]];
+  const T_ISS = (i) => +(2.1 + 0.1 * i).toFixed(2);
+  const EVENTS = [];
+  M.loads.forEach((ld, i) => {
+    const req = "req_" + ld.id, p = "ldg_" + ld.id;
+    EVENTS.push({ id: p + "_iss", kind: "issue", ent: "warp0", seq: i - 6, unit: "smsp0", op: ld.op, req, bytes: 16, t: ld.ti });
+    EVENTS.push({ id: p + "_srv", kind: "serve", unit: "mem_ret", req, bytes: 16, t0: ld.ts, t1: ld.ta });
+    EVENTS.push({ id: p + "_arr", kind: "arrive", unit: "regfile0", req, bytes: 16, t: ld.ta });
+  });
+  M.sass.forEach((r, i) => EVENTS.push({ id: "iss_" + i, kind: "issue", ent: "warp0", seq: i, unit: r.pipe + "0", op: r.op, lat: 0.05, deps: DEPS[i], t: T_ISS(i) }));
+  const T = (e) => (e.t !== undefined ? e.t : e.t0);
+  EVENTS.sort((a, b) => T(a) - T(b));
+  // a scoreboard wait starts after the previous issue (never at an issue instant) and ends with the arrival that frees the next instruction; wait_sb4 ends with the last of the four SB4 arrivals
+  const WAITS = [
+    { id: "wait_sb3", on: "req_cd", since: 2.07, by: "ldg_cd_arr" },
+    { id: "wait_sb2", on: "req_la", since: 2.25, by: "ldg_la_arr" },
+    { id: "wait_sb4", on: "req_x3", reqs: ["req_lb", "req_x1", "req_x2", "req_x3"], since: 2.71, by: "ldg_x3_arr" },
+  ];
+  const warpStateAt = (t) => (WAITS.some((w) => t >= w.since - EPS && t < T(EVENTS.find((e) => e.id === w.by)) - EPS) ? "stalled:long_scoreboard"
+    : EVENTS.some((e) => e.kind === "issue" && e.ent === "warp0" && Math.abs(e.t - t) < EPS) ? "selected" : "eligible");
+
+  const S = (id, text, value, unit, extra) => ({ id, text, value, ...(unit ? { unit } : {}), ...(extra || {}) });
+  const MEAS = "MEASURED cu128.gemv_v10.sass.gz:0x380-0x5f0", PTXF = "MEASURED gemv_v10.cu:30-39";
+  // the numbers of a frame that are the same in every frame: the readout, the run-time strip, the timeline
+  const SHOWN_ALL = [
+    S("ptxLines", "9", 9, "instr", { src: PTXF }), S("sassInsts", "9", 9, "instr", { src: MEAS }),
+    S("wordBytes", "16 B", 16, "B", { src: "DOCUMENTED book/ch06.md:159 (128-bit word); hw_coverage/HW_D4_sass.md" }), S("wordBits", "128", 128, "bit", { expr: "8 * wordBytes", src: "DERIVED" }),
+    S("totalWordBytes", "144 B", 144, "B", { refs: ["sassInsts"], expr: "wordBytes * sassInsts", src: "DERIVED (CNT-16)" }),
+    S("smTotal", "132", 132, "sm", { expr: "consts.sm", src: "DOCUMENTED book/ch04.md:63" }), S("smspPerSm", "4", 4, "smsp", { expr: "consts.smspPerSm", src: "DOCUMENTED book/ch04.md:5-7" }),
+    S("regsPerSmsp", "16,384", 16384, "reg", { expr: "consts.regsPerSm / consts.smspPerSm", src: "DOCUMENTED book/ch03.md:21; FACTS.md:14" }),
+    S("aluLanes", "16", 16, "lane", { src: "DOCUMENTED FACTS.md:5" }), S("fmaLanes", "32", 32, "lane", { src: "DOCUMENTED FACTS.md:5" }),
+    S("fmaIntLanes", "16", 16, "lane", { expr: "fmaLanes / 2", src: "MEASURED FACTCHECK_HW.md #2 (VIADD on the heavy half of the FMA pipe)" }),
+    S("aluClkPerInst", "2", 2, "cycle", { expr: "consts.lanes / aluLanes", src: "DERIVED 32 / 16" }), S("fmaClkPerViadd", "2", 2, "cycle", { expr: "consts.lanes / fmaIntLanes", src: "DERIVED 32 / 16" }),
+    S("threadRegs", "53", 53, "reg", { src: "MEASURED cu128.gemv_v10.ptxas.txt (Used 53 registers)" }), S("group0Regs", "7", 7, "reg", { src: MEAS + " (R4, R8, R12, R17, R20, R21, R22)" }),
+    S("aluInsts", "7", 7, "instr", { src: MEAS }), S("fmaViaddInsts", "2", 2, "instr", { expr: "sassInsts - aluInsts", src: MEAS }),
+    S("aluCycles", "14", 14, "cycle", { expr: "aluInsts * aluClkPerInst", src: "DERIVED" }), S("fmaCycles", "4", 4, "cycle", { expr: "fmaViaddInsts * fmaClkPerViadd", src: "DERIVED" }),
+    S("totalPipeCycles", "18", 18, "cycle", { expr: "aluCycles + fmaCycles", src: "DERIVED (pipe occupancy of two concurrent pipes, not elapsed time)" }),
+    S("regGranule", "256", 256, "reg", { src: "DOCUMENTED Hopper Tuning Guide 1.4.1.1 (a warp gets registers in steps of 256); book/ch03.md:21" }),
+    S("warpRegsAlloc", "1,792", 1792, "reg", { expr: "ceil(32 * threadRegs / regGranule) * regGranule", src: "DERIVED CAP-3" }), S("ctaWarps", "4", 4, "warp", { src: "MEASURED gemv_v10.cu (block 128)" }),
+    S("ctaRegsAlloc", "7,168", 7168, "reg", { expr: "ctaWarps * warpRegsAlloc", src: "DERIVED CAP-3" }), S("regCapCtasPerSm", "9", 9, "cta", { expr: "floor(consts.regsPerSm / ctaRegsAlloc)", src: "DERIVED CAP-3; MEASURED ncu_A.csv.gz launch__occupancy_limit_registers = 9" }),
+    S("gridCtas", "576", 576, "cta", { src: "MEASURED gemv_v10.cu (grid 576 x 128)" }), S("weightsPerGroup", "8", 8, "weight", { src: "DOCUMENTED book/ch06.md:41 (8 C12 weights per decode group)" }), S("xLoads", "3", 3, "instr", { src: MEAS + " (0x3d0, 0x3e0, 0x3f0)" }),
+    S("gridAvgWarpsPerSm", "17.5", 576 * 4 / 132, "warp", { expr: "gridCtas * ctaWarps / consts.sm", src: "DERIVED grid / 132" }),
+    S("activeWarpsPerSm", "16", 16, "warp", { src: "MEASURED ncu_A.csv.gz (25.1 % achieved occupancy), book/ch06.md:250" }),
+    S("cvtSassInsts", "1", 1, "instr", { src: "DOCUMENTED / OBSERVED archive mapping.csv:22 (cvt.f32.bf16 -> PRMT, IMAD.U32 or SHF), cu128.gemv_v1.sass.gz:0x0150 SHF.L.U32; book/ch06.md:174" }),
+    S("commitStandaloneInsts", "0", 0, "instr", { src: "MEASURED archive mapping.csv:65 (wgmma.commit_group has no SASS word; gsb0 on the last HGMMA); research/p4_qkv_gate_T128_hgmma.md:22-24" }),
+  ];
+  // numbers that only the card of one step prints (U-6; the card text is the language block, the numbers are the same in both languages)
+  const SHOWN_STEP = [
+    [S("hbGap1", "6", 6, "cycle", { src: "MEASURED stall sum 0x450-0x480 of " + MEAS }), S("hbGap2", "6", 6, "cycle", { src: "MEASURED stall sum 0x490-0x4d0 of " + MEAS }), S("hbGap3", "5", 5, "cycle", { src: "MEASURED stall sum 0x4e0-0x500 of " + MEAS }),
+      S("haStallCycles", "5", 5, "cycle", { src: MEAS }), S("imadToShfCycles", "4", 4, "cycle", { src: "MEASURED stall sum 0x420-0x430 of " + MEAS }),
+      S("issueOrder", "[2, 4, 6, 1, 3, 7, 5, 8, 9]", null, "index", { src: "MEASURED " + MEAS + " (1-based PTX source line of each scheduled row)" }), S("ptxIndexRange", "1..9", null, "index", { src: PTXF })],
+    [S("ctasPerSmAvg", "4.36", 576 / 132, "cta", { expr: "gridCtas / consts.sm", src: "DERIVED grid / 132" }), S("achievedOccPct", "25.1%", 25.1, "%", { src: "MEASURED ncu_A.csv.gz sm__warps_active 25.07-25.17" }),
+      S("viaddAll", "46", 46, "instr", { src: "MEASURED v10 whole kernel, 64 decode adds" }), S("iadd3All", "18", 18, "instr", { src: "MEASURED v10 whole kernel" }), S("decodeAddsAll", "64", 64, "instr", { expr: "viaddAll + iadd3All", src: "MEASURED v10 whole kernel" }),
+      S("decodeGroups", "32", 32, "group", { src: "MEASURED v10 whole kernel (32 x SHF.R.W.U32 ..., 0x4)" })],
+    [S("sbIdLa", "2", 2, "scoreboard", { src: MEAS + " (write SB of 0x380)" }), S("sbIdCd", "3", 3, "scoreboard", { src: MEAS }), S("sbIdLb", "4", 4, "scoreboard", { src: MEAS }), S("sb4LoadCount", "4", 4, "instr", { src: MEAS + " (0x3b0, 0x3d0, 0x3e0, 0x3f0)" })],
+    [S("aluCyclesAvg", "15.1", 15.125, "cycle", { src: "DERIVED from MEASURED whole-kernel counts (v10 averages 15.125 ALU + 2.875 FMA cycles per group)" }), S("fmaCyclesAvg", "2.9", 2.875, "cycle", { src: "DERIVED, as aluCyclesAvg" }), S("cvtHighBits", "16", 16, "bit", { src: "DOCUMENTED book/ch06.md:174 (BF16 is the high 16 bits of FP32)" }), S("nextSection", "6", 6, "section", { src: "book/ch06.md section 6 (the cross reference of the card)" })],
+  ];
+  const PCRE = /\b0x([0-9a-f]{3})\b/g;
+  // every string that a frame prints (read from the language block, not from the DOM): the PCs among them make the CNT-16 run of the frame
+  function printedStrings(k) {
+    const o = [...Ln("sass.readout"), ...Ln("sass.focus.k" + k), ...Ln("sass.ldg.k" + Math.min(k, 2)), L["sass.col.c1." + (k ? "k1" : "k0")], L["sass.unk"], L["sass.tl.axis"], D.TITLES[k], ...D.CARDRAW[k],
+      L["sass.alg.hdr"], L["sass.alg.ex1.a"], L["sass.alg.ex1.b"], L["sass.alg.ex2.a"], L["sass.alg.ex2.b"], L["sass.alg.ex2.c"], ...M.ptx.map((p) => p[0]), ...M.cpp,
+      ...["hdr", "smsp", "lsu", "reg", "alu", "fma"].map((key) => L["sass.strip." + key])];
+    if (k >= 1) { M.gaps.forEach((g) => o.push(hx(g.a) + "–" + hx(g.b))); M.sass.forEach((r) => o.push(r.t)); M.loads.slice(0, k >= 2 ? 6 : 3).forEach((l) => o.push(l.op)); }
+    return o;
+  }
+  const HEXRE = /\b0x([0-9a-f]+)\b/g;
+  function immsAt(k) {
+    const seen = new Set();
+    printedStrings(k).forEach((s) => { for (const m of s.matchAll(HEXRE)) if (m[1].length !== 3) seen.add(m[0]); });
+    return [...seen].map((h) => S("imm_" + h.slice(2), h, parseInt(h, 16), "imm", { src: "MEASURED operand text of " + MEAS + " / PTX of " + PTXF }));
+  }
+  function pcsAt(k) {
+    const seen = new Set();
+    printedStrings(k).forEach((s) => { for (const m of s.matchAll(PCRE)) seen.add(parseInt(m[1], 16)); });
+    if (k >= 1) { M.sass.forEach((r) => seen.add(r.pc)); [0, 1, 2].forEach((i) => seen.add(M.loads[i].pc)); }
+    if (k >= 2) M.loads.forEach((l) => seen.add(l.pc));
+    return [...seen].sort((a, b) => a - b).map((v) => S("pc_" + v.toString(16), hx(v), v, "pc", { src: MEAS }));
+  }
+  const stallShown = () => M.sass.map((r, i) => S("stall_" + i, String(r.stall), r.stall, "cycle", { src: "REVERSE-ENGINEERED " + MEAS + " (stall bits 41-44)" }));
+  function hwState(t) {
+    t = +t; const k = idxOf(t);
+    const log = EVENTS.filter((e) => T(e) <= t + EPS);
+    const has = (id) => log.some((e) => e.id === id);
+    const ents = [
+      { id: "cta0", kind: "cta", n: 1, subsetOf: "cta:576", at: "sm0", state: "running", use: { regsPerThread: 53, warps: 4, threads: 128, smemB: 0 } },
+      { id: "warp0", kind: "warp", n: 1, subsetOf: "warp:4", at: "smsp0", lanes: 32, state: warpStateAt(t), use: { regsPerThread: 53 } },
+    ];
+    M.loads.forEach((ld) => { if (t >= ld.ti - EPS) { const arrived = has("ldg_" + ld.id + "_arr"); ents.push({ id: "req_" + ld.id, kind: "request", n: 1, at: arrived ? null : "mem_ret", state: arrived ? "arrived" : "flight", bytes: 16 }); } });
+    const waits = WAITS.filter((w) => w.since <= t + EPS).map((w) => { const by = log.find((e) => e.id === w.by); return { id: w.id, who: "warp0", kind: "scoreboard", on: w.on, ...(w.reqs ? { reqs: w.reqs } : {}), since: w.since, until: by ? T(by) : null, satisfied: !!by, by: by ? w.by : null }; });
+    const order = []; for (let i = 0; i < 8; i++) order.push({ a: "sched_row_" + i, b: "sched_row_" + (i + 1), basis: "measured:cu128.gemv_v10.sass.gz:0x400-0x5f0" });
+    const shown = [...SHOWN_ALL, ...SHOWN_STEP[k]];
+    if (k >= 1) shown.push(S("ldgBytesPerThread", "16 B", 16, "B", { src: MEAS + " (LDG.E.EF.128)" }));
+    if (k >= 2) shown.push(...stallShown());
+    shown.push(...pcsAt(k), ...immsAt(k));
+    return { fig: D.FIG_ID, mode: null, k, t, tUnit: "order", consts: CONSTS, units: UNITS, ents, events: log, waits, order, shown };
+  }
+  const HW_SPEC = { modes: [null], frames: () => STEPT.map((_, k) => settled(k)), state: (_mode, t) => hwState(t) };
+  if (window.FIG && typeof window.FIG.hw === "function") window.FIG.hw(HW_SPEC);
+
+  // ================================================================ text measure and wrap
+  const mt = mk("text", { x: 0, y: -50, visibility: "hidden" });
+  $("code").appendChild(mt);
+  const memo = new Map();
+  function tw(s, cls, fs) { const key = cls + "|" + fs + "|" + s; let v = memo.get(key); if (v === undefined) { mt.setAttribute("class", cls); mt.style.fontSize = fs + "px"; mt.textContent = s; v = mt.getComputedTextLength(); mt.textContent = ""; if (v > 0 || !s.trim()) memo.set(key, v); } return v; }
+  // an operand list (R0, RZ, 0x7610, R0), an opcode and its first register, and a number and its unit stay on one line
+  const glue = (s) => s.replace(/(\d) (?=[A-Za-z(])/g, "$1\u00a0").replace(/\b(R\d+|RZ|0x[0-9a-fA-F]+), (?=\S)/g, "$1,\u00a0").replace(/\b([A-Z][A-Z0-9]{2,}(?:\.[A-Z0-9]+)*) (?=R\d)/g, "$1\u00a0");
+  // a line breaks after a space or a CJK character and never before a closing mark or after an opening one
+  function wrapLine(s, maxW, cls, fs) {
+    const atoms = glue(s).match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^ \t\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+[ \t]*|[ \t]+/g) || [s];
+    const NOSTART = /^[，。、；：）)！？］\]·]/, NOEND = /[（(［\[]$/, out = []; let cur = "";
+    for (const a of atoms) {
+      const j = cur + a;
+      if (cur && tw(j.trimEnd(), cls, fs) > maxW && !NOSTART.test(a)) {
+        if (!NOEND.test(cur)) { out.push(cur.trimEnd()); cur = a.trimStart(); }
+        else if (cur.length > 1) { out.push(cur.slice(0, -1).trimEnd()); cur = cur.slice(-1) + a; }
+        else cur = j;
+      } else cur = j;
+    }
+    if (cur.trim()) out.push(cur.trimEnd());
+    return out;
+  }
+  const wrapAll = (arr, maxW, cls, fs) => arr.flatMap((l) => wrapLine(l, maxW, cls, fs));
+  // the same number of lines as wrapLine, as even as possible (no orphan word on the last line)
+  function wrapEven(s, maxW, cls, fs) { const n = wrapLine(s, maxW, cls, fs).length; let w = maxW; if (n > 1) while (w > 20 && wrapLine(s, w - 2, cls, fs).length === n) w -= 2; return wrapLine(s, w, cls, fs); }
+  const wrapAllE = (arr, maxW, cls, fs) => arr.flatMap((l) => wrapEven(l, maxW, cls, fs));
+  const maxW = (arr, cls, fs) => Math.max(0, ...arr.map((l) => tw(l, cls, fs)));
+  const Tx = (x, y, s, cls, fs, anchor, extra) => `<text class="${cls}" x="${f1(x)}" y="${f1(y)}" style="font-size:${fs}px"${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${esc(s)}</text>`;
+  const Tl = (arr, x, y, lh, cls, fs, anchor, extra) => `<text class="${cls}" style="font-size:${fs}px"${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${arr.map((l, i) => `<tspan x="${f1(x)}" y="${f1(y + i * lh)}">${esc(l)}</tspan>`).join("")}</text>`;
+  const Rc = (x, y, w, h, cls, extra) => `<rect class="${cls}" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"${extra || ""}/>`;
+  const tint = (c, op) => ` fill="${c}" fill-opacity="${op ?? 0.14}" stroke="${c}" stroke-width="1"`;
+  const sym = (j) => M.ptx[j][0].replace(/,.*$/, "") + "…";   // the symbolic form of a PTX line: opcode and destination
+  const BADGE = { alu: "ALU", fma: "FMA" };
+  const CLSC = (c) => C[c];
+
+  // ================================================================ layout: one geometry for pages wider than 600 px (W = 640), one for pages of 600 px and below (W = the width of the pan, nothing to scroll)
+  function layoutAlg(W, narrow, XR) {
+    const g = { cells: [] }, pad = 8;
+    const hdr = wrapLine(L["sass.alg.hdr"], XR - 8, "ts", 9.5);
+    let y = 14 + 12 * (hdr.length - 1);
+    g.hdr = { lines: hdr, y: 14 };
+    const cellW = narrow ? XR - 8 : (W - 16 - 12) / 2;
+    const defs = [[L["sass.alg.ex1.a"], L["sass.alg.ex1.b"]], [L["sass.alg.ex2.a"], L["sass.alg.ex2.b"], L["sass.alg.ex2.c"]]];
+    const cells = defs.map((d) => { const a = wrapEven(d[0], cellW - 2 * pad, "ts", 10), rest = d.slice(1).map((s) => wrapEven(s, cellW - 2 * pad, "t", 9.5)); return { a, rest, h: 8 + 13 * a.length + rest.reduce((n, r) => n + 12 * r.length, 0) + 4 }; });
+    const top = y + 8;
+    if (!narrow) { const h = Math.max(...cells.map((c) => c.h)); cells.forEach((c, i) => Object.assign(c, { x: 8 + i * (cellW + 12), y: top, w: cellW, h })); g.H = top + h + 4; }
+    else { let yy = top; cells.forEach((c) => { Object.assign(c, { x: 8, y: yy, w: cellW }); yy += c.h + 6; }); g.H = yy - 6 + 4; }
+    g.cells = cells;
+    g.frame = { x: 4, y: top - 4, w: W - 8, h: g.H - top };
+    return g;
+  }
+
+  const BW = 26, RG = 2, BFS = 7.5;   // pipe badge width and text size; space between two rows
+  function layoutStrip(W, narrow, XR, y0) {
+    const fs = 8.5, lh = 11, pad = 6, g = { y: y0 };
+    const keys = ["smsp", "lsu", "reg", "alu", "fma"], txt = Object.fromEntries(keys.map((key) => [key, L["sass.strip." + key]]));
+    g.hdr = wrapLine(L["sass.strip.hdr"], XR - 8 - 20, "ts", 9);
+    const hdrH = 12 * g.hdr.length + 4;
+    const fx = 8, fr = XR, ix = fx + 8, ir = fr - 8;                  // sm frame x, right; smsp frame x, right
+    const sx = ix + 6, sr = ir - 6, innerW = sr - sx;                  // boxes between sx and sr
+    const sy = y0 + hdrH + 6, boxes = [];
+    const rowOf = (items, ws, y) => { let x = sx; const hs = items.map((key, i) => wrapEven(txt[key], ws[i] - 2 * pad, "t", fs).length * lh + 2 * pad - 2); const h = Math.max(...hs); items.forEach((key, i) => { boxes.push({ key, x, y, w: ws[i], h, lines: wrapEven(txt[key], ws[i] - 2 * pad, "t", fs) }); x += ws[i] + 6; }); return h; };
+    let y = sy + 6;
+    if (!narrow) {
+      const len = keys.map((key) => tw(txt[key], "t", fs)), avail = innerW - 6 * 4, n = Math.max(1, Math.ceil(len.reduce((a, b) => a + b, 0) / (avail - 5 * 2 * pad)));
+      let ws = len.map((l) => l / n + 2 * pad + 8); const s = avail / ws.reduce((a, b) => a + b, 0); ws = ws.map((w) => w * s);
+      y += rowOf(keys, ws, y);
+    } else {
+      const half = (innerW - 6) / 2;
+      y += rowOf(["smsp", "lsu"], [half, half], y) + 6;
+      y += rowOf(["reg"], [innerW], y) + 6;
+      y += rowOf(["alu", "fma"], [half, half], y);
+    }
+    g.boxes = boxes; g.sm = { x: fx, y: y0, w: fr - fx, h: 0 }; g.smsp = { x: ix, y: sy, w: ir - ix, h: y + 6 - sy };
+    g.sm.h = y + 6 + 6 - y0; g.H = g.sm.h + 14;                        // room under the frame for the dashed return arrow
+    g.hdrX = fx + 10;
+    return g;
+  }
+  function layoutCode(W, narrow, XR) {
+    const g = { narrow }, rowH = narrow ? 13 : 16, gapH = narrow ? 10 : 11, pitch = rowH + RG;
+    const tagReuse = L["sass.tag.reuse"], tagMoved = L["sass.tag.moved"], stripTxt = [];
+    M.sass.forEach((r) => stripTxt.push(r.wait ? fill(L["sass.c2.wait"], { sb: "SB" + r.wait, n: r.stall }) : fill(L["sass.c2.nowait"], { n: r.stall })));
+    const origTags = M.order.map((j) => fill(L["sass.tag.orig"], { p: j + 1 }));
+    // the code font: the largest size at which the columns fit the width
+    let fs = 7.5, xs = null;
+    for (const f of [8.5, 8, 7.5]) {
+      const cw = Math.max(...M.sass.map((r, i) => 6 + tw(hx(r.pc) + " " + r.t, "cd", f) + (i === 3 ? 4 + tw(tagReuse, "tm", 8.5) : 0) + 4 + BW + 5));
+      const c0 = Math.max(...M.order.map((j, i) => 6 + tw(sym(j), "cd", f) + (j === 0 ? 4 + tw(tagMoved, "tm", 8.5) : 0) + (narrow ? 4 + tw(origTags[i], "tm", 8.5) : 0) + 6));
+      const wC1 = Math.max(cw, c0), wC2 = maxW(stripTxt, "t", 8.5) + 10;
+      if (narrow) { xs = { C1: { x: 8, w: wC1 }, C2: { x: XR - wC2, w: wC2 } }; xs.C1.w = xs.C2.x - 7 - 8; fs = f; if (wC1 <= xs.C1.w + 0.01) break; continue; }
+      const fa = Math.min(f, 8), wA = maxW(M.cpp, "cd", fa) + 8, wB = maxW(M.ptx.map((p) => p[0]), "cd", f) + 14, wK = 30, gAB = 10;
+      const tot = wA + gAB + wB + wK + wC1 + 7 + wC2;
+      fs = f; xs = { A: { x: 8, w: wA }, B: { x: 8 + wA + gAB, w: wB }, K: { x0: 8 + wA + gAB + wB, x1: 8 + wA + gAB + wB + wK } };
+      xs.C2 = { x: XR - wC2, w: wC2 }; xs.C1 = { x: xs.K.x1, w: xs.C2.x - 7 - xs.K.x1 };
+      if (tot <= XR - 8 + 0.01) break;
+    }
+    g.fs = fs; g.xs = xs; g.rowH = rowH; g.strips = stripTxt; g.origTags = origTags;
+    // callout lines of the four frames (a pill of its own width in the wide layout, the full width in the narrow one)
+    const cw = (narrow ? XR - 8 : W - 16) - 20;
+    g.call = [0, 1, 2, 3].map((k) => { const l = Ln("sass.focus.k" + k); return { a: wrapEven(l[0], cw, "ts", 10.5), b: l.slice(1).flatMap((s) => wrapEven(s, cw, "t", 10)) }; });
+    g.callH = 10 + 13 * Math.max(...g.call.map((c) => c.a.length + c.b.length));
+    // ldg bar: the lines of k = 0, 1, 2 (k = 3 shows the k = 2 text) and, from k = 2, a row of six request chips
+    const lw = XR - 8 - 16;
+    g.ldg = [0, 1, 2].map((k) => wrapAllE(Ln("sass.ldg.k" + k), lw, "t", 9));
+    g.ldgHk = g.ldg.map((l, k) => 6 + 12 * l.length + (k >= 2 ? 17 : 4));
+    g.ldgH = Math.max(...g.ldgHk);
+    // column headers
+    const hdr = {};
+    hdr.c1 = [0, 1].map((k) => wrapLine(L["sass.col.c1.k" + k], xs.C1.w, "ts", 9.5));
+    hdr.c2 = [Ln("sass.col.c2.todo"), Ln("sass.col.c2.shown")];
+    hdr.n = Math.max(2, ...hdr.c1.map((l) => l.length));
+    hdr.h = 12 * hdr.n + 2;
+    hdr.ab = narrow ? wrapLine(L["sass.col.ab.narrow"], XR - 8, "ts", 9.5) : null;
+    g.hdr = hdr;
+    // vertical stack
+    let y = 6;
+    g.ldgY = y; y += g.ldgH + 6;
+    if (!narrow) { g.callY = y; y += g.callH + 6; }
+    if (narrow) { g.abY = y; y += 12 * hdr.ab.length + 2; g.ptxY = Array.from({ length: 9 }, (_, j) => y + j * 15); y += 9 * 15 + 6; g.callY = y; y += g.callH + 4; }
+    g.hdrY = y; y += hdr.h + 2;
+    g.bandTop = y;
+    g.c1Y = []; g.gapY = {}; let yy = y;
+    for (let i = 0; i < 9; i++) { g.c1Y.push(yy); yy += pitch; const gp = M.gaps.find((q) => q.after === i); if (gp) { g.gapY[i] = yy - RG + 1; yy += gapH; } }
+    g.bandBot = yy - RG; g.band = g.bandBot - g.bandTop;
+    if (!narrow) g.ptxY = Array.from({ length: 9 }, (_, j) => g.bandTop + j * (g.band - rowH) / 8);
+    y = g.bandBot + 20;
+    const unk = wrapEven(L["sass.unk"], XR - 8 - 14, "t", 9);
+    g.unk = { y, lines: unk, h: 8 + 11 * unk.length + 2 }; y += g.unk.h + 8;
+    g.strip = layoutStrip(W, narrow, XR, y); y += g.strip.H;
+    g.H = Math.ceil(y + 2);
+    return g;
+  }
+  function layoutFlat(W, narrow, XR) {
+    const g = { narrow };
+    const labs = [0, 1, 2].map((i) => L["sass.tl.r" + i]);
+    if (!narrow) {
+      const lw = maxW(labs, "rl", 10);
+      g.TL0 = Math.max(112, Math.ceil(lw) + 16); g.TL1 = W - 8;
+      g.hdr = wrapEven(L["sass.tl.axis"], W - 16, "t", 9.5);
+      const top = 14 + 12 * (g.hdr.length - 1) + 12; g.rowH = 26; g.rowP = 32; g.rowY = [0, 1, 2].map((i) => top + i * g.rowP);
+      g.H = g.rowY[2] + g.rowH + 14; g.bar = { y: 3, h: 20 };
+    } else {
+      g.TL0 = 10; g.TL1 = XR;
+      g.hdr = wrapEven(L["sass.tl.axis"], XR - 8, "t", 9.5);
+      let y = 14 + 12 * (g.hdr.length - 1) + 10; g.rowH = 28; g.rowY = [];
+      for (let i = 0; i < 3; i++) { y += 14; g.rowY.push(y); y += g.rowH + 8; }
+      g.H = y + 6; g.bar = { y: 2, h: 24 };
+    }
+    g.SWD = (g.TL1 - g.TL0) / 4; g.XB = [0, 1, 2, 3, 4].map((i) => f1(g.TL0 + i * g.SWD));
+    g.curY0 = g.rowY[0] - 4; g.curY1 = g.rowY[2] + g.rowH + 4;
+    return g;
+  }
+  let LAY = null;
+  function buildLayout(W, narrow) {
+    const XR = narrow ? W - 24 : W - 11;
+    return { W, narrow, XR, alg: layoutAlg(W, narrow, XR), code: layoutCode(W, narrow, XR), flat: layoutFlat(W, narrow, XR) };
+  }
+
+  // ================================================================ drawing
+  const dimOf = (id, on) => { const e = $(id); if (e) { if (on) e.setAttribute("data-dim", ""); else e.removeAttribute("data-dim"); } };
+  const base = (y, h, fs) => y + h / 2 + fs * 0.35;
+  function drawAlg(k) {
+    const A = LAY.alg;
+    $("algH").innerHTML = Tl(A.hdr.lines, 8, A.hdr.y, 12, "ts", 9.5);
+    let h = "";
+    A.cells.forEach((c) => {
+      let y = c.y + 8 + 9;
+      h += `<g>${Rc(c.x, c.y, c.w, c.h, "box", ' rx="4"')}${Tl(c.a, c.x + 8, y, 13, "ts", 10)}`;
+      y += 13 * c.a.length - 13 + 12;
+      c.rest.forEach((r) => { h += Tl(r, c.x + 8, y, 12, "t", 9.5); y += 12 * r.length; });
+      h += "</g>";
+    });
+    $("algE").innerHTML = h;
+    dimOf("algH", k < 3); dimOf("algE", k < 3);
+    const x0 = Math.min(...A.cells.map((c) => c.x)) - 3, y0 = Math.min(...A.cells.map((c) => c.y)) - 3, x1 = Math.max(...A.cells.map((c) => c.x + c.w)) + 3, y1 = Math.max(...A.cells.map((c) => c.y + c.h)) + 3;
+    $("algO").innerHTML = k === 3 ? Rc(x0, y0, x1 - x0, y1 - y0, "ao", ' rx="6"') : "";
+  }
+
+  function drawCode(k) {
+    const g = LAY.code, narrow = g.narrow, xs = g.xs, rh = g.rowH, fs = g.fs, XR = LAY.XR, W = LAY.W;
+    // ---- columns A (C++) and B (PTX) with the nine crossing connectors
+    let a = "";
+    if (!narrow) {
+      const fa = Math.min(fs, 8);
+      a += Tx(xs.A.x, g.hdrY + 10, L["sass.col.cpp"], "ts", 9.5) + Tx(xs.A.x, g.hdrY + 22, L["sass.col.cpp.sub"], "tm", 8.5);
+      const lh = (g.band - 4) / 10;
+      a += Tl(M.cpp, xs.A.x, g.bandTop + lh * 0.7, lh, "cd", fa);
+      const ay = g.bandTop + lh * 0.7 + 4 * lh - 3;
+      a += `<path class="conn" d="M${f1(xs.A.x + xs.A.w - 4)} ${f1(ay)}L${f1(xs.B.x - 3)} ${f1(ay)}" stroke="var(--anatomy-text)" stroke-width="1.2" marker-end="url(#ar)"/>`;
+      a += Tx(xs.B.x, g.hdrY + 10, L["sass.col.ptx"], "ts", 9.5) + Tx(xs.B.x, g.hdrY + 22, L["sass.col.ptx.sub"], "tm", 8.5);
+    } else a += Tl(g.hdr.ab, 8, g.abY + 9, 12, "ts", 9.5);
+    const bx = narrow ? 8 : xs.B.x, bw = narrow ? XR - 8 : xs.B.w;
+    M.ptx.forEach((p, j) => { const y = g.ptxY[j]; a += `<g>${Rc(bx, y, bw, rh, "", ' rx="3"' + tint(CLSC(p[1])))}${Tx(bx + 7, base(y, rh, fs), p[0], "cd", fs)}</g>`; });
+    if (!narrow) {
+      let cs = "", tag = "";
+      M.ptx.forEach((p, j) => {
+        const i = M.order.indexOf(j), y0 = g.ptxY[j] + rh / 2, y1 = g.c1Y[i] + rh / 2, x0 = xs.B.x + xs.B.w, x1 = xs.K.x1, xm = (x0 + x1) / 2, c = CLSC(p[1]);
+        cs += `<path class="conn" d="M${f1(x0)} ${f1(y0)}C${f1(xm)} ${f1(y0)} ${f1(xm)} ${f1(y1)} ${f1(x1)} ${f1(y1)}" stroke="${c}" stroke-width="${j === 0 ? 1.9 : 1.1}" opacity="${j === 0 ? 1 : 0.85}"/>`;
+        if (j === 0) tag = "";
+      });
+      a += `<g>${cs}</g>`;
+      a += k === 0 ? tag : "";
+    }
+    $("cA").innerHTML = a; dimOf("cA", k === 1 || k === 2);
+
+    // ---- column C1: symbolic virtual lines at k = 0, the measured SASS rows from k = 1 (the nine rows keep their y in every frame)
+    const C1 = xs.C1, C2 = xs.C2;
+    let c = Tl(g.hdr.c1[k ? 1 : 0], C1.x, g.hdrY + 10, 12, "ts", 9.5);
+    M.order.forEach((j, i) => {
+      const r = M.sass[i], y = g.c1Y[i], col = CLSC(M.ptx[j][1]), by = base(y, rh, fs);
+      let s = Rc(C1.x, y, C1.w, rh, "", ' rx="3"' + tint(col));
+      if (k === 0) {
+        s += Tx(C1.x + 6, by, sym(j), "cd", fs);
+        let xr = C1.x + C1.w - 6;
+        if (narrow) { s += Tx(xr, by, g.origTags[i], "tm", 8.5, "end"); xr -= tw(g.origTags[i], "tm", 8.5) + 4; }
+        if (j === 0) s += Tx(xr, by, L["sass.tag.moved"], "tm", 8.5, "end");
+      } else {
+        s += `<text class="cd" x="${f1(C1.x + 6)}" y="${f1(by)}" style="font-size:${fs}px"><tspan class="cm">${hx(r.pc)}</tspan> ${esc(r.t)}</text>`;
+        const bxx = C1.x + C1.w - 5 - BW;
+        s += Rc(bxx, y + rh / 2 - 5, BW, 10, "badge", ' rx="2.5"') + Tx(bxx + BW / 2, y + rh / 2 + 2.7, BADGE[r.pipe], "tm", BFS, "middle");
+        if (i === 3) s += Tx(bxx - 4, by, L["sass.tag.reuse"], "tm", 8.5, "end");
+      }
+      c += `<g data-hw="sched_row_${i}">${s}</g>`;
+    });
+    M.gaps.forEach((q) => {
+      const y = g.gapY[q.after], gy = y + (narrow ? 8 : 9);
+      if (k === 0) c += `<text class="tm" style="font-size:8px" x="${f1(C1.x + 6)}" y="${f1(gy)}">${esc(L["sass.gap.k0"])}</text>`;
+      else c += `<text style="font-size:8px" x="${f1(C1.x + 6)}" y="${f1(gy)}"><tspan class="cm">${hx(q.a)}–${hx(q.b)}</tspan><tspan class="tm" dx="4">${esc(L["sass.gap." + q.kind])}</tspan></text>`;
+    });
+    if (k === 0 && !narrow) { const i0 = M.order.indexOf(0), gy = g.gapY[i0 - 1]; if (gy !== undefined) c += `<text x="${f1(C1.x + C1.w - 6)}" y="${f1(gy + 8.5)}" text-anchor="end" style="font-size:8.5px;font-weight:600" fill="${CLSC("shift")}">${esc(L["sass.tag.shf"])}</text>`; }
+    $("cC1").innerHTML = c; dimOf("cC1", k === 2);
+
+    // ---- column C2: nine empty slots until the control bits are written (k = 2)
+    let d = "";
+    if (k >= 2) M.sass.forEach((r, i) => { d += Rc(C1.x - 1.5, g.c1Y[i] - 0.5, C2.x + C2.w - C1.x + 1.5, rh + 1, "wt", ' rx="3.5"'); });
+    d += Tl(Ln(k >= 2 ? "sass.col.c2.shown" : "sass.col.c2.todo").slice(0, 1), C2.x + C2.w, g.hdrY + 10, 11, "ts", 8.5, "end") + Tl(Ln(k >= 2 ? "sass.col.c2.shown" : "sass.col.c2.todo").slice(1), C2.x + C2.w, g.hdrY + 21, 11, "tm", 8.5, "end");
+    M.sass.forEach((r, i) => {
+      const y = g.c1Y[i];
+      if (k < 2) d += Rc(C2.x, y, C2.w, rh, "slot", ' rx="3"');
+      else d += Rc(C2.x, y, C2.w, rh, "strip", ' rx="3"') + `<text class="bi" x="${f1(C2.x + C2.w / 2)}" y="${f1(base(y, rh, 8.5))}" text-anchor="middle" style="font-size:8.5px;font-weight:${r.wait ? 700 : 400}">${esc(g.strips[i])}</text>`;
+    });
+    if (k === 2) d += Tx((C1.x + C2.x + C2.w) / 2, g.bandBot + 13, L["sass.word.span"], "tm", 8, "middle");
+    $("cC2").innerHTML = d;
+
+    // ---- load bar
+    const lx = 8, lw = XR - 8, kk = Math.min(k, 2);
+    const lhk = g.ldgHk[kk];
+    let l = Rc(lx, g.ldgY, lw, lhk, "box", ' rx="4"') + Tl(g.ldg[kk], lx + 8, g.ldgY + 12, 12, "t", 9);
+    if (k >= 2) {
+      let x = lx + 8; const y = g.ldgY + lhk - 15, groups = [[2, ["la"]], [3, ["cd"]], [4, ["lb", "x1", "x2", "x3"]]];
+      groups.forEach(([sb, ids]) => {
+        l += Tx(x, y + 8.5, "SB" + sb, "cm", 8); x += tw("SB" + sb, "cm", 8) + 4;
+        ids.forEach((id) => { l += `<g data-hw="req_${id}">${Rc(x, y, 20, 11, "strip", ' rx="2.5"')}${Tx(x + 10, y + 8, id, "bi", 7.5, "middle")}</g>`; x += 23; });
+        x += 10;
+      });
+    }
+    $("cL").innerHTML = l; dimOf("cL", k <= 1);
+
+    // ---- the dashed note: what the figure does not know
+    const u = g.unk;
+    $("cU").innerHTML = Rc(8, u.y, XR - 8, u.h, "unk", ' rx="4"') + Tl(u.lines, 15, u.y + 12, 11, "t", 9);
+
+    // ---- the run-time strip: never lit (these units run the compiled words; nothing runs during the three compile steps)
+    const st = g.strip; let s = "";
+    s += `<g data-hw="sm0">${Rc(st.sm.x, st.sm.y, st.sm.w, st.sm.h, "box", ' rx="6"')}${Tl(st.hdr, st.hdrX, st.y + 12, 12, "ts", 9)}`;
+    s += `<g data-hw="smsp0">${Rc(st.smsp.x, st.smsp.y, st.smsp.w, st.smsp.h, "box", ' rx="5" stroke-width="1.4"')}`;
+    const ids = { smsp: "smsp0", lsu: "lsu0", reg: "regfile0", alu: "alu0", fma: "fma0" };
+    st.boxes.forEach((b) => { s += `<g${b.key === "smsp" ? "" : ` data-hw="${ids[b.key]}"`}>${Rc(b.x, b.y, b.w, b.h, "box", ' rx="3"')}${Tl(b.lines, b.x + 6, b.y + 6 + 8.5, 11, "t", 8.5)}</g>`; });
+    s += "</g>";
+    const lsu = st.boxes.find((b) => b.key === "lsu");
+    if (!narrow) { const x = lsu.x + lsu.w / 2, y1 = lsu.y + lsu.h, y0 = st.sm.y + st.sm.h + 10; s += `<g data-hw="mem_ret"><path class="conn" d="M${f1(x)} ${f1(y0)}V${f1(y1 + 1)}" stroke="var(--anatomy-text)" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#ar)"/>${Tx(x + 5, st.sm.y + st.sm.h + 9, L["sass.strip.ret"], "tm", 7.5)}</g>`; }
+    else { const y = lsu.y + lsu.h / 2, x1 = lsu.x + lsu.w, yb = st.sm.y + st.sm.h + 6; s += `<g data-hw="mem_ret"><path class="conn" d="M${f1(W - 4)} ${f1(yb)}V${f1(y)}H${f1(x1 + 1)}" stroke="var(--anatomy-text)" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#ar)"/>${Tx(XR, yb + 3, L["sass.strip.ret"], "tm", 7.5, "end")}</g>`; }
+    s += "</g>";
+    $("cS").innerHTML = s;
+
+    // ---- the subject frame (one INK frame) and the leader of k = 2 from the control bits to the scoreboards that they wait on
+    let b = "";
+    if (k <= 1) b += Rc(C1.x - 2.5, g.bandTop - 2.5, C1.w + 5, g.band + 5, "br", ' rx="4.5"');
+    if (k === 2) {
+      b += Rc(C2.x - 2.5, g.bandTop - 2.5, C2.w + 5, g.band + 5, "br", ' rx="4.5"');
+      const x0 = C2.x + C2.w + 2.5, y0 = g.bandTop + Math.min(48, g.band * 0.28), xl = narrow ? W - 12 : W - 3, yl = g.ldgY + g.ldgHk[2] / 2, xe = XR;
+      b += `<path class="ld" d="M${f1(xe)} ${f1(yl)}H${f1(xl)}V${f1(y0)}H${f1(x0)}" marker-end="url(#arInk)"/><circle class="ldd" cx="${f1(xe)}" cy="${f1(yl)}" r="2.4"/>`;
+    }
+    $("cB").innerHTML = b;
+
+    // ---- the callout of the frame
+    const cl = g.call[k], n = cl.a.length + cl.b.length, h = 10 + 13 * n;
+    const lines = [...cl.a.map((s2) => [s2, "ts", 10.5]), ...cl.b.map((s2) => [s2, "t", 10])];
+    const pw = narrow ? XR - 8 : Math.min(W - 16, Math.max(...lines.map(([s2, c2, f]) => tw(s2, c2, f))) + 20), py = narrow ? g.callY + g.callH - h : g.callY;
+    const px = narrow ? 8 : Math.max(8, k === 2 ? XR - 8 - pw : Math.min(C1.x - 6, XR - 8 - pw));
+    let f = Rc(px, py, pw, h, "cp", ' rx="5"');
+    lines.forEach(([s2, c2, fz], i) => { f += Tx(px + 10, py + 5 + 13 * i + 10, s2, c2, fz); });
+    $("focus").innerHTML = f;
+  }
+
+  function drawFlat() {
+    const F = LAY.flat, narrow = F.narrow;
+    let s = Tl(F.hdr, 8, 14, 12, "t", 9.5);
+    F.rowY.forEach((y) => { s += Rc(F.TL0, y, F.XB[3] - F.TL0, F.rowH, "row"); });
+    s += Rc(F.XB[3] + 2, F.rowY[0], F.SWD - 4, F.rowY[2] + F.rowH - F.rowY[0], "row", ' rx="4"');
+    $("flS").innerHTML = s;
+    [0, 1, 2].forEach((i) => { const e = $("rl" + i); e.style.fontSize = (narrow ? 9.5 : 10) + "px"; e.style.textAnchor = narrow ? "start" : "end"; e.setAttribute("x", narrow ? 8 : F.TL0 - 8); e.setAttribute("y", f1(narrow ? F.rowY[i] - 4 : F.rowY[i] + F.rowH / 2 + 3.5)); });
+    const bar = (col, row, cls, fillc, keyw, keyn) => {
+      const x = F.XB[col] + 2, w = F.SWD - 4, y = F.rowY[row] + F.bar.y, h = F.bar.h, fz = narrow ? 9 : 9.5;
+      const lines = wrapAll(Ln(narrow ? keyn : keyw), w - 6, cls, fz), lh = fz + 1.5, y0 = y + h / 2 - (lines.length - 1) * lh / 2 + fz * 0.35;
+      return `<g>${Rc(x, y, w, h, "", ` fill="${fillc}"`)}${Tl(lines, x + w / 2, y0, lh, cls, fz, "middle")}</g>`;
+    };
+    let t = bar(0, 0, "bn", D.C.slate, "sass.tl.b0", "sass.tl.b0.n") + bar(1, 1, "bn", D.C.slate, "sass.tl.b1", "sass.tl.b1.n") + bar(2, 2, "bi", D.C.wait, "sass.tl.b2", "sass.tl.b2.n");
+    const cx = F.XB[3] + 2, cw = F.SWD - 4, cy = F.rowY[0], ch = F.rowY[2] + F.rowH - F.rowY[0], fz = narrow ? 8.5 : 9.5, pd = narrow ? 4 : 6;
+    const cl = wrapAll(Ln(narrow ? "sass.tl.c3.n" : "sass.tl.c3"), cw - 2 * pd, "ts", fz);
+    t += `<g>${Rc(cx, cy, cw, ch, "", ` rx="4" fill="var(--anatomy-card)" stroke="var(--anatomy-mid)" stroke-width="1.2"`)}${Tl(cl, cx + pd, cy + (ch - (cl.length - 1) * (fz + 2.5)) / 2 + fz * 0.35, fz + 2.5, "ts", fz)}</g>`;
+    $("tl").innerHTML = t;
+    const cr = $("clipR"); cr.setAttribute("x", F.TL0); cr.setAttribute("y", 0); cr.setAttribute("height", F.H);
+  }
+  function tlCursor(t) {
+    const F = LAY.flat, x = F.TL0 + (Math.max(0, Math.min(END, t)) / END) * (F.TL1 - F.TL0);
+    $("clipR").setAttribute("width", Math.max(0, x - F.TL0 + 1).toFixed(1));
+    $("cur").setAttribute("d", "M" + f1(x) + " " + F.curY0 + "V" + F.curY1);
+  }
+
+  // ================================================================ card, step, layout, player wiring
+  const cardWriter = (title, dl) => (k) => { title.textContent = D.TITLES[k]; dl.innerHTML = D.CARDS[k].map(([dt, html]) => "<div><dt>" + esc(dt) + "</dt><dd>" + html + "</dd></div>").join(""); };
+  const writeCard = cardWriter($("stepT"), $("stepK"));
+  let drawn = { k: -1 };
+  function drawStep(k) { writeCard(k); drawAlg(k); drawCode(k); }
+  function show() {
+    if (!LAY) return;
+    const t = +tin.value, k = idxOf(t);
+    if (drawn.k !== k) { drawn.k = k; drawStep(k); }
+    tlCursor(t);
+  }
+  function applyLayout() {
+    [["alg", LAY.alg.H], ["code", LAY.code.H], ["flat", LAY.flat.H]].forEach(([id, h]) => { const s = $(id); s.setAttribute("viewBox", "0 0 " + LAY.W + " " + h); s.style.setProperty("--vbw", LAY.W + "px"); });
+    drawFlat();
+  }
+  // ---- player wiring: four steps on the axis 0..4, the page loads paused at settled(0)
+  F.timeline({ steps: () => STEPT.map((t, k) => ({ t, title: D.TITLES[k] })), end: () => END, rate: 0.45 });
+  tin.addEventListener("input", show);
+  // the plate corners (title top right, readout bottom right) are absolute on wide pages: the plate padding keeps their height
+  { const pl = document.querySelector(".iso-plate"), ti = pl.querySelector('[data-corner="title"]'), ro = pl.querySelector('[data-corner="readout"]');
+    const fit = () => { pl.style.paddingTop = Math.max(52, ti.offsetHeight + 34) + "px"; pl.style.paddingBottom = Math.max(58, ro.offsetHeight + 34) + "px"; };
+    new ResizeObserver(fit).observe(pl); fit(); }
+  function measure() {
+    const narrow = matchMedia("(max-width:600px)").matches; if (!narrow) return { narrow, W: 640 };
+    const pan = document.querySelector(".fig-pan"), pl = document.querySelector(".iso-plate"), cs = getComputedStyle(pl);
+    const w = pan ? pan.getBoundingClientRect().width : pl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return { narrow, W: Math.max(280, Math.floor(w)) };
+  }
+  function relayout(force) {
+    const { narrow, W } = measure();
+    if (!force && LAY && LAY.narrow === narrow && Math.abs(LAY.W - W) < 2) return false;
+    LAY = buildLayout(W, narrow); applyLayout(); drawn = { k: -1 }; show(); return true;
+  }
+  // the step card keeps the height of its tallest step at the current width, so that the control row and the timeline below it never move
+  const nar = document.querySelector(".nar");
+  let lockedW = -1;
+  function lockCard(force) {
+    const w = nar.clientWidth; if (!w || (!force && w === lockedW)) return; lockedW = w;
+    const m = nar.cloneNode(true); m.removeAttribute("id"); m.querySelectorAll("[id]").forEach((e) => e.removeAttribute("id"));
+    m.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;margin:0;min-height:0;width:" + w + "px";
+    nar.after(m);
+    const write = cardWriter(m.querySelector(".nh > span"), m.querySelector("dl")); let tall = 0;
+    for (let k = 0; k < STEPT.length; k++) { write(k); tall = Math.max(tall, m.getBoundingClientRect().height); }
+    m.remove(); nar.style.minHeight = Math.ceil(tall) + "px";
+  }
+  relayout(true);
+  addEventListener("DOMContentLoaded", () => { relayout(); lockCard(true); new ResizeObserver(() => { relayout(); lockCard(false); }).observe(document.querySelector(".iso-plate")); });
+  document.fonts.addEventListener("loadingdone", () => lockCard(true));
+})({"FIG_ID":"ch06-sass","L":{"sass.fig":"图 6-5","sass.title":"同一段解码从 CUDA C++ 到 PTX 再到 SASS","sass.page.title":"图 6-5 同一段解码从 CUDA C++ 到 PTX 再到 SASS","sass.readout":"v10 第 1 组解码：9 行 PTX → 9 条 SASS · 每条指令字 16 B（共 144 B）<br>本组触及 7 个物理寄存器（全线程 53 个）· 18 个管线占用周期（ALU 14 + FMA 4）","sass.alg.hdr":"对照：PTX 到 SASS 并非逐条照搬","sass.alg.ex1.a":"cvt.f32.bf16 f, h → 1 条 PRMT 或左移","sass.alg.ex1.b":"示例（BF16 在高 16 位时）：PRMT R0, RZ, 0x7610, R0（RZ 零寄存器；只挪字节）","sass.alg.ex2.a":"wgmma.commit_group → 0 条独立指令","sass.alg.ex2.b":"只变成末条 HGMMA 上的 gsb0 分组标记","sass.alg.ex2.c":"BF16 的 wgmma 编成 HGMMA；FP8 编成 QGMMA","sass.focus.k0":"重排虚拟指令：把 shf 排到 and ha 之后<br>让 cd 先被读完，下一步才能原地复用它的寄存器","sass.focus.k1":"生成 SASS 并分配寄存器：7 条 ALU + 2 条 VIADD<br>本组触及 7 个寄存器（全线程 53 个），0x450 原地复用 R4","sass.focus.k2":"在每条 16 B 指令字内写控制位：发前等记分牌 + 发后隔周期<br>逆向解码值（Hopper 位段未公开）；运行期调度器照此等待","sass.focus.k3":"汇总对照：本组 9→9 条（144 B，18 个管线占用周期）<br>上方两例为 1→1 挪字节与 1→0 并入标记，必须查 SASS","sass.ldg.k0":"前序全局读取（符号名）：la · cd · lb<br>经片外/缓存与 LSU 送入寄存器（返回先后未定）","sass.ldg.k1":"前序 16 B 全局读取：0x380 la→R8–R11 · 0x390 cd→R4–R7<br>0x3b0 lb→R12–R15（各装入 4 个寄存器供 4 组共用，本组读 R8, R4, R12）<br>经片外/缓存与 LSU 送入寄存器（返回先后未定）","sass.ldg.k2":"前序 16 B 读取挂记分牌：SB2（记分牌 2）0x380 la→R8–R11 · SB3: 0x390 cd→R4–R7<br>SB4: 0x3b0 lb→R12–R15 + 3 条 x（输入向量）读取 0x3d0–0x3f0（共 4 条）<br>等 SB4 = 等挂在 SB4 上的这 4 条读取全部返回（先后未定）","sass.col.cpp":"CUDA C++","sass.col.cpp.sub":"nvcc 前端 →","sass.col.ptx":"PTX（虚拟寄存器）","sass.col.ptx.sub":"书写顺序 9 行","sass.col.ab.narrow":"CUDA C++ c12_dec → PTX 虚拟寄存器 9 行","sass.col.c1.k0":"重排后的虚拟指令（未绑物理寄存器）","sass.col.c1.k1":"SASS 操作码 + 物理寄存器（v10 实测）","sass.col.c2.todo":"控制位<br>（16B内·未写入）","sass.col.c2.shown":"控制位（发前→发后）<br>（16B内·切分示意）","sass.tag.shf":"shf 移到 and ha 后","sass.tag.moved":"[后移至此]","sass.tag.orig":"← 原第 {p} 行","sass.tag.reuse":"[复用R4]","sass.gap.a":"⋯ 夹升宽/FFMA","sass.gap.w":"⋯ 夹升宽指令","sass.gap.k0":"⋯ 穿插外部独立指令","sass.word.span":"← 同一条 16 B（128 位）指令字 →","sass.strip.ret":"片外/缓存返回","sass.gap.b":"⋯ 夹升宽/FFMA/第 2 组解码","sass.c2.wait":"等{sb}→{n}周","sass.c2.nowait":"无等→{n}周","sass.unk":"Hopper 控制位具体位段、寄存器存储体数与 .reuse 编码未公开；三步按讲解顺序拆开，ptxas 内部各步先后与交错未公开","sass.strip.hdr":"运行期目标硬件（仅供对照，编译期不执行；1 个 SM［共 132］内的 1 个 SMSP［共 4］）","sass.strip.smsp":"调度器（每周期 1 发射槽）：运行期读指令字内的控制位等待","sass.strip.lsu":"LSU 读取返回口：经片外/缓存送回寄存器，返回先后未定","sass.strip.reg":"寄存器堆（16,384 个）：全线程占 53 个（上限 9 CTA/SM；网格均分约 17.5 warp/SM，实测活跃约 16 warp/SM）；本组触及 7 个","sass.strip.alu":"ALU 管线（16 通道，每条 2 周期：本组 7 条 = 14 周期）","sass.strip.fma":"FMA 管线（32 通道：整数 VIADD 走能跑整数的那一半，每条 2 周期，2 条 = 4 周期）","sass.tl.axis":"编译与核对先后（只表示先后，不按耗时比例；三步按讲解顺序拆开，ptxas 内部先后与交错未公开）","sass.tl.r0":"指令重排","sass.tl.r1":"生成 SASS 与寄存器","sass.tl.r2":"写控制位","sass.tl.b0":"9 行虚拟重排","sass.tl.b0.n":"虚拟重排<br>9→9 条","sass.tl.b1":"触 7 / 全线程 53","sass.tl.b1.n":"触7/全线程53","sass.tl.b2":"9 条指令字写控制位","sass.tl.b2.n":"9条字写控制位","sass.tl.c3":"合计：9 → 9 条<br>9 × 16 B = 144 B 指令字<br>触 7 寄存器（全线程 53）<br>18 个管线占用周期（ALU 14 + FMA 4）","sass.tl.c3.n":"9→9条·144 B<br>触7/全线程53<br>18管线占用周期","sass.lg.1":"移位（SHF）","sass.lg.2":"按位与（LOP3）","sass.lg.3":"整数加（VIADD）","sass.lg.4":"字节置换（PRMT）","sass.lg.5":"编译步骤","sass.lg.6":"控制位（16 B 指令字的一部分；切分示意）","sass.lg.7":"本步焦点","sass.lg.8":"未公开实现 / 未定返回先后"},"M":{"cpp":["__device__ void c12_dec(","  u32 la, u32 lb, u32 cd,","  u32& o0, u32& o1,","  u32& o2, u32& o3) {","  asm(\"shf.r.wrap.b32 …;","       and.b32 …; add.u32 …;","       prmt.b32 … ×4;\"","      : \"=r\"(o0) …","      : \"r\"(la), \"r\"(lb), …);","}"],"ptx":[["shf.r.wrap.b32 rt, cd, cd, 4","shift"],["and.b32 ha, cd, 0x87878787","and"],["and.b32 hb, rt, 0x87878787","and"],["add.u32 ha, ha, EXP_BASE","add"],["add.u32 hb, hb, EXP_BASE","add"],["prmt.b32 o0, la, ha, 0x5140","prmt"],["prmt.b32 o1, la, ha, 0x7362","prmt"],["prmt.b32 o2, lb, hb, 0x5140","prmt"],["prmt.b32 o3, lb, hb, 0x7362","prmt"]],"order":[1,3,5,0,2,6,4,7,8],"sass":[{"pc":1024,"t":"LOP3.LUT R20, R4, 0x87878787, …","op":"LOP3.LUT","pipe":"alu","wait":3,"stall":5},{"pc":1040,"t":"VIADD R21, R20, 0x36363636","op":"VIADD","pipe":"fma","wait":0,"stall":5},{"pc":1056,"t":"PRMT R22, R8, 0x5140, R21","op":"PRMT","pipe":"alu","wait":2,"stall":1},{"pc":1104,"t":"SHF.R.W.U32 R4, R4, 0x4, R4","op":"SHF.R.W.U32","pipe":"alu","wait":0,"stall":2},{"pc":1168,"t":"LOP3.LUT R4, R4, 0x87878787, …","op":"LOP3.LUT","pipe":"alu","wait":0,"stall":2},{"pc":1184,"t":"PRMT R8, R8, 0x7362, R21","op":"PRMT","pipe":"alu","wait":0,"stall":1},{"pc":1248,"t":"VIADD R17, R4, 0x36363636","op":"VIADD","pipe":"fma","wait":0,"stall":2},{"pc":1296,"t":"PRMT R4, R12, 0x5140, R17","op":"PRMT","pipe":"alu","wait":4,"stall":1},{"pc":1520,"t":"PRMT R12, R12, 0x7362, R17","op":"PRMT","pipe":"alu","wait":0,"stall":1}],"loads":[{"id":"la","pc":896,"op":"LDG.E.EF.128","dst":"R8","sb":2,"ti":2.01,"ts":2.02,"ta":2.29},{"id":"cd","pc":912,"op":"LDG.E.EF.128","dst":"R4","sb":3,"ti":2.02,"ts":2.03,"ta":2.09},{"id":"lb","pc":944,"op":"LDG.E.EF.128","dst":"R12","sb":4,"ti":2.03,"ts":2.04,"ta":2.74},{"id":"x1","pc":976,"op":"LDG.E.EL.128","dst":"R28","sb":4,"ti":2.04,"ts":2.05,"ta":2.76},{"id":"x2","pc":992,"op":"LDG.E.EL.128","dst":"R36","sb":4,"ti":2.05,"ts":2.06,"ta":2.77},{"id":"x3","pc":1008,"op":"LDG.E.EL.128","dst":"R32","sb":4,"ti":2.06,"ts":2.07,"ta":2.79}],"gaps":[{"after":2,"a":1072,"b":1088,"kind":"w"},{"after":3,"a":1120,"b":1152,"kind":"a"},{"after":5,"a":1200,"b":1232,"kind":"a"},{"after":6,"a":1264,"b":1280,"kind":"w"},{"after":7,"a":1312,"b":1504,"kind":"b"}]},"C":{"shift":"#3e63dd","and":"#0b9f8c","prmt":"#8e4ec6","add":"#d98200","slate":"#5b6b7f","slateText":"#ffffff","wait":"#c7cad4","waitLine":"#8d91a0","waitText":"#141413","pill":"#3e63dd","pillText":"#ffffff"},"CARDS":[[["公式","PTX 书写顺序（第 1..9 行虚拟指令）→ v10 第 1 组发射顺序 [2, 4, 6, 1, 3, 7, 5, 8, 9]（三步按讲解顺序拆开；ptxas 内部各步先后与交错未公开）"],["输入","c12_dec 的 9 行内联 PTX（虚拟寄存器 la, lb, cd, rt, ha, hb, o0..o3 数量不限，尚无物理寄存器编号）"],["输出","排好序的 9 行虚拟指令：shf 排到 and ha（及 prmt o0）之后，prmt o0..o3 相对顺序保持不变（不发生 o1 ↔ o2 互换）；ptxas 内部打分准则及各步先后与交错未公开"],["交给下一步","让 and ha 先读完 cd，使下一步能原地复用 cd 的物理寄存器写 rt；这 9 行内部换位本身并不单独藏住延迟——在 v10 第 1 组里，ha 链紧挨发射、各带 5 周期发后间隔（靠同 SMSP 其余 warp 填补），而同 warp 藏延迟靠行间穿插的外部独立升宽与 FFMA 指令（沿 hb 链相隔 6 / 6 / 5 周期，prmt o0 到其升宽消费指令相隔 4 周期；具体机器地址见第 2 步，控制位见第 3 步）"],["代价","指令条数不变（9 → 9）"]],[["公式","虚拟寄存器 → 物理寄存器（本组触及 7 个 / 全线程共占 53 个）；add.u32 → VIADD（走 32 通道 FMA 管线能跑整数的那一半，2 周期/条）或 IADD3（走 16 通道 ALU，2 周期/条）"],["输入","排好序的 9 行虚拟指令；前序 3 条 16 B（128 位）全局宽读取（0x380 LDG.E.EF.128 R8、0x390 R4、0x3b0 R12）各装入 4 个寄存器供 4 组解码共用，本组读取其中的 R8, R4, R12"],["输出","v10 第 1 组实测 9 条 SASS（非连续地址 0x400..0x5f0：ha 链 0x400→0x410→0x420 紧挨发射，0x420 与其消费指令 0x440 SHF.L.U32 间夹 0x430 IMAD.U32，hb 链 0x450→0x490→0x4e0→0x510 间夹 0x460–0x480、0x4b0–0x4d0、0x4f0–0x500 升宽/FFMA 与 0x4a0 PRMT o1，0x520–0x5e0 夹升宽/FFMA/第 2 组解码）：0x400 LOP3 先读 R4（cd），0x450 SHF R4, R4, 0x4, R4 安全原地复用 R4 写 rt，输出 o0=R22, o1=R8, o2=R4, o3=R12；反汇编可见同一条 add.u32 在第 1 组 2 条全编成 VIADD、第 2 组编成 1 条 IADD3 + 1 条 VIADD（全 kernel 32 组共 64 条解码加法：46 条 VIADD + 18 条 IADD3），ptxas 按什么规则挑选未公开"],["交给下一步","定好操作码与物理寄存器的 9 条 16 B 指令字进入第 3 步：在每条指令字内部写入静态控制位"],["代价","本组只触及 7 个寄存器，但决定 SM 驻留池上限的是全线程 53 个寄存器（每 warp 按 256 粒度分配 1,792 个、4-warp CTA 占 7,168 个 <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext>  </mtext><mo>⟹</mo><mtext>  </mtext></mrow><annotation encoding=\"application/x-tex\">\\implies</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.549em;vertical-align:-0.024em;\"></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">⟹</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span></span></span> 寄存器上限 9 CTA/SM；v10 的 576 × 4 网格均分每 SM 约 17.5 个 warp［约 4.36 CTA/SM］，剖析器实测平均活跃约 16 个 warp/SM［25.1%］）"]],[["公式","每条 SASS 指令字 = 16 B（128 位，相邻机器指令 PC 步进 0x10），共 9 × 16 B = 144 B；控制位是每条 16 B 指令字内部的一段位域（切分示意）"],["输入","9 条 SASS 指令，以及前序 16 B 全局读取挂上的记分牌计数器：0x380 la 挂 SB2（共 1 条）、0x390 cd 挂 SB3（共 1 条）、0x3b0 lb 与 0x3d0, 0x3e0, 0x3f0 这 3 条 x（输入向量）读取共用 SB4（共 4 条）"],["输出","在每条 16 B 指令字内部写入静态控制位（逆向解码本组 9 条发射前等待掩码 [SB3, -, SB2, -, -, -, -, SB4, -] 与发射后间隔周期 [5, 5, 1, 2, 2, 1, 2, 1, 1]；其中 0x510 等 SB4 必须等挂在 SB4 上的 4 条读取全部返回；Hopper 控制位具体位段、寄存器存储体数与 .reuse 编码未公开）"],["交给下一步","运行期 SMSP 的 warp 调度器读取指令字内的控制位：发射前遇到 SB3 / SB2 / SB4 先等该记分牌上挂的所有读取返回，发射本条后再按间隔周期等待下一条；按公开逆向与官方指南，寄存器存储体冲突由 ptxas 与调度器配合 .reuse（操作数复用标记）排开"],["代价","等待条件静态刻在每条 16 B 指令字的控制位里，盖在哪条指令上，管线跑到哪条前就停顿"]],[["公式","本组 9 → 9 条（144 B 指令字，18 个管线占用周期 = ALU 14 + FMA 4）；cvt.f32.bf16 → 1 条 PRMT 或左移；wgmma.commit_group → 0 条独立 SASS（末条 HGMMA 挂 gsb0）"],["输入","源码 / PTX 行数与书写顺序"],["输出","反汇编 SASS 呈现的真实机器指令条数、真实发射顺序、真实管线占用（ALU 与 FMA 能跑整数的那一半可并发工作，本组从 0x400 到 0x5f0 的流逝周期长于 18 且没有单测）及每条指令字内的静态控制位"],["交给下一步","进入第 6 节：用反汇编 SASS 查出 wgmma 异步区混入普通条件指令后被逐条插 DEPBAR 串行化的性能陷阱"],["代价","本组每解 8 个权重发 9 条 16 B 指令（144 B），占 18 个管线占用周期（7 × 2 = 14 ALU + 2 × 2 = 4 FMA；全 kernel 32 组平均约 15.1 ALU + 2.9 FMA）"]]],"CARDRAW":[["PTX 书写顺序（第 1..9 行虚拟指令）→ v10 第 1 组发射顺序 [2, 4, 6, 1, 3, 7, 5, 8, 9]（三步按讲解顺序拆开；ptxas 内部各步先后与交错未公开）","c12_dec 的 9 行内联 PTX（虚拟寄存器 la, lb, cd, rt, ha, hb, o0..o3 数量不限，尚无物理寄存器编号）","排好序的 9 行虚拟指令：shf 排到 and ha（及 prmt o0）之后，prmt o0..o3 相对顺序保持不变（不发生 o1 ↔ o2 互换）；ptxas 内部打分准则及各步先后与交错未公开","让 and ha 先读完 cd，使下一步能原地复用 cd 的物理寄存器写 rt；这 9 行内部换位本身并不单独藏住延迟——在 v10 第 1 组里，ha 链紧挨发射、各带 5 周期发后间隔（靠同 SMSP 其余 warp 填补），而同 warp 藏延迟靠行间穿插的外部独立升宽与 FFMA 指令（沿 hb 链相隔 6 / 6 / 5 周期，prmt o0 到其升宽消费指令相隔 4 周期；具体机器地址见第 2 步，控制位见第 3 步）","指令条数不变（9 → 9）"],["虚拟寄存器 → 物理寄存器（本组触及 7 个 / 全线程共占 53 个）；add.u32 → VIADD（走 32 通道 FMA 管线能跑整数的那一半，2 周期/条）或 IADD3（走 16 通道 ALU，2 周期/条）","排好序的 9 行虚拟指令；前序 3 条 16 B（128 位）全局宽读取（0x380 LDG.E.EF.128 R8、0x390 R4、0x3b0 R12）各装入 4 个寄存器供 4 组解码共用，本组读取其中的 R8, R4, R12","v10 第 1 组实测 9 条 SASS（非连续地址 0x400..0x5f0：ha 链 0x400→0x410→0x420 紧挨发射，0x420 与其消费指令 0x440 SHF.L.U32 间夹 0x430 IMAD.U32，hb 链 0x450→0x490→0x4e0→0x510 间夹 0x460–0x480、0x4b0–0x4d0、0x4f0–0x500 升宽/FFMA 与 0x4a0 PRMT o1，0x520–0x5e0 夹升宽/FFMA/第 2 组解码）：0x400 LOP3 先读 R4（cd），0x450 SHF R4, R4, 0x4, R4 安全原地复用 R4 写 rt，输出 o0=R22, o1=R8, o2=R4, o3=R12；反汇编可见同一条 add.u32 在第 1 组 2 条全编成 VIADD、第 2 组编成 1 条 IADD3 + 1 条 VIADD（全 kernel 32 组共 64 条解码加法：46 条 VIADD + 18 条 IADD3），ptxas 按什么规则挑选未公开","定好操作码与物理寄存器的 9 条 16 B 指令字进入第 3 步：在每条指令字内部写入静态控制位","本组只触及 7 个寄存器，但决定 SM 驻留池上限的是全线程 53 个寄存器（每 warp 按 256 粒度分配 1,792 个、4-warp CTA 占 7,168 个 $\\implies$ 寄存器上限 9 CTA/SM；v10 的 576 × 4 网格均分每 SM 约 17.5 个 warp［约 4.36 CTA/SM］，剖析器实测平均活跃约 16 个 warp/SM［25.1%］）"],["每条 SASS 指令字 = 16 B（128 位，相邻机器指令 PC 步进 0x10），共 9 × 16 B = 144 B；控制位是每条 16 B 指令字内部的一段位域（切分示意）","9 条 SASS 指令，以及前序 16 B 全局读取挂上的记分牌计数器：0x380 la 挂 SB2（共 1 条）、0x390 cd 挂 SB3（共 1 条）、0x3b0 lb 与 0x3d0, 0x3e0, 0x3f0 这 3 条 x（输入向量）读取共用 SB4（共 4 条）","在每条 16 B 指令字内部写入静态控制位（逆向解码本组 9 条发射前等待掩码 [SB3, -, SB2, -, -, -, -, SB4, -] 与发射后间隔周期 [5, 5, 1, 2, 2, 1, 2, 1, 1]；其中 0x510 等 SB4 必须等挂在 SB4 上的 4 条读取全部返回；Hopper 控制位具体位段、寄存器存储体数与 .reuse 编码未公开）","运行期 SMSP 的 warp 调度器读取指令字内的控制位：发射前遇到 SB3 / SB2 / SB4 先等该记分牌上挂的所有读取返回，发射本条后再按间隔周期等待下一条；按公开逆向与官方指南，寄存器存储体冲突由 ptxas 与调度器配合 .reuse（操作数复用标记）排开","等待条件静态刻在每条 16 B 指令字的控制位里，盖在哪条指令上，管线跑到哪条前就停顿"],["本组 9 → 9 条（144 B 指令字，18 个管线占用周期 = ALU 14 + FMA 4）；cvt.f32.bf16 → 1 条 PRMT 或左移；wgmma.commit_group → 0 条独立 SASS（末条 HGMMA 挂 gsb0）","源码 / PTX 行数与书写顺序","反汇编 SASS 呈现的真实机器指令条数、真实发射顺序、真实管线占用（ALU 与 FMA 能跑整数的那一半可并发工作，本组从 0x400 到 0x5f0 的流逝周期长于 18 且没有单测）及每条指令字内的静态控制位","进入第 6 节：用反汇编 SASS 查出 wgmma 异步区混入普通条件指令后被逐条插 DEPBAR 串行化的性能陷阱","本组每解 8 个权重发 9 条 16 B 指令（144 B），占 18 个管线占用周期（7 × 2 = 14 ALU + 2 × 2 = 4 FMA；全 kernel 32 组平均约 15.1 ALU + 2.9 FMA）"]],"TITLES":["ptxas 先看虚拟寄存器层的指令重排（按讲解顺序第 1 步）：把 shf 排到 and ha 之后让 cd 先被读完，而真实藏延迟靠本组行间穿插的升宽与 FFMA 等外部独立指令。","ptxas 在排好序的 9 行上生成 SASS 操作码并分配物理寄存器：本组触及全线程 53 个寄存器中的 7 个（0x450 原地复用 R4），发出 7 条 ALU 指令与 2 条走 FMA 整数半边的 VIADD。","ptxas 在每条 16 B（128 位）SASS 指令字内部写入静态控制位（发射前记分牌等待掩码与发射后间隔周期，其中 SB4 由 lb 与 3 条输入向量 x 读取共用）；运行期调度器照此等待。","汇总对照：本组 9 行 PTX 编成 9 条 16 B SASS（共 144 B 指令字，占 18 个管线占用周期 = ALU 14 + FMA 4），而上方两例分别编成 1 条字节置换/左移或 0 条独立指令（并入 gsb0），所以只有反汇编查 SASS 才能确认真实条数、发射顺序与等待控制位。"]});</script></body></html>

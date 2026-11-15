@@ -73,11 +73,26 @@ const PANCSS=`
 .iso-plate-corner[data-corner="title"]{margin:4px 0 8px;line-height:1.4}
 .iso-plate-corner[data-corner="readout"],.iso-plate-corner[data-corner="hint"]{order:1;margin-top:8px;font-size:12px;line-height:1.5}
 }
+.fig-rlbg{fill:var(--anatomy-card)}
 `;
+// Row labels. A <text data-rowlabel> that is a direct child of a panel svg keeps its left edge inside the pan box while the pan scrolls (<= 600 px).
+// It sits on a plate-coloured chip, and follow() keeps the cursor clear of the chips (scroll-padding-left). data-rowlabel="head" marks a heading with nothing under it: no chip, no clearance.
+function pin(w,s){
+  const L=[...s.querySelectorAll(":scope>[data-rowlabel]")]; if(!L.length) return;
+  const chips=L.map(e=>{ if(e.dataset.rowlabel==="head") return null; const r=document.createElementNS("http://www.w3.org/2000/svg","rect"); r.setAttribute("class","fig-rlbg"); return r; });
+  let raised=false;
+  const raise=()=>{ raised=true; const top=s.querySelector(":scope>#cur"); L.forEach((e,i)=>{ if(chips[i]) s.insertBefore(chips[i],top); s.insertBefore(e,top); }); };
+  const upd=()=>{ const sr=s.getBoundingClientRect(), k=s.viewBox.baseVal.width/sr.width, left=(w.getBoundingClientRect().left-sr.left)*k; let clear=0;
+    L.forEach((e,i)=>{ const b=e.getBBox(), d=Math.max(0,left-b.x), r=chips[i], tr=d?"translateX("+d.toFixed(2)+"px)":"";
+      if(d&&!raised) raise(); e.style.transform=tr; if(!r) return;
+      r.style.transform=tr; r.style.display=d?"":"none"; r.setAttribute("x",b.x-2); r.setAttribute("y",b.y-2); r.setAttribute("width",b.width+4); r.setAttribute("height",b.height+4); clear=Math.max(clear,(b.width+2)/k); });
+    w.style.scrollPaddingLeft=clear+"px"; };
+  w.addEventListener("scroll",upd,{passive:true}); new ResizeObserver(upd).observe(w); upd();
+}
 function pan(){
   const st=document.createElement("style"); st.textContent=PANCSS; document.head.appendChild(st);
   document.querySelectorAll(".iso-plate").forEach(plate=>{
-    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); return w; });
+    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); pin(w,s); return w; });
     if(!panels.length) return;
     const hint=document.createElement("p"); hint.className="fig-pan-hint"; hint.textContent=t("pan.hint"); hint.hidden=true; panels[0].before(hint);
     const update=()=>{ const over=panels.find(w=>w.scrollWidth>w.clientWidth); hint.hidden=!over; if(over) over.before(hint); };
@@ -126,7 +141,7 @@ function mount(){
   const stepTitle=k=>steps()[k].title||"";
   const preview=(k,x,y)=>{ segs.querySelectorAll("i").forEach((s,i)=>s.classList.toggle("hot",i===k)); if(k==null||k<0){ tip.hidden=true; return; } showTip(t("track.preview",{k:k+1,title:stepTitle(k)}),x,y); };
 
-  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24, R=b.right-24;
+  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(getComputedStyle(w).scrollPaddingLeft)||0), R=b.right-24;
       const d=(r.right-r.left>R-L||r.left<L)?r.left-L:r.right>R?r.right-R:0;
       if(d) w.scrollTo({left:w.scrollLeft+d,behavior:RM||curOnly?"instant":"smooth"}); };
     if($("cur")) into($("cur").closest(".fig-pan"),$("cur").getBoundingClientRect());
@@ -310,7 +325,7 @@ function legacyReveal(){
 }
 function legacy(){ legacyShell(); legacyReveal(); }
 })();
-</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Figure 6-5 The Same Decoding Block from CUDA C++ to PTX to SASS</title><style>
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Figure 6-5 The Same Decode Block from CUDA C++ to PTX to SASS</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -423,91 +438,547 @@ html{color-scheme:dark}
 body[data-theme="light"]{color-scheme:light}
 body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
-</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
-.fg svg{display:block;width:100%;height:auto;font-family:inherit}
-.fg .busy{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a;--anatomy-hi:#111;--anatomy-mid:#444;--anatomy-lo:#555;--anatomy-faint:#666}
-.fg .issue{--anatomy-face:#3e63dd;--anatomy-top:#5b7bea;--anatomy-hi:#22389a;--anatomy-mid:#22389a;--anatomy-shade-0:#2c4bb0;--anatomy-shade-1:#3352c0;--anatomy-shade-2:#3a5bd0;--anatomy-shade-3:#4466dd}
-.fg .warm{--anatomy-face:#d9791f;--anatomy-top:#ec9540;--anatomy-hi:#a85a10;--anatomy-mid:#a85a10;--anatomy-shade-0:#b0600f;--anatomy-shade-1:#c26c16;--anatomy-shade-2:#d07a22;--anatomy-shade-3:#dc8a34}
-.fg .off{display:none}
-.fg .lab{font-size:11.5px;fill:var(--anatomy-strong);font-weight:600;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3.5px}
-.fg .lab2{font-size:11.5px;fill:var(--anatomy-text)}
-.fg .lk{fill:none;stroke:var(--anatomy-blue);stroke-width:1.4;opacity:.45;stroke-dasharray:4 3}
-.fg .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}
-.fg .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
-.fg .tn{font-size:10.5px;fill:var(--anatomy-text)}
-.fg .bn{font-size:10px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
-.fg .blk{stroke:var(--anatomy-card);stroke-width:1}
-.fg .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
-.fg .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}
-.fg .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
-.fg .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}
-.fg .tx{font-size:10.5px;fill:var(--anatomy-text)}.fg .tx.c{text-anchor:middle}.fg .tx.e{text-anchor:end}
-.fg .txs{font-size:10.5px;fill:var(--anatomy-strong);font-weight:600}
-.fg .nar{margin:14px 8px 8px;min-height:11.5em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}
-.fg .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
-.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
-.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
-.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0}
-.kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
-.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
-.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
-.ctl .modes label{border:1px solid var(--anatomy-lo);border-radius:6px;padding:3px 10px;cursor:pointer;background:var(--anatomy-card)}
-.ctl .modes input{margin-right:5px}
-.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
-.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><!-- class="katex" --><style>
+.iso-plate svg.p{display:block;width:100%;height:auto;font-family:inherit}
+.iso-plate .t{fill:var(--anatomy-text)}
+.iso-plate .tm{fill:var(--anatomy-muted)}
+.iso-plate .ts{fill:var(--anatomy-strong);font-weight:600}
+.iso-plate .cd{font-family:var(--anatomy-mono);fill:var(--anatomy-strong)}
+.iso-plate .cm{font-family:var(--anatomy-mono);fill:var(--anatomy-text)}
+.iso-plate .bn{fill:#ffffff;font-weight:600;pointer-events:none}
+.iso-plate .bi{fill:#141413;font-weight:600;pointer-events:none}
+.iso-plate .rl{fill:var(--anatomy-text)}
+.iso-plate .halo{paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px;stroke-linejoin:round}
+.iso-plate .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
+.iso-plate .cur{stroke:var(--anatomy-strong);stroke-width:1.3;fill:none}
+.iso-plate .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
+.iso-plate .br{fill:none;stroke:var(--anatomy-strong);stroke-width:1.5}
+.iso-plate .cp{fill:var(--anatomy-card);stroke:var(--anatomy-strong);stroke-width:1.4}
+.iso-plate .ld{fill:none;stroke:var(--anatomy-strong);stroke-width:1.1;opacity:.85}.iso-plate .ldd{fill:var(--anatomy-strong)}
+.iso-plate .wt{fill:none;stroke:var(--anatomy-lo);stroke-width:.7}
+.iso-plate .box{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
+.iso-plate .unk{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1.2;stroke-dasharray:4 2}
+.iso-plate .slot{fill:var(--anatomy-face);fill-opacity:.45;stroke:var(--anatomy-lo);stroke-width:.9}
+.iso-plate .strip{fill:#c7cad4;stroke:#8d91a0;stroke-width:1}
+.iso-plate .badge{fill:none;stroke:var(--anatomy-mid);stroke-width:.8}
+.iso-plate .conn{fill:none;stroke-linecap:round}
+.iso-plate .lk{fill:none;stroke:var(--anatomy-lo);stroke-width:1}
 .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
-.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo)}
+.lg span{display:inline-flex;align-items:baseline;min-width:0}
+.lg i{display:inline-block;flex:none;width:18px;height:10px;margin-right:6px;border:1px solid var(--anatomy-lo);box-sizing:border-box}
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
-.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55;max-width:100%;text-wrap:balance}
-.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.cap:empty{display:none}
+.cap code{font-family:var(--anatomy-mono);font-size:.92em}
+.cap .katex,.kard dd .katex{font-size:1em}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh>b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0;overflow-wrap:anywhere}
 .iso-plate{padding-bottom:58px}
 .iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
-.fg .cd{font-family:var(--anatomy-mono);font-size:8.5px;fill:var(--anatomy-strong)}.ctl .modes{display:none}.iso-plate{padding-bottom:58px}</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure 6-5</span><span class="iso-plate-corner" data-corner="title">The Same Decoding Block from CUDA C++ to PTX to SASS</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fg"><svg class="flat" viewBox="0 0 640 64" role="img" aria-label="Two non-one-to-one examples">
-<text class="lab2" x="8" y="14">Two non-one-to-one examples</text>
-<text class="cd" x="8" y="38">cvt.f32.bf16 f, h</text><path d="M128 34h26" stroke="#777" stroke-width="1.2" marker-end="url(#ar2)"/><rect x="160" y="24" width="168" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="166" y="38">PRMT R0, RZ, 0x7610, R0</text>
-<text class="tx" x="8" y="58">BF16 is top 16b of FP32: byte move, 1 PRMT or shift</text>
-<text class="cd" x="346" y="38">wgmma.commit_group</text><path d="M456 34h22" stroke="#777" stroke-width="1.2" marker-end="url(#ar2)"/><rect x="484" y="24" width="150" height="21" rx="3" fill="#9ca3af" opacity=".25" stroke="#6b7280" stroke-dasharray="3 3"/><text class="tx c" x="559" y="38">No standalone inst</text>
-<text class="tx" x="346" y="58">Becomes group tag (gsb0) on the final HGMMA</text>
-<defs><marker id="ar2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
-<g id="algO"></g></svg><svg class="flat" viewBox="0 0 640 267" role="img" aria-label="Same decoding block across three columns: CUDA C++, PTX, and SASS">
-<text class="lab" x="8" y="18">CUDA C++</text><text class="lab" x="166" y="18">PTX (virtual registers)</text><text class="lab" x="384" y="18">SASS (schematic; reg numbers illustrative)</text>
-<text class="cd" x="8" y="45">__device__ void c12_dec(</text><text class="cd" x="8" y="66">  u32 la, u32 lb, u32 cd,</text><text class="cd" x="8" y="87">  u32&amp; o0, u32&amp; o1,</text><text class="cd" x="8" y="108">  u32&amp; o2, u32&amp; o3) {</text><text class="cd" x="8" y="129">  asm("shf.r.wrap.b32 …;</text><text class="cd" x="8" y="150">       and.b32 …; add.u32 …;</text><text class="cd" x="8" y="171">       prmt.b32 … ×4;"</text><text class="cd" x="8" y="192">      : "=r"(o0) …</text><text class="cd" x="8" y="213">      : "r"(la), "r"(lb), …);</text><text class="cd" x="8" y="234">}</text><path d="M150 140L160 140" stroke="#777" stroke-width="1.2" marker-end="url(#ar)"/>
-<defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
-<rect x="166" y="34" width="172" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><circle cx="175" cy="44.5" r="6.5" fill="#3e63dd"/><text class="bn" style="font-size:8.5px" x="175" y="47.5">1</text><text class="cd" x="185" y="48">shf.r.wrap.b32 rt, cd, cd, 4</text><rect x="166" y="59" width="172" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><circle cx="175" cy="69.5" r="6.5" fill="#d9791f"/><text class="bn" style="font-size:8.5px" x="175" y="72.5">2</text><text class="cd" x="185" y="73">and.b32 ha, cd, 0x87878787</text><rect x="166" y="84" width="172" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><circle cx="175" cy="94.5" r="6.5" fill="#d9791f"/><text class="bn" style="font-size:8.5px" x="175" y="97.5">3</text><text class="cd" x="185" y="98">and.b32 hb, rt, 0x87878787</text><rect x="166" y="109" width="172" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><circle cx="175" cy="119.5" r="6.5" fill="#1a9a7a"/><text class="bn" style="font-size:8.5px" x="175" y="122.5">4</text><text class="cd" x="185" y="123">add.u32 ha, ha, EXP_BASE</text><rect x="166" y="134" width="172" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><circle cx="175" cy="144.5" r="6.5" fill="#1a9a7a"/><text class="bn" style="font-size:8.5px" x="175" y="147.5">5</text><text class="cd" x="185" y="148">add.u32 hb, hb, EXP_BASE</text><rect x="166" y="159" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="169.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="172.5">6</text><text class="cd" x="185" y="173">prmt.b32 o0, la, ha, 0x5140</text><rect x="166" y="184" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="194.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="197.5">7</text><text class="cd" x="185" y="198">prmt.b32 o1, la, ha, 0x7362</text><rect x="166" y="209" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="219.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="222.5">8</text><text class="cd" x="185" y="223">prmt.b32 o2, lb, hb, 0x5140</text><rect x="166" y="234" width="172" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><circle cx="175" cy="244.5" r="6.5" fill="#8a5fd0"/><text class="bn" style="font-size:8.5px" x="175" y="247.5">9</text><text class="cd" x="185" y="248">prmt.b32 o3, lb, hb, 0x7362</text><g class="lay" data-l="1" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 194.5L348 194.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="184" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 219.5L348 219.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="209" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/></g><g class="lay" data-l="2" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 219.5L348 219.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="184" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 194.5L348 194.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="209" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="none" stroke="#9ca3af" stroke-dasharray="3 3"/></g><g class="lay" data-l="3" style="display:none"><path d="M338 44.5L348 44.5L384 44.5" fill="none" stroke="#3e63dd" stroke-width="1.1" opacity=".75"/><rect x="384" y="34" width="176" height="21" rx="3" fill="#3e63dd" opacity=".14" stroke="#3e63dd"/><text class="cd" x="390" y="48">SHF.R.W.U32 R8, R7, 0x4, R7</text><rect x="560" y="34" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="48">wait / stall</text><path d="M338 69.5L348 69.5L384 69.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="59" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="73">LOP3.LUT R7, R7, 0x87878787</text><rect x="560" y="59" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="73">wait / stall</text><path d="M338 94.5L348 94.5L384 94.5" fill="none" stroke="#d9791f" stroke-width="1.1" opacity=".75"/><rect x="384" y="84" width="176" height="21" rx="3" fill="#d9791f" opacity=".14" stroke="#d9791f"/><text class="cd" x="390" y="98">LOP3.LUT R8, R8, 0x87878787</text><rect x="560" y="84" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="98">wait / stall</text><path d="M338 119.5L348 119.5L384 119.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="109" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="123">VIADD R7, R7, EXP_BASE</text><rect x="560" y="109" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="123">wait / stall</text><path d="M338 144.5L348 144.5L384 144.5" fill="none" stroke="#1a9a7a" stroke-width="1.1" opacity=".75"/><rect x="384" y="134" width="176" height="21" rx="3" fill="#1a9a7a" opacity=".14" stroke="#1a9a7a"/><text class="cd" x="390" y="148">IADD3 R9, R8, EXP_BASE, RZ</text><rect x="560" y="134" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="148">wait / stall</text><path d="M338 169.5L348 169.5L384 169.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="159" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="173">PRMT R11, R0, 0x5140, R7</text><rect x="560" y="159" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="173">wait / stall</text><path d="M338 219.5L348 219.5L384 194.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="184" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="198">PRMT R3, R6, 0x5140, R9</text><rect x="560" y="184" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="198">wait / stall</text><path d="M338 194.5L348 194.5L384 219.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="209" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="223">PRMT R7, R0, 0x7362, R7</text><rect x="560" y="209" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="223">wait / stall</text><path d="M338 244.5L348 244.5L384 244.5" fill="none" stroke="#8a5fd0" stroke-width="1.1" opacity=".75"/><rect x="384" y="234" width="176" height="21" rx="3" fill="#8a5fd0" opacity=".14" stroke="#8a5fd0"/><text class="cd" x="390" y="248">PRMT R9, R6, 0x7362, R9</text><rect x="560" y="234" width="76" height="21" rx="3" fill="#9ca3af" opacity=".38" stroke="#6b7280"/><text class="tx c" style="font-size:9px" x="598" y="248">wait / stall</text></g>
-<g id="dots"></g><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" viewBox="0 0 640 126" role="img" aria-label="Ordering of the three steps">
-<text class="lab2" x="118" y="14">Shows order only</text>
-<text class="rl" x="110" y="43">Registers</text><rect class="row" x="118" y="30" width="506" height="20"/><text class="rl" x="110" y="69">Inst order</text><rect class="row" x="118" y="56" width="506" height="20"/><text class="rl" x="110" y="95">Control word</text><rect class="row" x="118" y="82" width="506" height="20"/>
-<clipPath id="clipT"><rect id="clipR" x="118" y="26" width="0" height="90"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1">1. PTX compiled to SASS</label></div>
-<input id="tIn" type="range" hidden min="0" max="10" step="0.02" value="0"></div><div class="lg"><span><i style="background:#3e63dd"></i>Shift</span><span><i style="background:#d9791f"></i>Bitwise AND</span><span><i style="background:#1a9a7a"></i>Integer add</span><span><i style="background:#8a5fd0"></i>Byte permute</span><span><i style="background:#9ca3af"></i>Control word</span><span><i style="border-color:var(--anatomy-red);border-width:2px"></i>Current step</span></div><p class="cap">The 9 PTX lines from Section 2 compile into 9 SASS instructions of 16 B each. ptxas allocates registers, reorders instructions, and writes a control word (stall count and scoreboard wait mask) into each instruction; this model comes from public reverse-engineering, and NVIDIA does not document the encoding. Register numbers and the instruction swap in the column are schematic.</p></main><script type="module">const TL0=118,TL1=624,TLY0=30,TLY1=112,STILL_T=3.5;
-const MODES={1:{ro:"9 PTX lines → 9 SASS instructions · 16 B each",X:[118,244.5,371,497.5,624],tl:"<rect x=\"120\" y=\"32\" width=\"122.5\" height=\"16\" fill=\"#3e63dd\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"181.3\" y=\"44\">7 physical regs</text><rect x=\"246.5\" y=\"58\" width=\"122.5\" height=\"16\" fill=\"#d9791f\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"307.8\" y=\"70\">Reorder issue (schem.)</text><rect x=\"373\" y=\"84\" width=\"122.5\" height=\"16\" fill=\"#1a9a7a\"/><text class=\"bn\" style=\"font-size:9.5px\" x=\"434.3\" y=\"96\">9 × 16 B inst words (with ctrl)</text><rect x=\"497.5\" y=\"30\" width=\"126.5\" height=\"72\" fill=\"#999\" opacity=\".13\"/><text class=\"txs\" text-anchor=\"middle\" x=\"560.8\" y=\"69\">Total</text>",steps:[{"layer":1,"s":"ptxas allocates a physical register for each virtual register (register numbers shown are illustrative).","f":"Virtual registers <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">t</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">a</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">b</mi></mrow><mo>→</mo></mrow><annotation encoding=\"application/x-tex\">\\mathrm{rt}, \\mathrm{ha}, \\mathrm{hb} \\to</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">rt</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">ha</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">hb</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">→</span></span></span></span> physical registers (integer adds lower to <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext mathvariant=\"monospace\">VIADD</mtext></mrow><annotation encoding=\"application/x-tex\">\\texttt{VIADD}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6111em;\"></span><span class=\"mord text\"><span class=\"mord texttt\">VIADD</span></span></span></span></span> or <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext mathvariant=\"monospace\">IADD3</mtext></mrow><annotation encoding=\"application/x-tex\">\\texttt{IADD3}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6111em;\"></span><span class=\"mord text\"><span class=\"mord texttt\">IADD3</span></span></span></span></span>)","i":"9 PTX lines: virtual registers <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">t</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">a</mi></mrow><mo separator=\"true\">,</mo><mrow><mi mathvariant=\"normal\">h</mi><mi mathvariant=\"normal\">b</mi></mrow></mrow><annotation encoding=\"application/x-tex\">\\mathrm{rt}, \\mathrm{ha}, \\mathrm{hb}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">rt</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">ha</span></span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">hb</span></span></span></span></span> have no physical numbers and can be arbitrarily many; diagram shows <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>l</mi><mi>a</mi><mo separator=\"true\">,</mo><mi>l</mi><mi>b</mi><mo separator=\"true\">,</mo><mi>c</mi><mi>d</mi></mrow><annotation encoding=\"application/x-tex\">la, lb, cd</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0197em;\">l</span><span class=\"mord mathnormal\">a</span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0197em;\">l</span><span class=\"mord mathnormal\">b</span><span class=\"mpunct\">,</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\">c</span><span class=\"mord mathnormal\">d</span></span></span></span> in R0, R6, R7 as an example (the first decode group of the shipped 12-bit gemv kernel uses R8, R12, R4)","o":"9 SASS instructions with physical register operands; diagram shows <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mi>o</mi><mn>0</mn></msub><mo>…</mo><msub><mi>o</mi><mn>3</mn></msub></mrow><annotation encoding=\"application/x-tex\">o_0 \\ldots o_3</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.5806em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">o</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">0</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"minner\">…</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">o</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">3</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span></span></span></span> in R11, R7, R3, R9 (the shipped kernel's first group puts them in R22, R8, R4, R12)","x":"Register-allocated 9 SASS instructions proceed to the next step: instruction scheduling","c":"Per-thread register count is determined here, governing SM occupancy (Chapter 3, Section 1): in the first decode group of the shipped 12-bit gemv kernel, register reuse keeps the footprint to 7 physical registers (R4, R8, R12, R17, R20, R21, R22)","ring":[[380,44.5],1,10],"mv":[]},{"layer":2,"s":"ptxas reorders instructions (the swap drawn is schematic).","f":"PTX source order <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mo>→</mo></mrow><annotation encoding=\"application/x-tex\">\\to</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.3669em;\"></span><span class=\"mrel\">→</span></span></span></span> SASS issue order (9 instructions)","i":"9 SASS instructions from Step 1 (in PTX order)","o":"9 SASS instructions (issue order): the diagram draws a two-line swap schematically; in the shipped kernel, ptxas schedules SHF after the first PRMT and interleaves the 9 instructions with other instructions","x":"Scheduled 9 SASS instructions proceed to the next step: encoding control words","c":"Instruction count unchanged (9 → 9)","ring":[[380,194.5],2,10],"mv":[]},{"layer":3,"s":"ptxas encodes the control word into each SASS instruction.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mtext> insts</mtext><mo>×</mo><mn>16</mn><mtext> </mtext><mi mathvariant=\"normal\">B</mi><mo>=</mo><mn>144</mn><mtext> </mtext><mi mathvariant=\"normal\">B</mi><mtext> instruction words</mtext></mrow><annotation encoding=\"application/x-tex\">9 \\text{ insts} \\times 16\\ \\mathrm{B} = 144\\ \\mathrm{B} \\text{ instruction words}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7512em;vertical-align:-0.0833em;\"></span><span class=\"mord\">9</span><span class=\"mord text\"><span class=\"mord\"> insts</span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord\">16</span><span class=\"mspace\"> </span><span class=\"mord mathrm\">B</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\">144</span><span class=\"mspace\"> </span><span class=\"mord mathrm\">B</span><span class=\"mord text\"><span class=\"mord\"> instruction words</span></span></span></span></span>","i":"Scheduled 9 SASS instructions","o":"Each 16 B instruction word (Volta and later, including Hopper) carries a scoreboard wait mask and stall count ('who to wait for / how many cycles'), according to public reverse-engineering studies. NVIDIA does not publicly document this encoding and disassembly does not show it, so this figure does not draw the values","x":"In this reverse-engineered model, the warp scheduler mainly uses these control words at runtime to wait on earlier results (Chapter 4, Sections 1–2)","c":"Wherever the control word says wait, the pipeline stalls there; 16 B per instruction","ring":[[380,169.5],3,10],"mv":[]},{"layer":3,"s":"Total: 9 PTX lines compile into 9 SASS instructions, 16 B each.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mo>→</mo><mn>9</mn></mrow><annotation encoding=\"application/x-tex\">9 \\to 9</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">9</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">→</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">9</span></span></span></span> instructions, <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>9</mn><mo>×</mo><mn>2</mn><mo>=</mo><mn>18</mn></mrow><annotation encoding=\"application/x-tex\">9 \\times 2 = 18</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">9</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">2</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">18</span></span></span></span> ALU cycles","i":"9 PTX lines","o":"9 SASS instructions = 144 B of instruction words","x":"—","c":"Total cost: 7 registers per thread; 9 ALU pipeline instructions at 2 cycles each (Chapter 5, Section 1), taking 18 cycles per 8 weights","ring":null,"mv":[]}]}};
+@media(max-width:600px){.kard{grid-template-columns:minmax(0,1fr)}.kard dt{margin-top:4px}}
+.iso-plate .nar{margin:14px 8px 8px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}
+.nar .nh>b{display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:#3e63dd;color:#ffffff;font-weight:600;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+.iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
+</style><figure class="iso-figure" aria-label="Figure 6-5 Interactive schematic of the same decode block from CUDA C++ to PTX to SASS (1 mode, 4 order-only steps unpacked in teaching order; ptxas internal pass order and interleaving unpublished): the top contrast panel shows two non-1-to-1 lowerings (cvt.f32.bf16 → 1 PRMT or left shift, e.g., PRMT R0, RZ, 0x7610, R0 with zero register RZ when BF16 sits in the high 16 bits; BF16 wgmma → HGMMA and FP8 → QGMMA, while wgmma.commit_group → 0 standalone ops as the gsb0 group tag on the final HGMMA); the main panel traces c12_dec's 9 inline PTX lines reordered into v10 group 1's 9 16 B (144 B total) SASS words at 0x400..0x5f0 (reusing R4 in place at 0x450, touching 7 of 53 thread registers, and taking 18 pipe-occupancy cycles = ALU 14 + FMA 4, with elapsed cycles not measured standalone; the dump shows add.u32 compiling to VIADD or IADD3 across groups, selection rule unpublished) with reverse-engineered pre-issue wait masks and post-issue stall counts inside each 16 B word (schematic split, Hopper bits unpublished; prior 16 B loads return in unspecified order, and SB4 is shared by lb plus 3 input-vector x loads) above a reference-only runtime 1-SMSP hardware strip; the bottom timeline totals 9→9 ops, 144 B, 7/53 registers, and 18 pipe-occupancy cycles."><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure 6-5</span><span class="iso-plate-corner" data-corner="title">The Same Decode Block from CUDA C++ to PTX to SASS</span><span class="iso-plate-corner" data-corner="readout" data-readout>v10 decode group 1: 9 PTX lines → 9 SASS ops · 16 B instruction word each (144 B total)
+Group touches 7 physical regs (53 thread total) · 18 pipe-occupancy cycles (ALU 14 + FMA 4)</span></div><svg id="alg" class="p" viewBox="0 0 640 80" role="img" aria-label="Contrast panel: two non-1-to-1 PTX-to-SASS lowerings — cvt.f32.bf16 f, h compiles to 1 PRMT or left shift (example with BF16 in the high 16 bits: PRMT R0, RZ, 0x7610, R0 with zero register RZ moves bytes), and wgmma.commit_group compiles to 0 standalone ops, becoming the gsb0 group tag on the final HGMMA (BF16 wgmma compiles to HGMMA; FP8 to QGMMA)."><g id="algH"></g><g id="algE"></g><g id="algO"></g></svg><svg id="code" class="p" viewBox="0 0 640 440" role="img" aria-label="Main compilation and reference runtime hardware panel: top prior-load bar lists 16 B loads 0x380 la (scoreboard 2 SB2), 0x390 cd (SB3), and shared SB4 across 0x3b0 lb plus 3 input-vector x loads 0x3d0–0x3f0 (return order unspecified); middle columns map CUDA C++ and 9 virtual-register PTX lines via crossing connectors onto v10 group 1's 9 SASS words at non-contiguous PCs 0x400..0x5f0 (interleaved with widen/FFMA/group-2 decode ops) and schematic in-word reverse-engineered control-bit strips (pre-issue wait mask and post-issue stall cycles), above a dashed note on unpublished Hopper bit fields and ptxas pass order; bottom shows a reference-only runtime 1-SMSP strip (scheduler, LSU load-return port, 16,384-register file [53 thread regs, 9 CTAs/SM cap, grid avg about 17.5 warps/SM, measured about 16 active warps/SM, group touches 7], 16-lane ALU pipe, and 32-lane FMA pipe)."><defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="var(--anatomy-text)"/></marker><marker id="arInk" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M0 0L5 2.5L0 5z" fill="var(--anatomy-strong)"/></marker></defs><g id="cA"></g><g id="cL"></g><g id="cC1"></g><g id="cC2"></g><g id="cU"></g><g id="cS"></g><g id="cB"></g><g id="focus"></g></svg><div class="card nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="p" viewBox="0 0 640 154" role="img" aria-label="Bottom compile-and-audit order timeline (order only, widths not to scale; 3 steps in teaching order, ptxas internal pass order and interleaving unpublished): three rows show Reorder ops (Reorder 9 virtual ops), SASS &amp; regs (Touch 7 / 53 regs), and Ctrl bits (Ctrl bits in 9 words), followed by the Total column summarizing 9 → 9 ops, 9 × 16 B = 144 B words, 7 touched regs (53 thread), and 18 pipe-occupancy cycles (ALU 14 + FMA 4)."><g id="flS"></g><text class="rl" id="rl0" data-rowlabel>Reorder ops</text><text class="rl" id="rl1" data-rowlabel>SASS &amp; regs</text><text class="rl" id="rl2" data-rowlabel>Ctrl bits</text><clipPath id="clipT"><rect id="clipR" x="0" y="0" width="0" height="154"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg></div></figure><div class="ctl"><input id="tIn" type="range" hidden min="0" max="4" step="0.01" value="0" autocomplete="off"></div><div class="lg"><span><i style="background:#3e63dd;border-color:#3e63dd"></i>Shift (SHF)</span><span><i style="background:#0b9f8c;border-color:#0b9f8c"></i>Bitwise AND (LOP3)</span><span><i style="background:#d98200;border-color:#d98200"></i>Integer add (VIADD)</span><span><i style="background:#8e4ec6;border-color:#8e4ec6"></i>Byte permute (PRMT)</span><span><i style="background:#5b6b7f;border-color:#5b6b7f"></i>Compiler step</span><span><i style="background:#c7cad4;border:1px solid #8d91a0"></i>Control bits (subfield of 16 B word; schematic split)</span><span><i style="background:#ffffff;border:1.8px solid var(--anatomy-strong)"></i>Current step focus</span><span><i style="background:var(--anatomy-face);border:1.2px dashed var(--anatomy-lo)"></i>Unpublished internals / unspecified return order</span></div><p class="cap">The main panel unpacks <code>v10</code> decode group 1 of <code>c12_dec</code> in three teaching steps (<code>ptxas</code> internal pass order and interleaving are unpublished): reordering <code>shf</code> after <code>and ha</code> in virtual registers (with intra-warp latency hidden by interleaved outside widen and <code>FFMA</code> ops), emitting <code>9</code> <code>16 B</code> (<code>128</code>-bit, <code>144 B</code> total) SASS words at non-contiguous PCs (<code>0x400..0x5f0</code>) that touch <code>7</code> of the thread's <code>53</code> physical registers (<code>0x450</code> reuses <code>R4</code> in place; <code>9</code> CTAs/SM register cap, <code>576 × 4</code> grid average about <code>17.5</code> warps/SM, profiler-measured about <code>16</code> active warps/SM [<code>25.1%</code>]; <code>18</code> pipe-occupancy cycles = <code>ALU 14 + FMA 4</code>, while elapsed cycles from <code>0x400</code> to <code>0x5f0</code> exceed <code>18</code> and were not measured standalone; the dump shows the same <code>add.u32</code> compiling to <code>VIADD</code> in group 1 vs. <code>IADD3</code> in group 2, with <code>ptxas</code>'s selection rule unpublished), and writing reverse-engineered pre-issue scoreboard wait masks and post-issue stall counts inside each <code>16 B</code> word (schematic split, Hopper bit fields unpublished; prior loads are <code>16 B</code> each with unspecified return order, and <code>SB4</code> is shared by <code>0x3b0 lb</code> plus <code>3</code> input-vector <code>x</code> loads <code>0x3d0..0x3f0</code>). The top contrast panel shows two non-1-to-1 lowerings (<code>cvt.f32.bf16</code> → <code>1</code> <code>PRMT</code> or left shift; <code>wgmma.commit_group</code> → <code>0</code> standalone ops, becoming the <code>gsb0</code> group tag on the final <code>HGMMA</code>), the bottom hardware strip is for runtime reference only (idle during compile), and the bottom timeline shows order only (not to scale).</p></main><script type="module">(function page(D) {
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const F = window.FIG || (window.FIG = {});
+  const L = D.L, M = D.M, C = D.C;
+  const tin = $("tIn"), STEPQ = +tin.step || 0.01, LO = +tin.min || 0, EPS = 1e-9;
+  const STEPT = [0, 1, 2, 3], END = 4;
+  const f1 = (v) => +(+v).toFixed(1);
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, key) => (v[key] !== undefined ? v[key] : m));
+  const Ln = (key) => L[key].split("<br>");
+  const hx = (n) => "0x" + n.toString(16);
+  const mk = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const a in attrs) e.setAttribute(a, attrs[a]); if (text != null) e.textContent = text; return e; };
 
-const $=(id)=>document.getElementById(id), readout=document.querySelector("[data-readout]");
-const esc_=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-const PALJ=["#3e63dd","#d9791f","#1a9a7a","#8a5fd0","#c2417a","#6b7280","#0e7490","#a16207"];
-function along(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); segs.push(d); Lt+=d;} let s=Math.max(0,Math.min(1,u))*Lt; for(let i=0;i<segs.length;i++){ if(s<=segs[i]){const f=segs[i]?s/segs[i]:0; return [pts[i][0]+(pts[i+1][0]-pts[i][0])*f, pts[i][1]+(pts[i+1][1]-pts[i][1])*f];} s-=segs[i];} return pts[pts.length-1]; }
-const pd=(pts)=>"M"+pts.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join("L");
-function card(c){ $("stepT").textContent=c.s||"";
-  $("stepK").innerHTML=[["Formula",c.f],["Input",c.i],["Output",c.o],["Hand-off",c.x],["Cost",c.c]].map(r=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join("");
-  document.querySelectorAll(".lay").forEach(g=>{ g.style.display = (+g.dataset.l===c.layer) ? "" : "none"; }); }
-let mode=1, S=[], N=1, t=0, prevLit=[];
-function tx(tt){ const X=MODES[mode].X, f=Math.min(Math.max(tt,0),N), k=Math.min(N-1,Math.floor(f)); return X[k]+(X[k+1]-X[k])*(f-k); }
-function setMode(m){ mode=m; const d=MODES[m]; S=d.steps; N=S.length; $("tl").innerHTML=d.tl; $("tIn").max=String(N); readout.textContent=d.ro; t=Math.min(t,N); if(d.setup) d.setup(); }
-function show(){
-  const d=MODES[mode], f=Math.min(t,N); let k=Math.min(N-1,Math.floor(f)); const u=f>=N?1:f-k, s=S[k];
-  prevLit.forEach(e=>e.classList.remove("issue","warm")); prevLit=[];
-  (s.lit||[]).forEach(sel=>{ const cls=sel.startsWith("!")?"warm":"issue"; document.querySelectorAll(sel.replace(/^!/,"")).forEach(e=>{e.classList.add(cls); prevLit.push(e);}); });
-  let h=""; (s.blocks?s.blocks(u):(s.mv||[]).filter(m=>u>=(m.s||0)).map(m=>({p:along(m.path,(u-(m.a||0))/((m.b||0.7)-(m.a||0))),n:m.n,l:m.l,r:m.r}))).forEach(b=>{ h+='<g><circle class="blk" cx="'+b.p[0].toFixed(1)+'" cy="'+b.p[1].toFixed(1)+'" r="'+(b.r||7)+'" fill="'+PALJ[(b.n-1)%PALJ.length]+'"/><text class="bn" x="'+b.p[0].toFixed(1)+'" y="'+(b.p[1]+3.4).toFixed(1)+'">'+(b.l||b.n)+'</text></g>'; });
-  $("dots").innerHTML=h;
-  $("focus").innerHTML = s.ring ? '<circle class="fr" cx="'+s.ring[0][0]+'" cy="'+s.ring[0][1]+'" r="'+(s.ring[2]||11)+'"/><text class="fn" x="'+s.ring[0][0]+'" y="'+(s.ring[0][1]-(s.ring[2]||11)-3)+'">'+s.ring[1]+'</text>' : "";
-  $("algO").innerHTML = s.alg ? '<rect class="ao" x="'+s.alg[0]+'" y="'+s.alg[1]+'" width="'+s.alg[2]+'" height="'+s.alg[3]+'" rx="3"/>' : "";
-  $("stepN").textContent=FIG.stepLabel(); card(s);
-  const x=tx(f); $("clipR").setAttribute("width",Math.max(0,x-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+x.toFixed(1)+" "+(TLY0-4)+"V"+TLY1); $("tIn").value=String(t);
-}
-$("tIn").addEventListener("input",()=>{ t=+$("tIn").value; show(); });
-document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",()=>{ setMode(+r.value); show(); }));
-const q=new URLSearchParams(location.search); const m0=+(q.get("m")||1);
-document.querySelector("input[name=mode][value='"+m0+"']").checked=true; setMode(m0);
-FIG.timeline({ steps: () => S.map((s, i) => ({ t: i, title: s.s })), end: () => N, rate: 0.45 });
-t=0; show();
-</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
+  // ---- the player axis: the same rule as player.js settled(k); the step k of a time v
+  const settled = (k) => { if (k >= STEPT.length - 1) return END; let v = STEPT[k + 1] - 1e-6; v = LO + Math.floor((v - LO) / STEPQ + EPS) * STEPQ; return +Math.max(v, STEPT[k]).toFixed(6); };
+  const idxOf = (v) => { let k = 0; STEPT.forEach((s, i) => { if (s <= v + EPS) k = i; }); return k; };
+
+  // ================================================================ FIG.hw state (ux_review/HW_RULES.md part 2). Pure: it reads D only, never the DOM.
+  // Times are positions on the order-only axis (tUnit "order"). The run-time events of the compiled block (six 16 B prior loads, nine group-0 issues) lie in 2.01..2.90.
+  const CONSTS = { sm: 132, smspPerSm: 4, lanes: 32, regsPerSm: 65536, smemPerSmB: 233472, warpSlots: 64, ctaSlots: 32 };
+  const UNITS = [
+    { id: "sm0", kind: "sm", n: 1, subsetOf: "sm:132", cap: { warps: 64, ctas: 32, regs: 65536, smemB: 233472 } },
+    { id: "smsp0", kind: "smsp", parent: "sm0", n: 1, subsetOf: 4, servers: 1 },
+    { id: "mem_ret", kind: "queue", n: 1, located: false, order: "unknown" },
+    { id: "lsu0", kind: "lsu", parent: "smsp0", n: 1, order: "unknown" },
+    { id: "regfile0", kind: "regfile", parent: "smsp0", n: 1, cap: { regs: 16384 } },
+    { id: "alu0", kind: "pipe", parent: "smsp0", n: 1, lanes: 16 },
+    { id: "fma0", kind: "pipe", parent: "smsp0", n: 1, lanes: 32 },
+  ];
+  const DEPS = [["ldg_cd_arr"], ["iss_0"], ["ldg_la_arr", "iss_1"], ["ldg_cd_arr"], ["iss_3"], ["ldg_la_arr", "iss_1"], ["iss_4"], ["ldg_lb_arr", "ldg_x1_arr", "ldg_x2_arr", "ldg_x3_arr", "iss_6"], ["ldg_lb_arr", "iss_6"]];
+  const T_ISS = (i) => +(2.1 + 0.1 * i).toFixed(2);
+  const EVENTS = [];
+  M.loads.forEach((ld, i) => {
+    const req = "req_" + ld.id, p = "ldg_" + ld.id;
+    EVENTS.push({ id: p + "_iss", kind: "issue", ent: "warp0", seq: i - 6, unit: "smsp0", op: ld.op, req, bytes: 16, t: ld.ti });
+    EVENTS.push({ id: p + "_srv", kind: "serve", unit: "mem_ret", req, bytes: 16, t0: ld.ts, t1: ld.ta });
+    EVENTS.push({ id: p + "_arr", kind: "arrive", unit: "regfile0", req, bytes: 16, t: ld.ta });
+  });
+  M.sass.forEach((r, i) => EVENTS.push({ id: "iss_" + i, kind: "issue", ent: "warp0", seq: i, unit: r.pipe + "0", op: r.op, lat: 0.05, deps: DEPS[i], t: T_ISS(i) }));
+  const T = (e) => (e.t !== undefined ? e.t : e.t0);
+  EVENTS.sort((a, b) => T(a) - T(b));
+  // a scoreboard wait starts after the previous issue (never at an issue instant) and ends with the arrival that frees the next instruction; wait_sb4 ends with the last of the four SB4 arrivals
+  const WAITS = [
+    { id: "wait_sb3", on: "req_cd", since: 2.07, by: "ldg_cd_arr" },
+    { id: "wait_sb2", on: "req_la", since: 2.25, by: "ldg_la_arr" },
+    { id: "wait_sb4", on: "req_x3", reqs: ["req_lb", "req_x1", "req_x2", "req_x3"], since: 2.71, by: "ldg_x3_arr" },
+  ];
+  const warpStateAt = (t) => (WAITS.some((w) => t >= w.since - EPS && t < T(EVENTS.find((e) => e.id === w.by)) - EPS) ? "stalled:long_scoreboard"
+    : EVENTS.some((e) => e.kind === "issue" && e.ent === "warp0" && Math.abs(e.t - t) < EPS) ? "selected" : "eligible");
+
+  const S = (id, text, value, unit, extra) => ({ id, text, value, ...(unit ? { unit } : {}), ...(extra || {}) });
+  const MEAS = "MEASURED cu128.gemv_v10.sass.gz:0x380-0x5f0", PTXF = "MEASURED gemv_v10.cu:30-39";
+  // the numbers of a frame that are the same in every frame: the readout, the run-time strip, the timeline
+  const SHOWN_ALL = [
+    S("ptxLines", "9", 9, "instr", { src: PTXF }), S("sassInsts", "9", 9, "instr", { src: MEAS }),
+    S("wordBytes", "16 B", 16, "B", { src: "DOCUMENTED book/ch06.md:159 (128-bit word); hw_coverage/HW_D4_sass.md" }), S("wordBits", "128", 128, "bit", { expr: "8 * wordBytes", src: "DERIVED" }),
+    S("totalWordBytes", "144 B", 144, "B", { refs: ["sassInsts"], expr: "wordBytes * sassInsts", src: "DERIVED (CNT-16)" }),
+    S("smTotal", "132", 132, "sm", { expr: "consts.sm", src: "DOCUMENTED book/ch04.md:63" }), S("smspPerSm", "4", 4, "smsp", { expr: "consts.smspPerSm", src: "DOCUMENTED book/ch04.md:5-7" }),
+    S("regsPerSmsp", "16,384", 16384, "reg", { expr: "consts.regsPerSm / consts.smspPerSm", src: "DOCUMENTED book/ch03.md:21; FACTS.md:14" }),
+    S("aluLanes", "16", 16, "lane", { src: "DOCUMENTED FACTS.md:5" }), S("fmaLanes", "32", 32, "lane", { src: "DOCUMENTED FACTS.md:5" }),
+    S("fmaIntLanes", "16", 16, "lane", { expr: "fmaLanes / 2", src: "MEASURED FACTCHECK_HW.md #2 (VIADD on the heavy half of the FMA pipe)" }),
+    S("aluClkPerInst", "2", 2, "cycle", { expr: "consts.lanes / aluLanes", src: "DERIVED 32 / 16" }), S("fmaClkPerViadd", "2", 2, "cycle", { expr: "consts.lanes / fmaIntLanes", src: "DERIVED 32 / 16" }),
+    S("threadRegs", "53", 53, "reg", { src: "MEASURED cu128.gemv_v10.ptxas.txt (Used 53 registers)" }), S("group0Regs", "7", 7, "reg", { src: MEAS + " (R4, R8, R12, R17, R20, R21, R22)" }),
+    S("aluInsts", "7", 7, "instr", { src: MEAS }), S("fmaViaddInsts", "2", 2, "instr", { expr: "sassInsts - aluInsts", src: MEAS }),
+    S("aluCycles", "14", 14, "cycle", { expr: "aluInsts * aluClkPerInst", src: "DERIVED" }), S("fmaCycles", "4", 4, "cycle", { expr: "fmaViaddInsts * fmaClkPerViadd", src: "DERIVED" }),
+    S("totalPipeCycles", "18", 18, "cycle", { expr: "aluCycles + fmaCycles", src: "DERIVED (pipe occupancy of two concurrent pipes, not elapsed time)" }),
+    S("regGranule", "256", 256, "reg", { src: "DOCUMENTED Hopper Tuning Guide 1.4.1.1 (a warp gets registers in steps of 256); book/ch03.md:21" }),
+    S("warpRegsAlloc", "1,792", 1792, "reg", { expr: "ceil(32 * threadRegs / regGranule) * regGranule", src: "DERIVED CAP-3" }), S("ctaWarps", "4", 4, "warp", { src: "MEASURED gemv_v10.cu (block 128)" }),
+    S("ctaRegsAlloc", "7,168", 7168, "reg", { expr: "ctaWarps * warpRegsAlloc", src: "DERIVED CAP-3" }), S("regCapCtasPerSm", "9", 9, "cta", { expr: "floor(consts.regsPerSm / ctaRegsAlloc)", src: "DERIVED CAP-3; MEASURED ncu_A.csv.gz launch__occupancy_limit_registers = 9" }),
+    S("gridCtas", "576", 576, "cta", { src: "MEASURED gemv_v10.cu (grid 576 x 128)" }), S("weightsPerGroup", "8", 8, "weight", { src: "DOCUMENTED book/ch06.md:41 (8 C12 weights per decode group)" }), S("xLoads", "3", 3, "instr", { src: MEAS + " (0x3d0, 0x3e0, 0x3f0)" }),
+    S("gridAvgWarpsPerSm", "17.5", 576 * 4 / 132, "warp", { expr: "gridCtas * ctaWarps / consts.sm", src: "DERIVED grid / 132" }),
+    S("activeWarpsPerSm", "16", 16, "warp", { src: "MEASURED ncu_A.csv.gz (25.1 % achieved occupancy), book/ch06.md:250" }),
+    S("cvtSassInsts", "1", 1, "instr", { src: "DOCUMENTED / OBSERVED archive mapping.csv:22 (cvt.f32.bf16 -> PRMT, IMAD.U32 or SHF), cu128.gemv_v1.sass.gz:0x0150 SHF.L.U32; book/ch06.md:174" }),
+    S("commitStandaloneInsts", "0", 0, "instr", { src: "MEASURED archive mapping.csv:65 (wgmma.commit_group has no SASS word; gsb0 on the last HGMMA); research/p4_qkv_gate_T128_hgmma.md:22-24" }),
+  ];
+  // numbers that only the card of one step prints (U-6; the card text is the language block, the numbers are the same in both languages)
+  const SHOWN_STEP = [
+    [S("hbGap1", "6", 6, "cycle", { src: "MEASURED stall sum 0x450-0x480 of " + MEAS }), S("hbGap2", "6", 6, "cycle", { src: "MEASURED stall sum 0x490-0x4d0 of " + MEAS }), S("hbGap3", "5", 5, "cycle", { src: "MEASURED stall sum 0x4e0-0x500 of " + MEAS }),
+      S("haStallCycles", "5", 5, "cycle", { src: MEAS }), S("imadToShfCycles", "4", 4, "cycle", { src: "MEASURED stall sum 0x420-0x430 of " + MEAS }),
+      S("issueOrder", "[2, 4, 6, 1, 3, 7, 5, 8, 9]", null, "index", { src: "MEASURED " + MEAS + " (1-based PTX source line of each scheduled row)" }), S("ptxIndexRange", "1..9", null, "index", { src: PTXF })],
+    [S("ctasPerSmAvg", "4.36", 576 / 132, "cta", { expr: "gridCtas / consts.sm", src: "DERIVED grid / 132" }), S("achievedOccPct", "25.1%", 25.1, "%", { src: "MEASURED ncu_A.csv.gz sm__warps_active 25.07-25.17" }),
+      S("viaddAll", "46", 46, "instr", { src: "MEASURED v10 whole kernel, 64 decode adds" }), S("iadd3All", "18", 18, "instr", { src: "MEASURED v10 whole kernel" }), S("decodeAddsAll", "64", 64, "instr", { expr: "viaddAll + iadd3All", src: "MEASURED v10 whole kernel" }),
+      S("decodeGroups", "32", 32, "group", { src: "MEASURED v10 whole kernel (32 x SHF.R.W.U32 ..., 0x4)" })],
+    [S("sbIdLa", "2", 2, "scoreboard", { src: MEAS + " (write SB of 0x380)" }), S("sbIdCd", "3", 3, "scoreboard", { src: MEAS }), S("sbIdLb", "4", 4, "scoreboard", { src: MEAS }), S("sb4LoadCount", "4", 4, "instr", { src: MEAS + " (0x3b0, 0x3d0, 0x3e0, 0x3f0)" })],
+    [S("aluCyclesAvg", "15.1", 15.125, "cycle", { src: "DERIVED from MEASURED whole-kernel counts (v10 averages 15.125 ALU + 2.875 FMA cycles per group)" }), S("fmaCyclesAvg", "2.9", 2.875, "cycle", { src: "DERIVED, as aluCyclesAvg" }), S("cvtHighBits", "16", 16, "bit", { src: "DOCUMENTED book/ch06.md:174 (BF16 is the high 16 bits of FP32)" }), S("nextSection", "6", 6, "section", { src: "book/ch06.md section 6 (the cross reference of the card)" })],
+  ];
+  const PCRE = /\b0x([0-9a-f]{3})\b/g;
+  // every string that a frame prints (read from the language block, not from the DOM): the PCs among them make the CNT-16 run of the frame
+  function printedStrings(k) {
+    const o = [...Ln("sass.readout"), ...Ln("sass.focus.k" + k), ...Ln("sass.ldg.k" + Math.min(k, 2)), L["sass.col.c1." + (k ? "k1" : "k0")], L["sass.unk"], L["sass.tl.axis"], D.TITLES[k], ...D.CARDRAW[k],
+      L["sass.alg.hdr"], L["sass.alg.ex1.a"], L["sass.alg.ex1.b"], L["sass.alg.ex2.a"], L["sass.alg.ex2.b"], L["sass.alg.ex2.c"], ...M.ptx.map((p) => p[0]), ...M.cpp,
+      ...["hdr", "smsp", "lsu", "reg", "alu", "fma"].map((key) => L["sass.strip." + key])];
+    if (k >= 1) { M.gaps.forEach((g) => o.push(hx(g.a) + "–" + hx(g.b))); M.sass.forEach((r) => o.push(r.t)); M.loads.slice(0, k >= 2 ? 6 : 3).forEach((l) => o.push(l.op)); }
+    return o;
+  }
+  const HEXRE = /\b0x([0-9a-f]+)\b/g;
+  function immsAt(k) {
+    const seen = new Set();
+    printedStrings(k).forEach((s) => { for (const m of s.matchAll(HEXRE)) if (m[1].length !== 3) seen.add(m[0]); });
+    return [...seen].map((h) => S("imm_" + h.slice(2), h, parseInt(h, 16), "imm", { src: "MEASURED operand text of " + MEAS + " / PTX of " + PTXF }));
+  }
+  function pcsAt(k) {
+    const seen = new Set();
+    printedStrings(k).forEach((s) => { for (const m of s.matchAll(PCRE)) seen.add(parseInt(m[1], 16)); });
+    if (k >= 1) { M.sass.forEach((r) => seen.add(r.pc)); [0, 1, 2].forEach((i) => seen.add(M.loads[i].pc)); }
+    if (k >= 2) M.loads.forEach((l) => seen.add(l.pc));
+    return [...seen].sort((a, b) => a - b).map((v) => S("pc_" + v.toString(16), hx(v), v, "pc", { src: MEAS }));
+  }
+  const stallShown = () => M.sass.map((r, i) => S("stall_" + i, String(r.stall), r.stall, "cycle", { src: "REVERSE-ENGINEERED " + MEAS + " (stall bits 41-44)" }));
+  function hwState(t) {
+    t = +t; const k = idxOf(t);
+    const log = EVENTS.filter((e) => T(e) <= t + EPS);
+    const has = (id) => log.some((e) => e.id === id);
+    const ents = [
+      { id: "cta0", kind: "cta", n: 1, subsetOf: "cta:576", at: "sm0", state: "running", use: { regsPerThread: 53, warps: 4, threads: 128, smemB: 0 } },
+      { id: "warp0", kind: "warp", n: 1, subsetOf: "warp:4", at: "smsp0", lanes: 32, state: warpStateAt(t), use: { regsPerThread: 53 } },
+    ];
+    M.loads.forEach((ld) => { if (t >= ld.ti - EPS) { const arrived = has("ldg_" + ld.id + "_arr"); ents.push({ id: "req_" + ld.id, kind: "request", n: 1, at: arrived ? null : "mem_ret", state: arrived ? "arrived" : "flight", bytes: 16 }); } });
+    const waits = WAITS.filter((w) => w.since <= t + EPS).map((w) => { const by = log.find((e) => e.id === w.by); return { id: w.id, who: "warp0", kind: "scoreboard", on: w.on, ...(w.reqs ? { reqs: w.reqs } : {}), since: w.since, until: by ? T(by) : null, satisfied: !!by, by: by ? w.by : null }; });
+    const order = []; for (let i = 0; i < 8; i++) order.push({ a: "sched_row_" + i, b: "sched_row_" + (i + 1), basis: "measured:cu128.gemv_v10.sass.gz:0x400-0x5f0" });
+    const shown = [...SHOWN_ALL, ...SHOWN_STEP[k]];
+    if (k >= 1) shown.push(S("ldgBytesPerThread", "16 B", 16, "B", { src: MEAS + " (LDG.E.EF.128)" }));
+    if (k >= 2) shown.push(...stallShown());
+    shown.push(...pcsAt(k), ...immsAt(k));
+    return { fig: D.FIG_ID, mode: null, k, t, tUnit: "order", consts: CONSTS, units: UNITS, ents, events: log, waits, order, shown };
+  }
+  const HW_SPEC = { modes: [null], frames: () => STEPT.map((_, k) => settled(k)), state: (_mode, t) => hwState(t) };
+  if (window.FIG && typeof window.FIG.hw === "function") window.FIG.hw(HW_SPEC);
+
+  // ================================================================ text measure and wrap
+  const mt = mk("text", { x: 0, y: -50, visibility: "hidden" });
+  $("code").appendChild(mt);
+  const memo = new Map();
+  function tw(s, cls, fs) { const key = cls + "|" + fs + "|" + s; let v = memo.get(key); if (v === undefined) { mt.setAttribute("class", cls); mt.style.fontSize = fs + "px"; mt.textContent = s; v = mt.getComputedTextLength(); mt.textContent = ""; if (v > 0 || !s.trim()) memo.set(key, v); } return v; }
+  // an operand list (R0, RZ, 0x7610, R0), an opcode and its first register, and a number and its unit stay on one line
+  const glue = (s) => s.replace(/(\d) (?=[A-Za-z(])/g, "$1\u00a0").replace(/\b(R\d+|RZ|0x[0-9a-fA-F]+), (?=\S)/g, "$1,\u00a0").replace(/\b([A-Z][A-Z0-9]{2,}(?:\.[A-Z0-9]+)*) (?=R\d)/g, "$1\u00a0");
+  // a line breaks after a space or a CJK character and never before a closing mark or after an opening one
+  function wrapLine(s, maxW, cls, fs) {
+    const atoms = glue(s).match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^ \t\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+[ \t]*|[ \t]+/g) || [s];
+    const NOSTART = /^[，。、；：）)！？］\]·]/, NOEND = /[（(［\[]$/, out = []; let cur = "";
+    for (const a of atoms) {
+      const j = cur + a;
+      if (cur && tw(j.trimEnd(), cls, fs) > maxW && !NOSTART.test(a)) {
+        if (!NOEND.test(cur)) { out.push(cur.trimEnd()); cur = a.trimStart(); }
+        else if (cur.length > 1) { out.push(cur.slice(0, -1).trimEnd()); cur = cur.slice(-1) + a; }
+        else cur = j;
+      } else cur = j;
+    }
+    if (cur.trim()) out.push(cur.trimEnd());
+    return out;
+  }
+  const wrapAll = (arr, maxW, cls, fs) => arr.flatMap((l) => wrapLine(l, maxW, cls, fs));
+  // the same number of lines as wrapLine, as even as possible (no orphan word on the last line)
+  function wrapEven(s, maxW, cls, fs) { const n = wrapLine(s, maxW, cls, fs).length; let w = maxW; if (n > 1) while (w > 20 && wrapLine(s, w - 2, cls, fs).length === n) w -= 2; return wrapLine(s, w, cls, fs); }
+  const wrapAllE = (arr, maxW, cls, fs) => arr.flatMap((l) => wrapEven(l, maxW, cls, fs));
+  const maxW = (arr, cls, fs) => Math.max(0, ...arr.map((l) => tw(l, cls, fs)));
+  const Tx = (x, y, s, cls, fs, anchor, extra) => `<text class="${cls}" x="${f1(x)}" y="${f1(y)}" style="font-size:${fs}px"${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${esc(s)}</text>`;
+  const Tl = (arr, x, y, lh, cls, fs, anchor, extra) => `<text class="${cls}" style="font-size:${fs}px"${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${arr.map((l, i) => `<tspan x="${f1(x)}" y="${f1(y + i * lh)}">${esc(l)}</tspan>`).join("")}</text>`;
+  const Rc = (x, y, w, h, cls, extra) => `<rect class="${cls}" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"${extra || ""}/>`;
+  const tint = (c, op) => ` fill="${c}" fill-opacity="${op ?? 0.14}" stroke="${c}" stroke-width="1"`;
+  const sym = (j) => M.ptx[j][0].replace(/,.*$/, "") + "…";   // the symbolic form of a PTX line: opcode and destination
+  const BADGE = { alu: "ALU", fma: "FMA" };
+  const CLSC = (c) => C[c];
+
+  // ================================================================ layout: one geometry for pages wider than 600 px (W = 640), one for pages of 600 px and below (W = the width of the pan, nothing to scroll)
+  function layoutAlg(W, narrow, XR) {
+    const g = { cells: [] }, pad = 8;
+    const hdr = wrapLine(L["sass.alg.hdr"], XR - 8, "ts", 9.5);
+    let y = 14 + 12 * (hdr.length - 1);
+    g.hdr = { lines: hdr, y: 14 };
+    const cellW = narrow ? XR - 8 : (W - 16 - 12) / 2;
+    const defs = [[L["sass.alg.ex1.a"], L["sass.alg.ex1.b"]], [L["sass.alg.ex2.a"], L["sass.alg.ex2.b"], L["sass.alg.ex2.c"]]];
+    const cells = defs.map((d) => { const a = wrapEven(d[0], cellW - 2 * pad, "ts", 10), rest = d.slice(1).map((s) => wrapEven(s, cellW - 2 * pad, "t", 9.5)); return { a, rest, h: 8 + 13 * a.length + rest.reduce((n, r) => n + 12 * r.length, 0) + 4 }; });
+    const top = y + 8;
+    if (!narrow) { const h = Math.max(...cells.map((c) => c.h)); cells.forEach((c, i) => Object.assign(c, { x: 8 + i * (cellW + 12), y: top, w: cellW, h })); g.H = top + h + 4; }
+    else { let yy = top; cells.forEach((c) => { Object.assign(c, { x: 8, y: yy, w: cellW }); yy += c.h + 6; }); g.H = yy - 6 + 4; }
+    g.cells = cells;
+    g.frame = { x: 4, y: top - 4, w: W - 8, h: g.H - top };
+    return g;
+  }
+
+  const BW = 26, RG = 2, BFS = 7.5;   // pipe badge width and text size; space between two rows
+  function layoutStrip(W, narrow, XR, y0) {
+    const fs = 8.5, lh = 11, pad = 6, g = { y: y0 };
+    const keys = ["smsp", "lsu", "reg", "alu", "fma"], txt = Object.fromEntries(keys.map((key) => [key, L["sass.strip." + key]]));
+    g.hdr = wrapLine(L["sass.strip.hdr"], XR - 8 - 20, "ts", 9);
+    const hdrH = 12 * g.hdr.length + 4;
+    const fx = 8, fr = XR, ix = fx + 8, ir = fr - 8;                  // sm frame x, right; smsp frame x, right
+    const sx = ix + 6, sr = ir - 6, innerW = sr - sx;                  // boxes between sx and sr
+    const sy = y0 + hdrH + 6, boxes = [];
+    const rowOf = (items, ws, y) => { let x = sx; const hs = items.map((key, i) => wrapEven(txt[key], ws[i] - 2 * pad, "t", fs).length * lh + 2 * pad - 2); const h = Math.max(...hs); items.forEach((key, i) => { boxes.push({ key, x, y, w: ws[i], h, lines: wrapEven(txt[key], ws[i] - 2 * pad, "t", fs) }); x += ws[i] + 6; }); return h; };
+    let y = sy + 6;
+    if (!narrow) {
+      const len = keys.map((key) => tw(txt[key], "t", fs)), avail = innerW - 6 * 4, n = Math.max(1, Math.ceil(len.reduce((a, b) => a + b, 0) / (avail - 5 * 2 * pad)));
+      let ws = len.map((l) => l / n + 2 * pad + 8); const s = avail / ws.reduce((a, b) => a + b, 0); ws = ws.map((w) => w * s);
+      y += rowOf(keys, ws, y);
+    } else {
+      const half = (innerW - 6) / 2;
+      y += rowOf(["smsp", "lsu"], [half, half], y) + 6;
+      y += rowOf(["reg"], [innerW], y) + 6;
+      y += rowOf(["alu", "fma"], [half, half], y);
+    }
+    g.boxes = boxes; g.sm = { x: fx, y: y0, w: fr - fx, h: 0 }; g.smsp = { x: ix, y: sy, w: ir - ix, h: y + 6 - sy };
+    g.sm.h = y + 6 + 6 - y0; g.H = g.sm.h + 14;                        // room under the frame for the dashed return arrow
+    g.hdrX = fx + 10;
+    return g;
+  }
+  function layoutCode(W, narrow, XR) {
+    const g = { narrow }, rowH = narrow ? 13 : 16, gapH = narrow ? 10 : 11, pitch = rowH + RG;
+    const tagReuse = L["sass.tag.reuse"], tagMoved = L["sass.tag.moved"], stripTxt = [];
+    M.sass.forEach((r) => stripTxt.push(r.wait ? fill(L["sass.c2.wait"], { sb: "SB" + r.wait, n: r.stall }) : fill(L["sass.c2.nowait"], { n: r.stall })));
+    const origTags = M.order.map((j) => fill(L["sass.tag.orig"], { p: j + 1 }));
+    // the code font: the largest size at which the columns fit the width
+    let fs = 7.5, xs = null;
+    for (const f of [8.5, 8, 7.5]) {
+      const cw = Math.max(...M.sass.map((r, i) => 6 + tw(hx(r.pc) + " " + r.t, "cd", f) + (i === 3 ? 4 + tw(tagReuse, "tm", 8.5) : 0) + 4 + BW + 5));
+      const c0 = Math.max(...M.order.map((j, i) => 6 + tw(sym(j), "cd", f) + (j === 0 ? 4 + tw(tagMoved, "tm", 8.5) : 0) + (narrow ? 4 + tw(origTags[i], "tm", 8.5) : 0) + 6));
+      const wC1 = Math.max(cw, c0), wC2 = maxW(stripTxt, "t", 8.5) + 10;
+      if (narrow) { xs = { C1: { x: 8, w: wC1 }, C2: { x: XR - wC2, w: wC2 } }; xs.C1.w = xs.C2.x - 7 - 8; fs = f; if (wC1 <= xs.C1.w + 0.01) break; continue; }
+      const fa = Math.min(f, 8), wA = maxW(M.cpp, "cd", fa) + 8, wB = maxW(M.ptx.map((p) => p[0]), "cd", f) + 14, wK = 30, gAB = 10;
+      const tot = wA + gAB + wB + wK + wC1 + 7 + wC2;
+      fs = f; xs = { A: { x: 8, w: wA }, B: { x: 8 + wA + gAB, w: wB }, K: { x0: 8 + wA + gAB + wB, x1: 8 + wA + gAB + wB + wK } };
+      xs.C2 = { x: XR - wC2, w: wC2 }; xs.C1 = { x: xs.K.x1, w: xs.C2.x - 7 - xs.K.x1 };
+      if (tot <= XR - 8 + 0.01) break;
+    }
+    g.fs = fs; g.xs = xs; g.rowH = rowH; g.strips = stripTxt; g.origTags = origTags;
+    // callout lines of the four frames (a pill of its own width in the wide layout, the full width in the narrow one)
+    const cw = (narrow ? XR - 8 : W - 16) - 20;
+    g.call = [0, 1, 2, 3].map((k) => { const l = Ln("sass.focus.k" + k); return { a: wrapEven(l[0], cw, "ts", 10.5), b: l.slice(1).flatMap((s) => wrapEven(s, cw, "t", 10)) }; });
+    g.callH = 10 + 13 * Math.max(...g.call.map((c) => c.a.length + c.b.length));
+    // ldg bar: the lines of k = 0, 1, 2 (k = 3 shows the k = 2 text) and, from k = 2, a row of six request chips
+    const lw = XR - 8 - 16;
+    g.ldg = [0, 1, 2].map((k) => wrapAllE(Ln("sass.ldg.k" + k), lw, "t", 9));
+    g.ldgHk = g.ldg.map((l, k) => 6 + 12 * l.length + (k >= 2 ? 17 : 4));
+    g.ldgH = Math.max(...g.ldgHk);
+    // column headers
+    const hdr = {};
+    hdr.c1 = [0, 1].map((k) => wrapLine(L["sass.col.c1.k" + k], xs.C1.w, "ts", 9.5));
+    hdr.c2 = [Ln("sass.col.c2.todo"), Ln("sass.col.c2.shown")];
+    hdr.n = Math.max(2, ...hdr.c1.map((l) => l.length));
+    hdr.h = 12 * hdr.n + 2;
+    hdr.ab = narrow ? wrapLine(L["sass.col.ab.narrow"], XR - 8, "ts", 9.5) : null;
+    g.hdr = hdr;
+    // vertical stack
+    let y = 6;
+    g.ldgY = y; y += g.ldgH + 6;
+    if (!narrow) { g.callY = y; y += g.callH + 6; }
+    if (narrow) { g.abY = y; y += 12 * hdr.ab.length + 2; g.ptxY = Array.from({ length: 9 }, (_, j) => y + j * 15); y += 9 * 15 + 6; g.callY = y; y += g.callH + 4; }
+    g.hdrY = y; y += hdr.h + 2;
+    g.bandTop = y;
+    g.c1Y = []; g.gapY = {}; let yy = y;
+    for (let i = 0; i < 9; i++) { g.c1Y.push(yy); yy += pitch; const gp = M.gaps.find((q) => q.after === i); if (gp) { g.gapY[i] = yy - RG + 1; yy += gapH; } }
+    g.bandBot = yy - RG; g.band = g.bandBot - g.bandTop;
+    if (!narrow) g.ptxY = Array.from({ length: 9 }, (_, j) => g.bandTop + j * (g.band - rowH) / 8);
+    y = g.bandBot + 20;
+    const unk = wrapEven(L["sass.unk"], XR - 8 - 14, "t", 9);
+    g.unk = { y, lines: unk, h: 8 + 11 * unk.length + 2 }; y += g.unk.h + 8;
+    g.strip = layoutStrip(W, narrow, XR, y); y += g.strip.H;
+    g.H = Math.ceil(y + 2);
+    return g;
+  }
+  function layoutFlat(W, narrow, XR) {
+    const g = { narrow };
+    const labs = [0, 1, 2].map((i) => L["sass.tl.r" + i]);
+    if (!narrow) {
+      const lw = maxW(labs, "rl", 10);
+      g.TL0 = Math.max(112, Math.ceil(lw) + 16); g.TL1 = W - 8;
+      g.hdr = wrapEven(L["sass.tl.axis"], W - 16, "t", 9.5);
+      const top = 14 + 12 * (g.hdr.length - 1) + 12; g.rowH = 26; g.rowP = 32; g.rowY = [0, 1, 2].map((i) => top + i * g.rowP);
+      g.H = g.rowY[2] + g.rowH + 14; g.bar = { y: 3, h: 20 };
+    } else {
+      g.TL0 = 10; g.TL1 = XR;
+      g.hdr = wrapEven(L["sass.tl.axis"], XR - 8, "t", 9.5);
+      let y = 14 + 12 * (g.hdr.length - 1) + 10; g.rowH = 28; g.rowY = [];
+      for (let i = 0; i < 3; i++) { y += 14; g.rowY.push(y); y += g.rowH + 8; }
+      g.H = y + 6; g.bar = { y: 2, h: 24 };
+    }
+    g.SWD = (g.TL1 - g.TL0) / 4; g.XB = [0, 1, 2, 3, 4].map((i) => f1(g.TL0 + i * g.SWD));
+    g.curY0 = g.rowY[0] - 4; g.curY1 = g.rowY[2] + g.rowH + 4;
+    return g;
+  }
+  let LAY = null;
+  function buildLayout(W, narrow) {
+    const XR = narrow ? W - 24 : W - 11;
+    return { W, narrow, XR, alg: layoutAlg(W, narrow, XR), code: layoutCode(W, narrow, XR), flat: layoutFlat(W, narrow, XR) };
+  }
+
+  // ================================================================ drawing
+  const dimOf = (id, on) => { const e = $(id); if (e) { if (on) e.setAttribute("data-dim", ""); else e.removeAttribute("data-dim"); } };
+  const base = (y, h, fs) => y + h / 2 + fs * 0.35;
+  function drawAlg(k) {
+    const A = LAY.alg;
+    $("algH").innerHTML = Tl(A.hdr.lines, 8, A.hdr.y, 12, "ts", 9.5);
+    let h = "";
+    A.cells.forEach((c) => {
+      let y = c.y + 8 + 9;
+      h += `<g>${Rc(c.x, c.y, c.w, c.h, "box", ' rx="4"')}${Tl(c.a, c.x + 8, y, 13, "ts", 10)}`;
+      y += 13 * c.a.length - 13 + 12;
+      c.rest.forEach((r) => { h += Tl(r, c.x + 8, y, 12, "t", 9.5); y += 12 * r.length; });
+      h += "</g>";
+    });
+    $("algE").innerHTML = h;
+    dimOf("algH", k < 3); dimOf("algE", k < 3);
+    const x0 = Math.min(...A.cells.map((c) => c.x)) - 3, y0 = Math.min(...A.cells.map((c) => c.y)) - 3, x1 = Math.max(...A.cells.map((c) => c.x + c.w)) + 3, y1 = Math.max(...A.cells.map((c) => c.y + c.h)) + 3;
+    $("algO").innerHTML = k === 3 ? Rc(x0, y0, x1 - x0, y1 - y0, "ao", ' rx="6"') : "";
+  }
+
+  function drawCode(k) {
+    const g = LAY.code, narrow = g.narrow, xs = g.xs, rh = g.rowH, fs = g.fs, XR = LAY.XR, W = LAY.W;
+    // ---- columns A (C++) and B (PTX) with the nine crossing connectors
+    let a = "";
+    if (!narrow) {
+      const fa = Math.min(fs, 8);
+      a += Tx(xs.A.x, g.hdrY + 10, L["sass.col.cpp"], "ts", 9.5) + Tx(xs.A.x, g.hdrY + 22, L["sass.col.cpp.sub"], "tm", 8.5);
+      const lh = (g.band - 4) / 10;
+      a += Tl(M.cpp, xs.A.x, g.bandTop + lh * 0.7, lh, "cd", fa);
+      const ay = g.bandTop + lh * 0.7 + 4 * lh - 3;
+      a += `<path class="conn" d="M${f1(xs.A.x + xs.A.w - 4)} ${f1(ay)}L${f1(xs.B.x - 3)} ${f1(ay)}" stroke="var(--anatomy-text)" stroke-width="1.2" marker-end="url(#ar)"/>`;
+      a += Tx(xs.B.x, g.hdrY + 10, L["sass.col.ptx"], "ts", 9.5) + Tx(xs.B.x, g.hdrY + 22, L["sass.col.ptx.sub"], "tm", 8.5);
+    } else a += Tl(g.hdr.ab, 8, g.abY + 9, 12, "ts", 9.5);
+    const bx = narrow ? 8 : xs.B.x, bw = narrow ? XR - 8 : xs.B.w;
+    M.ptx.forEach((p, j) => { const y = g.ptxY[j]; a += `<g>${Rc(bx, y, bw, rh, "", ' rx="3"' + tint(CLSC(p[1])))}${Tx(bx + 7, base(y, rh, fs), p[0], "cd", fs)}</g>`; });
+    if (!narrow) {
+      let cs = "", tag = "";
+      M.ptx.forEach((p, j) => {
+        const i = M.order.indexOf(j), y0 = g.ptxY[j] + rh / 2, y1 = g.c1Y[i] + rh / 2, x0 = xs.B.x + xs.B.w, x1 = xs.K.x1, xm = (x0 + x1) / 2, c = CLSC(p[1]);
+        cs += `<path class="conn" d="M${f1(x0)} ${f1(y0)}C${f1(xm)} ${f1(y0)} ${f1(xm)} ${f1(y1)} ${f1(x1)} ${f1(y1)}" stroke="${c}" stroke-width="${j === 0 ? 1.9 : 1.1}" opacity="${j === 0 ? 1 : 0.85}"/>`;
+        if (j === 0) tag = "";
+      });
+      a += `<g>${cs}</g>`;
+      a += k === 0 ? tag : "";
+    }
+    $("cA").innerHTML = a; dimOf("cA", k === 1 || k === 2);
+
+    // ---- column C1: symbolic virtual lines at k = 0, the measured SASS rows from k = 1 (the nine rows keep their y in every frame)
+    const C1 = xs.C1, C2 = xs.C2;
+    let c = Tl(g.hdr.c1[k ? 1 : 0], C1.x, g.hdrY + 10, 12, "ts", 9.5);
+    M.order.forEach((j, i) => {
+      const r = M.sass[i], y = g.c1Y[i], col = CLSC(M.ptx[j][1]), by = base(y, rh, fs);
+      let s = Rc(C1.x, y, C1.w, rh, "", ' rx="3"' + tint(col));
+      if (k === 0) {
+        s += Tx(C1.x + 6, by, sym(j), "cd", fs);
+        let xr = C1.x + C1.w - 6;
+        if (narrow) { s += Tx(xr, by, g.origTags[i], "tm", 8.5, "end"); xr -= tw(g.origTags[i], "tm", 8.5) + 4; }
+        if (j === 0) s += Tx(xr, by, L["sass.tag.moved"], "tm", 8.5, "end");
+      } else {
+        s += `<text class="cd" x="${f1(C1.x + 6)}" y="${f1(by)}" style="font-size:${fs}px"><tspan class="cm">${hx(r.pc)}</tspan> ${esc(r.t)}</text>`;
+        const bxx = C1.x + C1.w - 5 - BW;
+        s += Rc(bxx, y + rh / 2 - 5, BW, 10, "badge", ' rx="2.5"') + Tx(bxx + BW / 2, y + rh / 2 + 2.7, BADGE[r.pipe], "tm", BFS, "middle");
+        if (i === 3) s += Tx(bxx - 4, by, L["sass.tag.reuse"], "tm", 8.5, "end");
+      }
+      c += `<g data-hw="sched_row_${i}">${s}</g>`;
+    });
+    M.gaps.forEach((q) => {
+      const y = g.gapY[q.after], gy = y + (narrow ? 8 : 9);
+      if (k === 0) c += `<text class="tm" style="font-size:8px" x="${f1(C1.x + 6)}" y="${f1(gy)}">${esc(L["sass.gap.k0"])}</text>`;
+      else c += `<text style="font-size:8px" x="${f1(C1.x + 6)}" y="${f1(gy)}"><tspan class="cm">${hx(q.a)}–${hx(q.b)}</tspan><tspan class="tm" dx="4">${esc(L["sass.gap." + q.kind])}</tspan></text>`;
+    });
+    if (k === 0 && !narrow) { const i0 = M.order.indexOf(0), gy = g.gapY[i0 - 1]; if (gy !== undefined) c += `<text x="${f1(C1.x + C1.w - 6)}" y="${f1(gy + 8.5)}" text-anchor="end" style="font-size:8.5px;font-weight:600" fill="${CLSC("shift")}">${esc(L["sass.tag.shf"])}</text>`; }
+    $("cC1").innerHTML = c; dimOf("cC1", k === 2);
+
+    // ---- column C2: nine empty slots until the control bits are written (k = 2)
+    let d = "";
+    if (k >= 2) M.sass.forEach((r, i) => { d += Rc(C1.x - 1.5, g.c1Y[i] - 0.5, C2.x + C2.w - C1.x + 1.5, rh + 1, "wt", ' rx="3.5"'); });
+    d += Tl(Ln(k >= 2 ? "sass.col.c2.shown" : "sass.col.c2.todo").slice(0, 1), C2.x + C2.w, g.hdrY + 10, 11, "ts", 8.5, "end") + Tl(Ln(k >= 2 ? "sass.col.c2.shown" : "sass.col.c2.todo").slice(1), C2.x + C2.w, g.hdrY + 21, 11, "tm", 8.5, "end");
+    M.sass.forEach((r, i) => {
+      const y = g.c1Y[i];
+      if (k < 2) d += Rc(C2.x, y, C2.w, rh, "slot", ' rx="3"');
+      else d += Rc(C2.x, y, C2.w, rh, "strip", ' rx="3"') + `<text class="bi" x="${f1(C2.x + C2.w / 2)}" y="${f1(base(y, rh, 8.5))}" text-anchor="middle" style="font-size:8.5px;font-weight:${r.wait ? 700 : 400}">${esc(g.strips[i])}</text>`;
+    });
+    if (k === 2) d += Tx((C1.x + C2.x + C2.w) / 2, g.bandBot + 13, L["sass.word.span"], "tm", 8, "middle");
+    $("cC2").innerHTML = d;
+
+    // ---- load bar
+    const lx = 8, lw = XR - 8, kk = Math.min(k, 2);
+    const lhk = g.ldgHk[kk];
+    let l = Rc(lx, g.ldgY, lw, lhk, "box", ' rx="4"') + Tl(g.ldg[kk], lx + 8, g.ldgY + 12, 12, "t", 9);
+    if (k >= 2) {
+      let x = lx + 8; const y = g.ldgY + lhk - 15, groups = [[2, ["la"]], [3, ["cd"]], [4, ["lb", "x1", "x2", "x3"]]];
+      groups.forEach(([sb, ids]) => {
+        l += Tx(x, y + 8.5, "SB" + sb, "cm", 8); x += tw("SB" + sb, "cm", 8) + 4;
+        ids.forEach((id) => { l += `<g data-hw="req_${id}">${Rc(x, y, 20, 11, "strip", ' rx="2.5"')}${Tx(x + 10, y + 8, id, "bi", 7.5, "middle")}</g>`; x += 23; });
+        x += 10;
+      });
+    }
+    $("cL").innerHTML = l; dimOf("cL", k <= 1);
+
+    // ---- the dashed note: what the figure does not know
+    const u = g.unk;
+    $("cU").innerHTML = Rc(8, u.y, XR - 8, u.h, "unk", ' rx="4"') + Tl(u.lines, 15, u.y + 12, 11, "t", 9);
+
+    // ---- the run-time strip: never lit (these units run the compiled words; nothing runs during the three compile steps)
+    const st = g.strip; let s = "";
+    s += `<g data-hw="sm0">${Rc(st.sm.x, st.sm.y, st.sm.w, st.sm.h, "box", ' rx="6"')}${Tl(st.hdr, st.hdrX, st.y + 12, 12, "ts", 9)}`;
+    s += `<g data-hw="smsp0">${Rc(st.smsp.x, st.smsp.y, st.smsp.w, st.smsp.h, "box", ' rx="5" stroke-width="1.4"')}`;
+    const ids = { smsp: "smsp0", lsu: "lsu0", reg: "regfile0", alu: "alu0", fma: "fma0" };
+    st.boxes.forEach((b) => { s += `<g${b.key === "smsp" ? "" : ` data-hw="${ids[b.key]}"`}>${Rc(b.x, b.y, b.w, b.h, "box", ' rx="3"')}${Tl(b.lines, b.x + 6, b.y + 6 + 8.5, 11, "t", 8.5)}</g>`; });
+    s += "</g>";
+    const lsu = st.boxes.find((b) => b.key === "lsu");
+    if (!narrow) { const x = lsu.x + lsu.w / 2, y1 = lsu.y + lsu.h, y0 = st.sm.y + st.sm.h + 10; s += `<g data-hw="mem_ret"><path class="conn" d="M${f1(x)} ${f1(y0)}V${f1(y1 + 1)}" stroke="var(--anatomy-text)" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#ar)"/>${Tx(x + 5, st.sm.y + st.sm.h + 9, L["sass.strip.ret"], "tm", 7.5)}</g>`; }
+    else { const y = lsu.y + lsu.h / 2, x1 = lsu.x + lsu.w, yb = st.sm.y + st.sm.h + 6; s += `<g data-hw="mem_ret"><path class="conn" d="M${f1(W - 4)} ${f1(yb)}V${f1(y)}H${f1(x1 + 1)}" stroke="var(--anatomy-text)" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#ar)"/>${Tx(XR, yb + 3, L["sass.strip.ret"], "tm", 7.5, "end")}</g>`; }
+    s += "</g>";
+    $("cS").innerHTML = s;
+
+    // ---- the subject frame (one INK frame) and the leader of k = 2 from the control bits to the scoreboards that they wait on
+    let b = "";
+    if (k <= 1) b += Rc(C1.x - 2.5, g.bandTop - 2.5, C1.w + 5, g.band + 5, "br", ' rx="4.5"');
+    if (k === 2) {
+      b += Rc(C2.x - 2.5, g.bandTop - 2.5, C2.w + 5, g.band + 5, "br", ' rx="4.5"');
+      const x0 = C2.x + C2.w + 2.5, y0 = g.bandTop + Math.min(48, g.band * 0.28), xl = narrow ? W - 12 : W - 3, yl = g.ldgY + g.ldgHk[2] / 2, xe = XR;
+      b += `<path class="ld" d="M${f1(xe)} ${f1(yl)}H${f1(xl)}V${f1(y0)}H${f1(x0)}" marker-end="url(#arInk)"/><circle class="ldd" cx="${f1(xe)}" cy="${f1(yl)}" r="2.4"/>`;
+    }
+    $("cB").innerHTML = b;
+
+    // ---- the callout of the frame
+    const cl = g.call[k], n = cl.a.length + cl.b.length, h = 10 + 13 * n;
+    const lines = [...cl.a.map((s2) => [s2, "ts", 10.5]), ...cl.b.map((s2) => [s2, "t", 10])];
+    const pw = narrow ? XR - 8 : Math.min(W - 16, Math.max(...lines.map(([s2, c2, f]) => tw(s2, c2, f))) + 20), py = narrow ? g.callY + g.callH - h : g.callY;
+    const px = narrow ? 8 : Math.max(8, k === 2 ? XR - 8 - pw : Math.min(C1.x - 6, XR - 8 - pw));
+    let f = Rc(px, py, pw, h, "cp", ' rx="5"');
+    lines.forEach(([s2, c2, fz], i) => { f += Tx(px + 10, py + 5 + 13 * i + 10, s2, c2, fz); });
+    $("focus").innerHTML = f;
+  }
+
+  function drawFlat() {
+    const F = LAY.flat, narrow = F.narrow;
+    let s = Tl(F.hdr, 8, 14, 12, "t", 9.5);
+    F.rowY.forEach((y) => { s += Rc(F.TL0, y, F.XB[3] - F.TL0, F.rowH, "row"); });
+    s += Rc(F.XB[3] + 2, F.rowY[0], F.SWD - 4, F.rowY[2] + F.rowH - F.rowY[0], "row", ' rx="4"');
+    $("flS").innerHTML = s;
+    [0, 1, 2].forEach((i) => { const e = $("rl" + i); e.style.fontSize = (narrow ? 9.5 : 10) + "px"; e.style.textAnchor = narrow ? "start" : "end"; e.setAttribute("x", narrow ? 8 : F.TL0 - 8); e.setAttribute("y", f1(narrow ? F.rowY[i] - 4 : F.rowY[i] + F.rowH / 2 + 3.5)); });
+    const bar = (col, row, cls, fillc, keyw, keyn) => {
+      const x = F.XB[col] + 2, w = F.SWD - 4, y = F.rowY[row] + F.bar.y, h = F.bar.h, fz = narrow ? 9 : 9.5;
+      const lines = wrapAll(Ln(narrow ? keyn : keyw), w - 6, cls, fz), lh = fz + 1.5, y0 = y + h / 2 - (lines.length - 1) * lh / 2 + fz * 0.35;
+      return `<g>${Rc(x, y, w, h, "", ` fill="${fillc}"`)}${Tl(lines, x + w / 2, y0, lh, cls, fz, "middle")}</g>`;
+    };
+    let t = bar(0, 0, "bn", D.C.slate, "sass.tl.b0", "sass.tl.b0.n") + bar(1, 1, "bn", D.C.slate, "sass.tl.b1", "sass.tl.b1.n") + bar(2, 2, "bi", D.C.wait, "sass.tl.b2", "sass.tl.b2.n");
+    const cx = F.XB[3] + 2, cw = F.SWD - 4, cy = F.rowY[0], ch = F.rowY[2] + F.rowH - F.rowY[0], fz = narrow ? 8.5 : 9.5, pd = narrow ? 4 : 6;
+    const cl = wrapAll(Ln(narrow ? "sass.tl.c3.n" : "sass.tl.c3"), cw - 2 * pd, "ts", fz);
+    t += `<g>${Rc(cx, cy, cw, ch, "", ` rx="4" fill="var(--anatomy-card)" stroke="var(--anatomy-mid)" stroke-width="1.2"`)}${Tl(cl, cx + pd, cy + (ch - (cl.length - 1) * (fz + 2.5)) / 2 + fz * 0.35, fz + 2.5, "ts", fz)}</g>`;
+    $("tl").innerHTML = t;
+    const cr = $("clipR"); cr.setAttribute("x", F.TL0); cr.setAttribute("y", 0); cr.setAttribute("height", F.H);
+  }
+  function tlCursor(t) {
+    const F = LAY.flat, x = F.TL0 + (Math.max(0, Math.min(END, t)) / END) * (F.TL1 - F.TL0);
+    $("clipR").setAttribute("width", Math.max(0, x - F.TL0 + 1).toFixed(1));
+    $("cur").setAttribute("d", "M" + f1(x) + " " + F.curY0 + "V" + F.curY1);
+  }
+
+  // ================================================================ card, step, layout, player wiring
+  const cardWriter = (title, dl) => (k) => { title.textContent = D.TITLES[k]; dl.innerHTML = D.CARDS[k].map(([dt, html]) => "<div><dt>" + esc(dt) + "</dt><dd>" + html + "</dd></div>").join(""); };
+  const writeCard = cardWriter($("stepT"), $("stepK"));
+  let drawn = { k: -1 };
+  function drawStep(k) { writeCard(k); drawAlg(k); drawCode(k); }
+  function show() {
+    if (!LAY) return;
+    const t = +tin.value, k = idxOf(t);
+    if (drawn.k !== k) { drawn.k = k; drawStep(k); }
+    tlCursor(t);
+  }
+  function applyLayout() {
+    [["alg", LAY.alg.H], ["code", LAY.code.H], ["flat", LAY.flat.H]].forEach(([id, h]) => { const s = $(id); s.setAttribute("viewBox", "0 0 " + LAY.W + " " + h); s.style.setProperty("--vbw", LAY.W + "px"); });
+    drawFlat();
+  }
+  // ---- player wiring: four steps on the axis 0..4, the page loads paused at settled(0)
+  F.timeline({ steps: () => STEPT.map((t, k) => ({ t, title: D.TITLES[k] })), end: () => END, rate: 0.45 });
+  tin.addEventListener("input", show);
+  // the plate corners (title top right, readout bottom right) are absolute on wide pages: the plate padding keeps their height
+  { const pl = document.querySelector(".iso-plate"), ti = pl.querySelector('[data-corner="title"]'), ro = pl.querySelector('[data-corner="readout"]');
+    const fit = () => { pl.style.paddingTop = Math.max(52, ti.offsetHeight + 34) + "px"; pl.style.paddingBottom = Math.max(58, ro.offsetHeight + 34) + "px"; };
+    new ResizeObserver(fit).observe(pl); fit(); }
+  function measure() {
+    const narrow = matchMedia("(max-width:600px)").matches; if (!narrow) return { narrow, W: 640 };
+    const pan = document.querySelector(".fig-pan"), pl = document.querySelector(".iso-plate"), cs = getComputedStyle(pl);
+    const w = pan ? pan.getBoundingClientRect().width : pl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return { narrow, W: Math.max(280, Math.floor(w)) };
+  }
+  function relayout(force) {
+    const { narrow, W } = measure();
+    if (!force && LAY && LAY.narrow === narrow && Math.abs(LAY.W - W) < 2) return false;
+    LAY = buildLayout(W, narrow); applyLayout(); drawn = { k: -1 }; show(); return true;
+  }
+  // the step card keeps the height of its tallest step at the current width, so that the control row and the timeline below it never move
+  const nar = document.querySelector(".nar");
+  let lockedW = -1;
+  function lockCard(force) {
+    const w = nar.clientWidth; if (!w || (!force && w === lockedW)) return; lockedW = w;
+    const m = nar.cloneNode(true); m.removeAttribute("id"); m.querySelectorAll("[id]").forEach((e) => e.removeAttribute("id"));
+    m.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;margin:0;min-height:0;width:" + w + "px";
+    nar.after(m);
+    const write = cardWriter(m.querySelector(".nh > span"), m.querySelector("dl")); let tall = 0;
+    for (let k = 0; k < STEPT.length; k++) { write(k); tall = Math.max(tall, m.getBoundingClientRect().height); }
+    m.remove(); nar.style.minHeight = Math.ceil(tall) + "px";
+  }
+  relayout(true);
+  addEventListener("DOMContentLoaded", () => { relayout(); lockCard(true); new ResizeObserver(() => { relayout(); lockCard(false); }).observe(document.querySelector(".iso-plate")); });
+  document.fonts.addEventListener("loadingdone", () => lockCard(true));
+})({"FIG_ID":"ch06-sass","L":{"sass.fig":"Figure 6-5","sass.title":"The Same Decode Block from CUDA C++ to PTX to SASS","sass.page.title":"Figure 6-5 The Same Decode Block from CUDA C++ to PTX to SASS","sass.readout":"v10 decode group 1: 9 PTX lines → 9 SASS ops · 16 B instruction word each (144 B total)<br>Group touches 7 physical regs (53 thread total) · 18 pipe-occupancy cycles (ALU 14 + FMA 4)","sass.alg.hdr":"Contrast: PTX to SASS Is Not Always One-to-One","sass.alg.ex1.a":"cvt.f32.bf16 f, h → 1 PRMT or left shift","sass.alg.ex1.b":"Example (BF16 in high 16 bits): PRMT R0, RZ, 0x7610, R0 (RZ = zero reg; moves bytes)","sass.alg.ex2.a":"wgmma.commit_group → 0 standalone ops","sass.alg.ex2.b":"Becomes the gsb0 group tag on the final HGMMA","sass.alg.ex2.c":"BF16 wgmma compiles to HGMMA; FP8 to QGMMA","sass.focus.k0":"Reorder virtual ops: place shf after and ha<br>cd is read first, freeing its register for in-place reuse next","sass.focus.k1":"Emit SASS & allocate regs: 7 ALU + 2 VIADD<br>Touches 7 regs (53 thread total); 0x450 reuses R4 in place","sass.focus.k2":"Write control bits in each 16 B word: wait before + stall after issue<br>Reverse-engineered (Hopper bits unpublished); scheduler waits at runtime","sass.focus.k3":"Summary: 9→9 ops (144 B, 18 pipe-occupancy cycles)<br>Top contrasts: 1→1 byte move & 1→0 group tag — inspect SASS","sass.ldg.k0":"Prior global loads (symbolic): la · cd · lb<br>Returned via off-chip/cache & LSU to regs (return order unspecified)","sass.ldg.k1":"Prior 16 B global loads: 0x380 la→R8–R11 · 0x390 cd→R4–R7<br>0x3b0 lb→R12–R15 (4 regs each shared by 4 groups; this group uses R8, R4, R12)<br>Returned via off-chip/cache & LSU to regs (return order unspecified)","sass.ldg.k2":"Prior 16 B loads on scoreboards: SB2 (scoreboard 2) 0x380 la→R8–R11 · SB3: 0x390 cd→R4–R7<br>SB4: 0x3b0 lb→R12–R15 + 3 x (input vector) loads 0x3d0–0x3f0 (4 loads)<br>Wait SB4 = wait until all 4 loads on SB4 return (order unspecified)","sass.col.cpp":"CUDA C++","sass.col.cpp.sub":"nvcc front end →","sass.col.ptx":"PTX (virtual regs)","sass.col.ptx.sub":"9 source lines","sass.col.ab.narrow":"CUDA C++ c12_dec → 9 PTX virtual-reg lines","sass.col.c1.k0":"Reordered virtual ops (no physical regs yet)","sass.col.c1.k1":"SASS opcodes + physical regs (v10 measured)","sass.col.c2.todo":"Control bits<br>(16 B · not set yet)","sass.col.c2.shown":"Control bits<br>(16 B · wait→stall)","sass.tag.shf":"shf after and ha","sass.tag.moved":"[moved]","sass.tag.orig":"← line {p}","sass.tag.reuse":"[reuse R4]","sass.gap.a":"⋯ widen/FFMA","sass.gap.w":"⋯ widen ops","sass.gap.k0":"⋯ outside independent ops","sass.word.span":"← one 16 B (128-bit) instruction word →","sass.strip.ret":"load return","sass.gap.b":"⋯ widen/FFMA/grp-2 dec","sass.c2.wait":"{sb}→+{n}c","sass.c2.nowait":"none→+{n}c","sass.unk":"Hopper control-bit fields, register bank count & .reuse encoding unpublished; three steps shown in teaching order — ptxas internal pass order & interleaving unpublished","sass.strip.hdr":"Runtime target hardware (reference only, idle during compile; 1 SMSP [of 4] in 1 SM [of 132])","sass.strip.smsp":"Scheduler (1 issue slot/cycle): reads in-word ctrl bits to wait","sass.strip.lsu":"LSU load-return port: returns via off-chip/cache; order unspecified","sass.strip.reg":"Reg file (16,384 regs): thread uses 53 (cap 9 CTAs/SM; grid avg about 17.5 warps/SM, measured about 16 active warps/SM); group touches 7","sass.strip.alu":"ALU pipe (16 lanes, 2 clk/op: 7 ops = 14 cycles)","sass.strip.fma":"FMA pipe (32 lanes: int VIADD on integer-capable half at 2 clk/op, 2 ops = 4 cycles)","sass.tl.axis":"Compile & audit order (order only, not to scale; three steps in teaching order — ptxas internal pass order & interleaving unpublished)","sass.tl.r0":"Reorder ops","sass.tl.r1":"SASS & regs","sass.tl.r2":"Ctrl bits","sass.tl.b0":"Reorder 9 virtual ops","sass.tl.b0.n":"Reorder<br>9→9 ops","sass.tl.b1":"Touch 7 / 53 regs","sass.tl.b1.n":"7 / 53 regs","sass.tl.b2":"Ctrl bits in 9 words","sass.tl.b2.n":"Ctrl in 9 wds","sass.tl.c3":"Total: 9 → 9 ops<br>9 × 16 B = 144 B words<br>Touches 7 regs (53 thread)<br>18 pipe-occ. cycles (ALU 14 + FMA 4)","sass.tl.c3.n":"9→9·144 B<br>7/53 regs<br>18 pipe cyc","sass.lg.1":"Shift (SHF)","sass.lg.2":"Bitwise AND (LOP3)","sass.lg.3":"Integer add (VIADD)","sass.lg.4":"Byte permute (PRMT)","sass.lg.5":"Compiler step","sass.lg.6":"Control bits (subfield of 16 B word; schematic split)","sass.lg.7":"Current step focus","sass.lg.8":"Unpublished internals / unspecified return order"},"M":{"cpp":["__device__ void c12_dec(","  u32 la, u32 lb, u32 cd,","  u32& o0, u32& o1,","  u32& o2, u32& o3) {","  asm(\"shf.r.wrap.b32 …;","       and.b32 …; add.u32 …;","       prmt.b32 … ×4;\"","      : \"=r\"(o0) …","      : \"r\"(la), \"r\"(lb), …);","}"],"ptx":[["shf.r.wrap.b32 rt, cd, cd, 4","shift"],["and.b32 ha, cd, 0x87878787","and"],["and.b32 hb, rt, 0x87878787","and"],["add.u32 ha, ha, EXP_BASE","add"],["add.u32 hb, hb, EXP_BASE","add"],["prmt.b32 o0, la, ha, 0x5140","prmt"],["prmt.b32 o1, la, ha, 0x7362","prmt"],["prmt.b32 o2, lb, hb, 0x5140","prmt"],["prmt.b32 o3, lb, hb, 0x7362","prmt"]],"order":[1,3,5,0,2,6,4,7,8],"sass":[{"pc":1024,"t":"LOP3.LUT R20, R4, 0x87878787, …","op":"LOP3.LUT","pipe":"alu","wait":3,"stall":5},{"pc":1040,"t":"VIADD R21, R20, 0x36363636","op":"VIADD","pipe":"fma","wait":0,"stall":5},{"pc":1056,"t":"PRMT R22, R8, 0x5140, R21","op":"PRMT","pipe":"alu","wait":2,"stall":1},{"pc":1104,"t":"SHF.R.W.U32 R4, R4, 0x4, R4","op":"SHF.R.W.U32","pipe":"alu","wait":0,"stall":2},{"pc":1168,"t":"LOP3.LUT R4, R4, 0x87878787, …","op":"LOP3.LUT","pipe":"alu","wait":0,"stall":2},{"pc":1184,"t":"PRMT R8, R8, 0x7362, R21","op":"PRMT","pipe":"alu","wait":0,"stall":1},{"pc":1248,"t":"VIADD R17, R4, 0x36363636","op":"VIADD","pipe":"fma","wait":0,"stall":2},{"pc":1296,"t":"PRMT R4, R12, 0x5140, R17","op":"PRMT","pipe":"alu","wait":4,"stall":1},{"pc":1520,"t":"PRMT R12, R12, 0x7362, R17","op":"PRMT","pipe":"alu","wait":0,"stall":1}],"loads":[{"id":"la","pc":896,"op":"LDG.E.EF.128","dst":"R8","sb":2,"ti":2.01,"ts":2.02,"ta":2.29},{"id":"cd","pc":912,"op":"LDG.E.EF.128","dst":"R4","sb":3,"ti":2.02,"ts":2.03,"ta":2.09},{"id":"lb","pc":944,"op":"LDG.E.EF.128","dst":"R12","sb":4,"ti":2.03,"ts":2.04,"ta":2.74},{"id":"x1","pc":976,"op":"LDG.E.EL.128","dst":"R28","sb":4,"ti":2.04,"ts":2.05,"ta":2.76},{"id":"x2","pc":992,"op":"LDG.E.EL.128","dst":"R36","sb":4,"ti":2.05,"ts":2.06,"ta":2.77},{"id":"x3","pc":1008,"op":"LDG.E.EL.128","dst":"R32","sb":4,"ti":2.06,"ts":2.07,"ta":2.79}],"gaps":[{"after":2,"a":1072,"b":1088,"kind":"w"},{"after":3,"a":1120,"b":1152,"kind":"a"},{"after":5,"a":1200,"b":1232,"kind":"a"},{"after":6,"a":1264,"b":1280,"kind":"w"},{"after":7,"a":1312,"b":1504,"kind":"b"}]},"C":{"shift":"#3e63dd","and":"#0b9f8c","prmt":"#8e4ec6","add":"#d98200","slate":"#5b6b7f","slateText":"#ffffff","wait":"#c7cad4","waitLine":"#8d91a0","waitText":"#141413","pill":"#3e63dd","pillText":"#ffffff"},"CARDS":[[["Formula","PTX source order (virtual-op lines 1..9) → v10 group-1 issue order [2, 4, 6, 1, 3, 7, 5, 8, 9] (three steps unpacked in teaching order; ptxas internal pass order and interleaving unpublished)"],["Input","9 lines of inline PTX in c12_dec (unlimited virtual registers la, lb, cd, rt, ha, hb, o0..o3, with no physical register IDs yet)"],["Output","Reordered 9 virtual ops: shf moves after and ha (and prmt o0), while prmt o0..o3 keep their relative order (no o1 ↔ o2 swap); ptxas internal scoring rule and pass order/interleaving are unpublished"],["Hand-off","Having and ha read cd first lets the next step reuse cd's physical register in place for rt; permuting these 9 rows does not hide latency by itself — in v10 group 1, the ha chain issues back-to-back with 5-cycle post-issue stalls (covered by other warps on the SMSP), while intra-warp cover comes from outside independent widen and FFMA ops interleaved between rows (spacing the hb chain by 6 / 6 / 5 cycles, and prmt o0 to its widen consumer by 4 cycles; exact PCs in Step 2, control bits in Step 3)"],["Cost","Instruction count unchanged (9 → 9)"]],[["Formula","Virtual regs → physical regs (7 touched in this group / 53 used across the thread); add.u32 → VIADD (integer-capable half of the 32-lane FMA pipe, 2 cycles/op) or IADD3 (16-lane ALU pipe, 2 cycles/op)"],["Input","The 9 scheduled virtual ops, plus 3 prior 16 B (128-bit) global vector loads (0x380 LDG.E.EF.128 R8, 0x390 R4, 0x3b0 R12) that each fill 4 registers shared across 4 decode groups (this group reads R8, R4, R12)"],["Output","9 measured SASS ops in v10 group 1 (non-contiguous PCs 0x400..0x5f0: ha chain 0x400→0x410→0x420 back-to-back, 0x430 IMAD.U32 between 0x420 and consumer 0x440 SHF.L.U32, widen/FFMA at 0x460–0x480, 0x4b0–0x4d0, 0x4f0–0x500 plus 0x4a0 PRMT o1 along hb chain 0x450→0x490→0x4e0→0x510, and widen/FFMA/group-2 decode ops at 0x520–0x5e0): 0x400 LOP3 reads R4 (cd) first so 0x450 SHF R4, R4, 0x4, R4 safely overwrites R4 in place with rt, writing o0=R22, o1=R8, o2=R4, o3=R12; the dump shows add.u32 compiling to 2 VIADD in group 1 vs. 1 IADD3 + 1 VIADD in group 2 (46 VIADD + 18 IADD3 across 32 groups / 64 decode adds in v10), while ptxas's selection rule is unpublished"],["Hand-off","The 9 16 B instruction words with fixed opcodes and physical registers proceed to Step 3: encoding static control bits inside each word"],["Cost","This group touches 7 registers, but the thread's whole-kernel 53 registers set the SM register-pool cap (1,792 regs/warp at 256-reg granularity, 7,168 regs per 4-warp CTA <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mtext>  </mtext><mo>⟹</mo><mtext>  </mtext></mrow><annotation encoding=\"application/x-tex\">\\implies</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.549em;vertical-align:-0.024em;\"></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">⟹</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span></span></span> 9 CTAs/SM cap; v10's 576 × 4 grid supplies about 17.5 warps/SM on average [about 4.36 CTAs/SM], and the profiler measures about 16 active warps/SM [25.1%])"]],[["Formula","Each SASS instruction word = 16 B (128 bits, PC step 0x10 between adjacent words), totaling 9 × 16 B = 144 B; control bits are a subfield inside each 16 B word (schematic split)"],["Input","The 9 SASS ops and the scoreboard counters set by prior 16 B global loads: 0x380 la on SB2 (1 load), 0x390 cd on SB3 (1 load), and 0x3b0 lb sharing SB4 with the 3 x (input vector) loads 0x3d0, 0x3e0, 0x3f0 (4 loads total)"],["Output","Static control bits encoded inside each 16 B word (reverse-engineered 9 pre-issue wait masks [SB3, -, SB2, -, -, -, -, SB4, -] and post-issue stall counts [5, 5, 1, 2, 2, 1, 2, 1, 1] cycles in this group, where waiting on SB4 at 0x510 waits until all 4 loads on SB4 return; Hopper bit positions, register bank count, and .reuse encoding are unpublished)"],["Hand-off","At runtime, the SMSP warp scheduler reads the in-word control bits: before issue it waits on SB3 / SB2 / SB4 until every load on that scoreboard returns, and after issue it waits the stall cycles before the next op; per public reverse-engineering and NVIDIA's guide, ptxas and the scheduler mitigate register bank conflicts alongside .reuse (operand-reuse hint)"],["Cost","Wait conditions are statically stamped into the control bits of each 16 B word — wherever a wait is stamped, the pipeline stalls right before that instruction"]],[["Formula","This group: 9 → 9 ops (144 B words, 18 pipe-occupancy cycles = ALU 14 + FMA 4); cvt.f32.bf16 → 1 PRMT or left shift; wgmma.commit_group → 0 standalone SASS ops (gsb0 tag on final HGMMA)"],["Input","C++ source / PTX line count and source order"],["Output","True machine instruction count, true issue order, true pipe occupancy (ALU and the integer-capable half of FMA can run concurrently; elapsed cycles from 0x400 to 0x5f0 exceed 18 and were not measured standalone), and static in-word control bits shown by disassembled SASS"],["Hand-off","Into Section 6: inspect disassembled SASS to catch the async wgmma serialization trap where mixing in a predicated normal op inserts per-HGMMA DEPBAR drains"],["Cost","Unpacking 8 weights issues 9 16 B ops (144 B) in this group, occupying 18 pipe-occupancy cycles (7 × 2 = 14 ALU + 2 × 2 = 4 FMA; kernel-wide 32-group average about 15.1 ALU + 2.9 FMA)"]]],"CARDRAW":[["PTX source order (virtual-op lines 1..9) → v10 group-1 issue order [2, 4, 6, 1, 3, 7, 5, 8, 9] (three steps unpacked in teaching order; ptxas internal pass order and interleaving unpublished)","9 lines of inline PTX in c12_dec (unlimited virtual registers la, lb, cd, rt, ha, hb, o0..o3, with no physical register IDs yet)","Reordered 9 virtual ops: shf moves after and ha (and prmt o0), while prmt o0..o3 keep their relative order (no o1 ↔ o2 swap); ptxas internal scoring rule and pass order/interleaving are unpublished","Having and ha read cd first lets the next step reuse cd's physical register in place for rt; permuting these 9 rows does not hide latency by itself — in v10 group 1, the ha chain issues back-to-back with 5-cycle post-issue stalls (covered by other warps on the SMSP), while intra-warp cover comes from outside independent widen and FFMA ops interleaved between rows (spacing the hb chain by 6 / 6 / 5 cycles, and prmt o0 to its widen consumer by 4 cycles; exact PCs in Step 2, control bits in Step 3)","Instruction count unchanged (9 → 9)"],["Virtual regs → physical regs (7 touched in this group / 53 used across the thread); add.u32 → VIADD (integer-capable half of the 32-lane FMA pipe, 2 cycles/op) or IADD3 (16-lane ALU pipe, 2 cycles/op)","The 9 scheduled virtual ops, plus 3 prior 16 B (128-bit) global vector loads (0x380 LDG.E.EF.128 R8, 0x390 R4, 0x3b0 R12) that each fill 4 registers shared across 4 decode groups (this group reads R8, R4, R12)","9 measured SASS ops in v10 group 1 (non-contiguous PCs 0x400..0x5f0: ha chain 0x400→0x410→0x420 back-to-back, 0x430 IMAD.U32 between 0x420 and consumer 0x440 SHF.L.U32, widen/FFMA at 0x460–0x480, 0x4b0–0x4d0, 0x4f0–0x500 plus 0x4a0 PRMT o1 along hb chain 0x450→0x490→0x4e0→0x510, and widen/FFMA/group-2 decode ops at 0x520–0x5e0): 0x400 LOP3 reads R4 (cd) first so 0x450 SHF R4, R4, 0x4, R4 safely overwrites R4 in place with rt, writing o0=R22, o1=R8, o2=R4, o3=R12; the dump shows add.u32 compiling to 2 VIADD in group 1 vs. 1 IADD3 + 1 VIADD in group 2 (46 VIADD + 18 IADD3 across 32 groups / 64 decode adds in v10), while ptxas's selection rule is unpublished","The 9 16 B instruction words with fixed opcodes and physical registers proceed to Step 3: encoding static control bits inside each word","This group touches 7 registers, but the thread's whole-kernel 53 registers set the SM register-pool cap (1,792 regs/warp at 256-reg granularity, 7,168 regs per 4-warp CTA $\\implies$ 9 CTAs/SM cap; v10's 576 × 4 grid supplies about 17.5 warps/SM on average [about 4.36 CTAs/SM], and the profiler measures about 16 active warps/SM [25.1%])"],["Each SASS instruction word = 16 B (128 bits, PC step 0x10 between adjacent words), totaling 9 × 16 B = 144 B; control bits are a subfield inside each 16 B word (schematic split)","The 9 SASS ops and the scoreboard counters set by prior 16 B global loads: 0x380 la on SB2 (1 load), 0x390 cd on SB3 (1 load), and 0x3b0 lb sharing SB4 with the 3 x (input vector) loads 0x3d0, 0x3e0, 0x3f0 (4 loads total)","Static control bits encoded inside each 16 B word (reverse-engineered 9 pre-issue wait masks [SB3, -, SB2, -, -, -, -, SB4, -] and post-issue stall counts [5, 5, 1, 2, 2, 1, 2, 1, 1] cycles in this group, where waiting on SB4 at 0x510 waits until all 4 loads on SB4 return; Hopper bit positions, register bank count, and .reuse encoding are unpublished)","At runtime, the SMSP warp scheduler reads the in-word control bits: before issue it waits on SB3 / SB2 / SB4 until every load on that scoreboard returns, and after issue it waits the stall cycles before the next op; per public reverse-engineering and NVIDIA's guide, ptxas and the scheduler mitigate register bank conflicts alongside .reuse (operand-reuse hint)","Wait conditions are statically stamped into the control bits of each 16 B word — wherever a wait is stamped, the pipeline stalls right before that instruction"],["This group: 9 → 9 ops (144 B words, 18 pipe-occupancy cycles = ALU 14 + FMA 4); cvt.f32.bf16 → 1 PRMT or left shift; wgmma.commit_group → 0 standalone SASS ops (gsb0 tag on final HGMMA)","C++ source / PTX line count and source order","True machine instruction count, true issue order, true pipe occupancy (ALU and the integer-capable half of FMA can run concurrently; elapsed cycles from 0x400 to 0x5f0 exceed 18 and were not measured standalone), and static in-word control bits shown by disassembled SASS","Into Section 6: inspect disassembled SASS to catch the async wgmma serialization trap where mixing in a predicated normal op inserts per-HGMMA DEPBAR drains","Unpacking 8 weights issues 9 16 B ops (144 B) in this group, occupying 18 pipe-occupancy cycles (7 × 2 = 14 ALU + 2 × 2 = 4 FMA; kernel-wide 32-group average about 15.1 ALU + 2.9 FMA)"]],"TITLES":["ptxas schedules virtual-register instructions (teaching Step 1): placing shf after and ha lets cd be read first, while real intra-warp latency hiding comes from outside widen and FFMA ops interleaved between rows.","ptxas lowers opcodes and allocates physical registers on the 9 scheduled rows: touching 7 of the thread's 53 registers (0x450 reuses R4 in place) and emitting 7 ALU ops plus 2 VIADD ops on the integer-capable half of FMA.","ptxas writes static control bits inside each 16 B (128-bit) SASS instruction word (pre-issue scoreboard wait mask and post-issue stall cycles, with SB4 shared by lb and 3 input-vector x loads); the warp scheduler waits accordingly at runtime.","Summary contrast: these 9 PTX lines compile to 9 16 B SASS words (144 B total, 18 pipe-occupancy cycles = ALU 14 + FMA 4), whereas the two top examples compile to 1 byte-move/left-shift op or 0 standalone ops (folded into gsb0) — only disassembling SASS reveals true op counts, issue order, and wait bits."]});</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
