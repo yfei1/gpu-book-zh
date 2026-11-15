@@ -40,7 +40,7 @@
 - [图 I-1 第一部分六级地图](figs/part1-map.html)
 - [图 1-1 同一条三 kernel 链的三种下发方式](figs/ch01-a.html)
 - [图 1-2 把归一化与后处理并进 gemv：循环顺手算平方和，尾声缩放并做后处理](figs/ch01-fuse-gemv.html)
-- [图 1-3 PDL 交接：归一化触发之后，gemv 提前派上 SM 读权重](figs/ch01-pdl.html)
+- [图 1-3 归一化 → gemv 边界的 PDL 交接：触发后允许后继提前进入有空闲资源的 SM 预发首批 W_pre](figs/ch01-pdl.html)
 - [图 2-1 132 个 SM 怎样跑完 2,304 个 CTA](figs/ch02-a.html)
 - [图 2-2 一次读取走过哪几层：HBM、L2、SM](figs/ch02-mem.html)
 - [图 2-3 每个 SM 要同时挂起多少字节，HBM 才跑得满](figs/ch02-b.html)
