@@ -1411,8 +1411,8 @@ gemv_v3&lt;&lt;&lt;2112 + 2 * 192, 128, 0, stream&gt;&gt;&gt;(W, x, y, M, K, par
 <hr />
 <h2 id="ch03-2"><span class="sn">2</span>一条 warp 读指令会变成几个扇区请求？</h2>
 <p><strong>硬件按 32 字节的扇区去要数据，一条 warp 读指令落进几个扇区就发几次请求；地址越连续、单线程一次读得越宽，发出的请求就越少，带回来的有用字节也越多。</strong></p>
-<figure class="fig"><iframe src="figs/ch03-coal.html" loading="lazy" title="图 3-2"></iframe><a class="fig-open" href="figs/ch03-coal.html" target="_blank" rel="noopener">在新标签页查看原尺寸大图</a></figure>
 <p>我们先分清两个硬件粒度：最小的请求单位叫 <strong>sector</strong>（扇区），大小是 32 B；一条 <strong>cache line</strong>（缓存行）是 128 B，正好包含 4 个扇区。当一个 warp 发出一条读指令时，SM 里的 <strong>LSU</strong>（Load/Store Unit，读写单元）会收齐 32 个线程给出的 32 个地址，把落在同一个 32 B 扇区里的地址合并成一次请求。地址凑得越拢，发出去的扇区请求就越少，这就是 <strong>coalescing</strong>（合并访问）。</p>
+<figure class="fig"><iframe src="figs/ch03-coal.html" loading="lazy" title="图 3-2"></iframe><a class="fig-open" href="figs/ch03-coal.html" target="_blank" rel="noopener">在新标签页查看原尺寸大图</a></figure>
 <p>我们拿 <code class="nw">gemv</code> 的三种写法，各挑一条读 <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>W</mi></mrow><annotation encoding="application/x-tex">W</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">W</span></span></span></span> 的指令来算笔账（对应图 3-2 的三个模式）：</p>
 <ul>
 <li><strong><code class="nw">v0</code> 和 <code class="nw">v1</code></strong>：导引三第 6 节算过，<code class="nw">v0</code> 的一条指令散落在 32 个扇区里，而 <code class="nw">v1</code> 只落在 2 个扇区里。换成本节的话说，<code class="nw">v0</code> 这一条指令要发 <strong>32 次请求</strong>，<code class="nw">v1</code> 只发 <strong>2 次请求</strong>。在 <code class="nw">v0</code> 拉回来的每个扇区里，当次没用上的那 30 B 其实是同一个线程接下来 15 轮要读的元素，它们可能还留在 L1 里被后续轮次命中，不过 L1 命中率我们没有测。</li>
