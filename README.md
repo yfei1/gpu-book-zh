@@ -23,6 +23,7 @@
 - [附录 A：H200 上软件改不动的四处硬件限制，Blackwell（B200）在硬件上怎样改？](book/appA.md)
 - [附录 B：一条不认识的 SASS 指令，从哪里来、走哪条硬件管线、属于第几级？](book/appB.md)
 - [附录 C：术语索引](book/appC.md)
+- [附录 D：Hopper（H200）推理硬件一览](book/appD.md)
 
 ## 交互图
 

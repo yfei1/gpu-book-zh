@@ -23,7 +23,7 @@ DOCS = REPO / "docs"
 OUT = DOCS / "en" if EN else DOCS
 UP = "../" if EN else ""  # path from the page to docs/
 OTHER = "../index.html" if EN else "en/index.html"
-ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB", "appC"]
+ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB", "appC", "appD"]
 FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*((?:图|Figure|Fig\.)\s*(?:导[一二三]|[A-Z\d.]+)-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
 PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
@@ -236,12 +236,12 @@ PARTS_EN = [("", ["preface"]),
             ("Orientation", ["ch00_0", "ch00", "ch00_5"]),
             ("Part 1: Six Levels of Hardware Zoom", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
             ("Part 2: The Main Operators in One Layer, and the Whole Layer", ["ch07", "ch08", "ch09"]),
-            ("Part 3: Diagnosis and Across Generations", ["ch10", "appA", "appB", "appC"])]
+            ("Part 3: Diagnosis and Across Generations", ["ch10", "appA", "appB", "appC", "appD"])]
 PARTS = PARTS_EN if EN else [("", ["preface"]),
          ("导引", ["ch00_0", "ch00", "ch00_5"]),
          ("第一部分　硬件六级放大", ["ch01", "ch02", "ch03", "ch04", "ch05", "ch06"]),
          ("第二部分　一层里的主力算子与整层总装", ["ch07", "ch08", "ch09"]),
-         ("第三部分　诊断与跨代", ["ch10", "appA", "appB", "appC"])]
+         ("第三部分　诊断与跨代", ["ch10", "appA", "appB", "appC", "appD"])]
 MAP_PAT = re.compile(r"<p><strong>(?:本书地图：|Book map:)</strong>\s*(.*?)</p>", re.S)
 
 STRAY_BOLD = re.compile(r"\*\*((?:(?!</?(?:p|li|pre|h\d)\b)[^*])+?)\*\*")
@@ -426,11 +426,11 @@ def substitute(page, items):
 
 
 SHORT_TOPIC = {"导引一": "一句话怎样变成下一个词元", "导引三": "最小的 CUDA 程序", "第 9 章": "一层排上 132 个 SM",
-               "第 10 章": "诊断一个慢 kernel", "附录 A": "改不动的硬件限制", "附录 B": "SASS 指令速查"}
+               "第 10 章": "诊断一个慢 kernel", "附录 A": "改不动的硬件限制", "附录 B": "SASS 指令速查", "附录 D": "H200 推理硬件一览"}
 
 
 SHORT_TOPIC_EN = {"Intro 1": "How a sentence becomes the next token", "Intro 3": "The smallest CUDA program", "Chapter 9": "One layer on 132 SMs",
-                  "Chapter 10": "Diagnosing a slow kernel", "Appendix A": "Hardware limits you cannot change", "Appendix B": "SASS instruction cheat sheet"}
+                  "Chapter 10": "Diagnosing a slow kernel", "Appendix A": "Hardware limits you cannot change", "Appendix B": "SASS instruction cheat sheet", "Appendix D": "H200 inference hardware"}
 
 
 def split_title(title):
