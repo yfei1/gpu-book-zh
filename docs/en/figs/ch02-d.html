@@ -686,7 +686,9 @@ function drawFocus(m,k){
   const OWN={smA:["smA"],smB:["smB"],cnt:["cnt"],yr:["yr"]}, foot=["stacks","hbm","pa","cnt","pb","yr","smA","smB"], slabOk=["cnt"];
   f.at.forEach((id)=>{ const p=focusTarget(g,id);
     const forb=foot.filter((k)=>!(OWN[id]||[]).includes(k)&&!(k==="hbm"&&slabOk.includes(id))).map((k)=>polyOf(g,k)), lb=plOf(m).map((q)=>q.box).filter((q)=>Math.hypot(Math.max(q.x-p[0],0,p[0]-q.x-q.w),Math.max(q.y-p[1],0,p[1]-q.y-q.h))>20);
-    const memo=new Map(), segOk=(u,v)=>{ const key=u.join()+">"+v.join(); if(!memo.has(key)) memo.set(key,segPts(u,v,Math.ceil(Math.hypot(v[0]-u[0],v[1]-u[1])/2)).every((r)=>!forb.some((o)=>inPoly(r,o))&&!lb.some((o)=>r[0]>o.x-2&&r[0]<o.x+o.w+2&&r[1]>o.y-2&&r[1]<o.y+o.h+2))); return memo.get(key); };
+    const mk2=m+"|"+id, memo=(LAY.segMemo=LAY.segMemo||{})[mk2]||(LAY.segMemo[mk2]=new Map()), fb=forb.map((o)=>({o,x0:Math.min(...o.map((q)=>q[0])),x1:Math.max(...o.map((q)=>q[0])),y0:Math.min(...o.map((q)=>q[1])),y1:Math.max(...o.map((q)=>q[1]))}));
+    const inForb=(r)=>fb.some((q)=>r[0]>=q.x0&&r[0]<=q.x1&&r[1]>=q.y0&&r[1]<=q.y1&&inPoly(r,q.o));
+    const segOk=(u,v)=>{ const key=u.join()+">"+v.join(); if(!memo.has(key)) { const N=Math.ceil(Math.hypot(v[0]-u[0],v[1]-u[1])/2); let ok=true; for(let i=0;ok&&i<=N;i++){ const r=[u[0]+(v[0]-u[0])*i/N,u[1]+(v[1]-u[1])*i/N]; ok=!lb.some((o)=>r[0]>o.x-2&&r[0]<o.x+o.w+2&&r[1]>o.y-2&&r[1]<o.y+o.h+2)&&!inForb(r); } memo.set(key,ok); } return memo.get(key); };
     const clear=(pts)=>pts.slice(1).every((q,i)=>segOk(pts[i],q));
     const len=(pts)=>pts.slice(1).reduce((s,q,i)=>s+Math.hypot(q[0]-pts[i][0],q[1]-pts[i][1]),0);
     const cand=[];
