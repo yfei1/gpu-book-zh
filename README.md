@@ -97,7 +97,7 @@
 - [图 8-8 持久 wgmma kernel：一个 CTA 的内部结构与子任务表](figs/ch08-m4a-wgs.html)
 - [图 8-9 132 个常驻 CTA 怎样同时收尾](figs/ch08-m4-tail.html)
 - [图 8-10 把 GPU 级释放挪出消费者的关键路径](figs/ch08-m4b-sync.html)
-- [图 8-11 奇偶账本：每次启动在第 0 段之后由空闲线程清零另一本账](figs/ch08-m4-ledger.html)
+- [图 8-11 奇偶账本：第 0 段后由 CTA 0–6 的空闲生产者通道清零另一本账](figs/ch08-m4-ledger.html)
 - [图 8-12 SwiGLU 尾声：把缩放折进指数，每个元素少 2 条指令](figs/ch08-m4-fold.html)
 - [图 8-13 预填充：网格开多大，分块由谁派给 SM](figs/ch08-m5-grid.html)
 - [图 8-14 预填充主循环：T = 753 与 T ≥ 3,012 为什么写成两条](figs/ch08-p5-moe.html)
