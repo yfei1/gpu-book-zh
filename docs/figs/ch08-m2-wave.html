@@ -73,11 +73,26 @@ const PANCSS=`
 .iso-plate-corner[data-corner="title"]{margin:4px 0 8px;line-height:1.4}
 .iso-plate-corner[data-corner="readout"],.iso-plate-corner[data-corner="hint"]{order:1;margin-top:8px;font-size:12px;line-height:1.5}
 }
+.fig-rlbg{fill:var(--anatomy-card)}
 `;
+// Row labels. A <text data-rowlabel> that is a direct child of a panel svg keeps its left edge inside the pan box while the pan scrolls (<= 600 px).
+// It sits on a plate-coloured chip, and follow() keeps the cursor clear of the chips (scroll-padding-left). data-rowlabel="head" marks a heading with nothing under it: no chip, no clearance.
+function pin(w,s){
+  const L=[...s.querySelectorAll(":scope>[data-rowlabel]")]; if(!L.length) return;
+  const chips=L.map(e=>{ if(e.dataset.rowlabel==="head") return null; const r=document.createElementNS("http://www.w3.org/2000/svg","rect"); r.setAttribute("class","fig-rlbg"); return r; });
+  let raised=false;
+  const raise=()=>{ raised=true; const top=s.querySelector(":scope>#cur"); L.forEach((e,i)=>{ if(chips[i]) s.insertBefore(chips[i],top); s.insertBefore(e,top); }); };
+  const upd=()=>{ const sr=s.getBoundingClientRect(), k=s.viewBox.baseVal.width/sr.width, left=(w.getBoundingClientRect().left-sr.left)*k; let clear=0;
+    L.forEach((e,i)=>{ const b=e.getBBox(), d=Math.max(0,left-b.x), r=chips[i], tr=d?"translateX("+d.toFixed(2)+"px)":"";
+      if(d&&!raised) raise(); e.style.transform=tr; if(!r) return;
+      r.style.transform=tr; r.style.display=d?"":"none"; r.setAttribute("x",b.x-2); r.setAttribute("y",b.y-2); r.setAttribute("width",b.width+4); r.setAttribute("height",b.height+4); clear=Math.max(clear,(b.width+2)/k); });
+    w.style.scrollPaddingLeft=clear+"px"; };
+  w.addEventListener("scroll",upd,{passive:true}); new ResizeObserver(upd).observe(w); upd();
+}
 function pan(){
   const st=document.createElement("style"); st.textContent=PANCSS; document.head.appendChild(st);
   document.querySelectorAll(".iso-plate").forEach(plate=>{
-    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); return w; });
+    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); pin(w,s); return w; });
     if(!panels.length) return;
     const hint=document.createElement("p"); hint.className="fig-pan-hint"; hint.textContent=t("pan.hint"); hint.hidden=true; panels[0].before(hint);
     const update=()=>{ const over=panels.find(w=>w.scrollWidth>w.clientWidth); hint.hidden=!over; if(over) over.before(hint); };
@@ -126,7 +141,7 @@ function mount(){
   const stepTitle=k=>steps()[k].title||"";
   const preview=(k,x,y)=>{ segs.querySelectorAll("i").forEach((s,i)=>s.classList.toggle("hot",i===k)); if(k==null||k<0){ tip.hidden=true; return; } showTip(t("track.preview",{k:k+1,title:stepTitle(k)}),x,y); };
 
-  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24, R=b.right-24;
+  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(getComputedStyle(w).scrollPaddingLeft)||0), R=b.right-24;
       const d=(r.right-r.left>R-L||r.left<L)?r.left-L:r.right>R?r.right-R:0;
       if(d) w.scrollTo({left:w.scrollLeft+d,behavior:RM||curOnly?"instant":"smooth"}); };
     if($("cur")) into($("cur").closest(".fig-pan"),$("cur").getBoundingClientRect());
@@ -310,7 +325,7 @@ function legacyReveal(){
 }
 function legacy(){ legacyShell(); legacyReveal(); }
 })();
-</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-3 专家 kernel 的波次台阶</title><style>
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>图 8-3 专家 kernel 波次台阶：单波容量 132k 与路由块数 A × 128</title><style>
 .iso{
   --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
   --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
@@ -423,159 +438,292 @@ html{color-scheme:dark}
 body[data-theme="light"]{color-scheme:light}
 body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
-</style></head><body class="iso" data-theme="light"><main class="iso-page"><style>
-.fe svg{display:block;width:100%;height:auto;font-family:inherit}
-.fe .busy{--anatomy-face:#2a2a2e;--anatomy-top:#3c3c42;--anatomy-shade-0:#141416;--anatomy-shade-1:#1a1a1d;--anatomy-shade-2:#202024;--anatomy-shade-3:#26262a;--anatomy-hi:#111;--anatomy-mid:#444;--anatomy-lo:#555;--anatomy-faint:#666}
-.fe .hot{--anatomy-face:#d9534f;--anatomy-top:#e87a76;--anatomy-shade-0:#a83a37;--anatomy-shade-1:#b4403d;--anatomy-shade-2:#c24744;--anatomy-shade-3:#cf4e4b;--anatomy-hi:#8a2f2c;--anatomy-mid:#8a2f2c}
-.fe .gone{opacity:.25}
-.fe .lab{font-size:11.5px;fill:var(--anatomy-strong);font-weight:600;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3.5px}
-.fe .lab2{font-size:11.5px;fill:var(--anatomy-text)}
-.fe .tn{font-size:10.5px;fill:var(--anatomy-text)}
-.fe .dot{stroke:var(--anatomy-card);stroke-width:1}
-.fe .dn{font-size:9px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
-.fe .rl{font-size:11px;fill:var(--anatomy-text);text-anchor:end}
-.fe .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
-.fe .free{fill:var(--anatomy-green);opacity:.28}.fe .bar{fill:var(--anatomy-blue)}
-.fe .wait{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.6}.fe .hl{stroke:var(--anatomy-red);stroke-width:1;opacity:.7}
-.fe .bt{font-size:9.5px;fill:#fff;dominant-baseline:central}.fe .bt.d{fill:var(--anatomy-strong)}
-.fe .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
-.fe .ao{fill:none;stroke:var(--anatomy-red);stroke-width:2.2}
-.fe .fr{fill:none;stroke:var(--anatomy-red);stroke-width:1.8}.fe .fn{font-size:12px;font-weight:700;fill:var(--anatomy-red);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
-.fe .sc{stroke:var(--anatomy-lo);stroke-width:.8}.fe .sa{fill:#fff;font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}.fe .sb{font-size:10px;fill:var(--anatomy-text);text-anchor:middle}
-.fe .nar{margin:14px 8px 6px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fe .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.fe .nh b{white-space:nowrap;flex:none;display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
-.fe .kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text);min-height:11.5em}
-.fe .kard>div{display:contents}.fe .kard dt{font-weight:600;color:var(--anatomy-muted)}.fe .kard dd{margin:0}
-.fe .kard dd.m{font-family:var(--anatomy-mono);font-size:11.5px;color:var(--anatomy-strong);overflow-wrap:anywhere}
-.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px;font-size:13.5px;color:var(--anatomy-strong)}
-.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
-.ctl .modes label{border:1px solid var(--anatomy-lo);border-radius:6px;padding:3px 10px;cursor:pointer;background:var(--anatomy-card)}
-.ctl .modes input{margin-right:5px}
-.ctl input[type=range]{width:200px;accent-color:var(--anatomy-hi)}
-.ctl button{font:inherit;padding:3px 12px;border-radius:6px;border:1px solid var(--anatomy-lo);background:var(--anatomy-card);color:var(--anatomy-strong);cursor:pointer}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><!-- class="katex" --><style>
+.f8 svg{display:block;width:100%;height:auto;font-family:inherit}
+.f8 .hd{font-size:10.5px;font-weight:600;fill:var(--anatomy-strong)}
+.f8 .tn{font-size:10px;fill:var(--anatomy-strong)}
+.f8 .lb{font-size:10.5px;font-weight:600;fill:var(--anatomy-strong)}
+.f8 .fc{font-size:10.5px;font-weight:600;fill:var(--anatomy-strong)}
+.f8 .fbox{fill:var(--anatomy-card);stroke:var(--anatomy-strong);stroke-width:1}
+.f8 .ldr{fill:none;stroke:var(--anatomy-strong);stroke-width:.9}.f8 .ldd{fill:var(--anatomy-strong)}
+.f8 .gc{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.5}
+.f8 .sl{stroke:none}.f8 .sl.e{fill:none;stroke:var(--anatomy-mid);stroke-width:.6}.f8 .sl.h{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.6}
+.f8 .sa{font-size:10px;font-weight:600;text-anchor:middle}.f8 .sa.o{fill:var(--anatomy-strong)}
+.f8 .sce{font-size:9px;fill:var(--anatomy-strong);text-anchor:middle}
+.f8 .cut{fill:none;stroke:var(--anatomy-strong);stroke-width:1.6;stroke-dasharray:3 2}
+.f8 .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.6}
+.f8 .rl{font-size:9.5px;fill:var(--anatomy-text)}.f8 .lab2{font-size:10.5px;fill:var(--anatomy-text)}
+.f8 .axl{stroke:var(--anatomy-mid);stroke-width:.8;fill:none}.f8 .rowg{fill:none;stroke:var(--anatomy-faint);stroke-width:.8}
+.f8 .wam{fill:#d98200}.f8 .whd{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.8}
+.f8 .wem{fill:none;stroke:var(--anatomy-lo);stroke-width:1;stroke-dasharray:3 2}
+.f8 .bt{font-size:9px;font-weight:600;fill:var(--anatomy-strong);text-anchor:middle;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px;stroke-linejoin:round}
+.f8 .et{font-size:9.5px;fill:var(--anatomy-strong);text-anchor:middle}
+.f8 .cur{fill:none;stroke:var(--anatomy-strong);stroke-width:1.5}
+.f8 .ax{font-size:10px;fill:var(--anatomy-text)}
+.f8 .stk{fill:none;stroke:var(--anatomy-strong);stroke-width:2}.f8 .stk.o{stroke:var(--anatomy-lo);stroke-width:1.2;stroke-dasharray:4 3}
+.f8 .dot{fill:var(--anatomy-strong)}.f8 .nd{stroke:var(--anatomy-strong);stroke-width:1.4;stroke-dasharray:4 3;fill:none}
+.f8 .bdg{fill:none;stroke:var(--anatomy-strong);stroke-width:1.4}
 .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
-.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--anatomy-lo)}
-.lg .k1{background:linear-gradient(90deg,hsl(0 62% 48%),hsl(135 62% 48%),hsl(225 62% 48%));border-radius:5px}.lg .k2{background:var(--anatomy-blue)}.lg .k3{background:color-mix(in srgb,var(--anatomy-green) 28%,transparent)}
-.lg .k4{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}.lg .k5{background:#2a2a2e}.lg .k6{background:#d9534f}
+.lg span{display:inline-flex;align-items:baseline;min-width:0}
+.lg i{display:inline-block;flex:none;width:18px;height:10px;margin-right:6px;border:1px solid var(--anatomy-lo);box-sizing:border-box}
 .cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
+.cap .katex,.kard dd .katex{font-size:1em}
 .iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh>b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0;overflow-wrap:anywhere}
 .iso-plate{padding-bottom:58px}
-.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 64px);text-align:right;line-height:1.35}
-.iso-plate-corner[data-corner="readout"]{max-width:100%;text-wrap:balance}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%}
 @media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+@media(max-width:600px){.kard{grid-template-columns:minmax(0,1fr)}.kard dt{margin-top:4px}
+.fig-cards{flex-direction:column;overflow-x:visible;scroll-snap-type:none}.fig-cards .fig-card{flex:1 1 auto;width:100%;box-sizing:border-box}}
+.f8 .nar{margin:14px 8px 8px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}
+.nar #stepN{display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:var(--anatomy-strong);color:var(--anatomy-card);font-weight:600;font-size:12px;text-align:center}
+.abar{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:0 2px 12px;font-size:13px;color:var(--anatomy-strong)}
+.abar input{flex:1 1 140px;min-width:120px;min-height:34px}.abar .c-note{flex:1 1 100%;font-size:12px;color:var(--anatomy-text)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:14px 2px 6px}.ctl .modes{display:flex;flex-wrap:wrap;gap:6px}
+.iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
+</style><div id="aBar" class="abar"><label for="aIn">本卡活跃专家数 A：<b id="aVal">9</b></label><input id="aIn" type="range" min="1" max="32" step="1" value="9"><span class="c-note">每专家固定 c = 128 个 CTA（以上投影 8,192 列 ÷ 每块 64 列为例）</span></div><figure class="iso-figure" aria-label="图 8-3 专家 kernel 波次台阶交互示意图：对比每 SM 驻留 k = 8（wgmma，每线程 63 寄存器，单波容量 1,056）与 k = 9（mma.sync，每线程 52 寄存器，单波容量 1,188）在本卡活跃专家数 A = 1..32（每专家固定 128 个 CTA）下的波数变化。上方排队条与 132 个 SM 槽位图按编号顺序做计数示意（硬件派发先后、尾波成员与 SM 落点没有测）：默认 A = 9（1,152 个 CTA）在 k = 8 下跑 2 波、尾波（第 2 波）96 个运行 CTA 与 960 个红斜线空转槽位同时并存，而在 k = 9 下 1 波跑完并存 36 个空余槽位；下方共用波宽的先后示意时间线按纵向条高切分同波运行与空闲槽位，底部波数台阶图对照 W = ceil(N / 132k) 并标出 T = 8 上下投影两核均由 9 掉到 8 时的阶段 6 配对实测合计（A = 9 慢 10.43 / 11.41 µs，A = 8 快 1.34 / 1.68 / 1.90 µs，单波耗时没有测）。"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 8-3</span><span class="iso-plate-corner" data-corner="title">专家 kernel 波次台阶：单波容量 132k 与路由块数 A × 128</span><span class="iso-plate-corner" data-corner="readout" data-readout>本卡活跃专家 A = 9 × 128 = 总分块数 N = 1,152 个 CTA
+每 SM 驻留 k = 8 → 单波容量 C = 1,056 · 共跑 W = 2 波</span></div><div class="f8"><svg id="strip" class="p" viewBox="0 0 640 112" role="img" aria-label=""><g id="qTrack" data-hw="cta_queue"></g><g id="algO"></g></svg><svg id="scene" class="p" viewBox="0 0 640 282" role="img" aria-label="132 个 SM 驻留槽位示意图（每 SM k 个槽位，共 C = 132k 位；哪些 CTA 进后续尾波与 SM 落点没有测，仅为槽位计数示意）：展示当前波运行 CTA 与红斜线同时空转槽位，第 5 步调暗显示已全部退出的尾波回顾。"><defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" stroke="var(--anatomy-red)" stroke-width="1" opacity="0.65"/></pattern></defs><g id="sbody"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="p" viewBox="0 0 640 160" role="img" aria-label=""><defs><clipPath id="clipT"><rect id="clipR" x="0" y="0" width="0" height="160"/></clipPath></defs>
+<text class="lab2" data-rowlabel="head" x="18" y="15"></text><text class="rl" data-rowlabel x="96" y="39"></text><text class="rl" data-rowlabel x="96" y="65"></text><text class="rl" data-rowlabel x="96" y="91"></text><text class="rl" data-rowlabel x="96" y="117"></text><text class="rl" data-rowlabel x="96" y="143"></text>
+<g id="tlStatic"></g><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg><svg id="axis" class="p" viewBox="0 0 640 212" role="img" aria-label=""><g id="axisG"></g></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="8" checked>每 SM 驻留 k = 8（wgmma：每线程 63 个寄存器 → 每 CTA 分配 8,192 个）</label><label><input type="radio" name="mode" value="9">每 SM 驻留 k = 9（mma.sync：每线程 52 个寄存器 → 每 CTA 分配 7,168 个）</label></div>
+<input id="tIn" type="range" hidden min="0" max="5" step="0.02" value="0"></div><div class="lg"><span><i style="background:linear-gradient(90deg, hsl(180 65% 46%), hsl(183.06 65% 46%), hsl(186.13 65% 46%), hsl(189.19 65% 46%), hsl(192.26 65% 46%), hsl(195.32 65% 46%), hsl(198.38 65% 46%), hsl(201.45 65% 46%), hsl(204.51 65% 46%), hsl(207.57 65% 46%), hsl(210.64 65% 46%), hsl(213.7 65% 46%), hsl(216.77 65% 46%), hsl(219.83 65% 46%), hsl(222.89 65% 46%), hsl(225.96 65% 46%), hsl(229.02 65% 46%), hsl(232.09 65% 46%), hsl(235.15 65% 46%), hsl(238.21 65% 46%), hsl(241.28 65% 46%), hsl(244.34 65% 46%), hsl(247.4 65% 46%), hsl(250.47 65% 46%), hsl(253.53 65% 46%), hsl(256.6 65% 46%), hsl(259.66 65% 46%), hsl(262.72 65% 46%), hsl(265.79 65% 46%), hsl(268.85 65% 46%), hsl(271.91 65% 46%), hsl(274.98 65% 46%));border-color:var(--anatomy-lo)"></i>活跃专家 1..A 的 CTA（每专家 128 个，色块编号 = 专家号）</span><span><i style="background:#d98200;border-color:#d98200"></i>时间线：整波期间同时运行的 CTA 槽位占比（纵向高度）</span><span><i style="background:transparent;border:1px solid var(--anatomy-mid)"></i>空置的 SM CTA 驻留槽位</span><span><i style="background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)"></i>不满一波期间同时空转的闲置 CTA 槽位（C − 本波 CTA 数）</span><span><i style="background:#ffffff;border:1.8px solid var(--anatomy-strong)"></i>当前本步焦点框与当前选中 k 的波次台阶（深色实线）</span><span><i style="background:transparent;border:1.2px dashed var(--anatomy-lo)"></i>另一档 k 对照台阶或已省去的空波次格（灰色虚线）</span></div>
+<p class="cap">切换每 SM 驻留数 k = 8 或 9，拖动本卡活跃专家数 A（1–32）：网格总块数 N = 128A 一旦跨过单波容量台阶 132k，就会多跑一波。默认 A = 9（N = 1,152）时，k = 9（单波 1,188）在 1 波内跑完（同时空余 36 个槽位），掉到 k = 8（单波 1,056）后则有 96 个尾波 CTA 落入第 2 波，与 960 个空转槽位整波同时并存（T = 8 把 mma.sync 换成 wgmma 时，上投影与下投影两核都由 9 掉到 8、在 A = 9 的两组路由下各多跑 1 波，阶段 6 合计慢 10.43 / 11.41 µs，而 A = 8 的三组路由留在 1 波内合计快 1.34 / 1.68 / 1.90 µs；单波耗时没有测）。硬件 CTA 派发先后、哪些 CTA 落进尾波及落到哪个 SM 都没有测，图中按专家与编号顺序排布仅为槽位计数示意；时间线只表示波次先后示意，条高表示同波运行与空闲槽位占比。</p></main><script type="module">
+const D={"FIG_ID":"ch08-m2-wave","L":{"fig":"图 8-3","title":"专家 kernel 波次台阶：单波容量 132k 与路由块数 A × 128","page.title":"图 8-3 专家 kernel 波次台阶：单波容量 132k 与路由块数 A × 128","variant.axis":"选择每 SM 同时驻留的 CTA 数 k（对照同一活跃专家数 A 下跑几波）","variant.8.name":"每 SM 驻留 k = 8（wgmma：每线程 63 个寄存器 → 每 CTA 分配 8,192 个）","variant.9.name":"每 SM 驻留 k = 9（mma.sync：每线程 52 个寄存器 → 每 CTA 分配 7,168 个）","out.one":"单波容量 C = {Ck} · 当前 N = {N} 在 1 波内跑完（同时空余 {spareK} 位）","out.multi":"单波容量 C = {Ck} · 当前 N = {N} 共跑 {Wk} 波（尾波空转 {idleK} 位）","a.label":"本卡活跃专家数 A：{A}","a.note":"每专家固定 c = 128 个 CTA（以上投影 8,192 列 ÷ 每块 64 列为例）","readout":"本卡活跃专家 A = {A} × 128 = 总分块数 N = {N} 个 CTA\n每 SM 驻留 k = {k} → 单波容量 C = {C} · 共跑 W = {W} 波","strip.hdr":"待派发专家网格：A = {A} × 128 = {N} 个 CTA（硬件派发先后与哪些 CTA 进后续尾波没有测，按专家与编号顺序排布示意）","strip.cut.multi":"单波容量 C = {C}","strip.cut.one":"单波容量 C = {C} ≥ N = {N}（1 波装下）","scene.hdr":"132 个 SM × 每 SM {k} 个槽位 = 单波 {C} 个槽位（哪些 CTA 进后续尾波及落到哪个 SM 没有测，按编号顺序仅为计数示意）","scene.hdr.s4":" · 尾波回顾（已全部退出）","focus.s0":"寄存器配额限定每 SM 驻留 k = {k} → 单波容量 C = 132 × {k} = {C} 个空槽位","focus.s1":"路由命中 A = {A} 个本地专家：{A} × 128 = {N} 个 CTA 排队待派","focus.s2.over":"第 1 波：前 {C} 个 CTA 占满全部槽位；余下 {rem} 个待前序 CTA 退出即补进槽位","focus.s2.eq":"第 1 波：{C} 个 CTA 恰好占满全部驻留槽位","focus.s2.under":"第 1 波：{N} 个 CTA 同时运行，并存 {spare} 个空余槽位（红斜线）","focus.s3.run":"第 {W} 波：前序退出即补位，本波 {last} 个 CTA 运行与 {idle} 个空转槽位同时并存","focus.s3.full":"第 {W} 波：前序退出即补位，本波 {C} 个 CTA 占满全部槽位","focus.s3.one":"无第 2 波：{N} ≤ {C}，全部 CTA 已在第 1 波内跑完退出","focus.s3.done":"k = {k} 已在第 {W} 波全部跑完退出（k = 8 仍在跑第 {W8} 波）","focus.s4.diff":"N = {N} 跨过 k = 8 的 {crossedStep} 台阶（未过 k = 9 台阶）：k = 8 跑 {W8} 波，k = 9 跑 {W9} 波","focus.s4.same":"N = {N} 未跨两档台阶差：k = 8 与 k = 9 同样跑 {W} 波","cap":"切换每 SM 驻留数 k = 8 或 9，拖动本卡活跃专家数 A（1–32）：网格总块数 N = 128A 一旦跨过单波容量台阶 132k，就会多跑一波。默认 A = 9（N = 1,152）时，k = 9（单波 1,188）在 1 波内跑完（同时空余 36 个槽位），掉到 k = 8（单波 1,056）后则有 96 个尾波 CTA 落入第 2 波，与 960 个空转槽位整波同时并存（T = 8 把 mma.sync 换成 wgmma 时，上投影与下投影两核都由 9 掉到 8、在 A = 9 的两组路由下各多跑 1 波，阶段 6 合计慢 10.43 / 11.41 µs，而 A = 8 的三组路由留在 1 波内合计快 1.34 / 1.68 / 1.90 µs；单波耗时没有测）。硬件 CTA 派发先后、哪些 CTA 落进尾波及落到哪个 SM 都没有测，图中按专家与编号顺序排布仅为槽位计数示意；时间线只表示波次先后示意，条高表示同波运行与空闲槽位占比。","aria":"图 8-3 专家 kernel 波次台阶交互示意图：对比每 SM 驻留 k = 8（wgmma，每线程 63 寄存器，单波容量 1,056）与 k = 9（mma.sync，每线程 52 寄存器，单波容量 1,188）在本卡活跃专家数 A = 1..32（每专家固定 128 个 CTA）下的波数变化。上方排队条与 132 个 SM 槽位图按编号顺序做计数示意（硬件派发先后、尾波成员与 SM 落点没有测）：默认 A = 9（1,152 个 CTA）在 k = 8 下跑 2 波、尾波（第 2 波）96 个运行 CTA 与 960 个红斜线空转槽位同时并存，而在 k = 9 下 1 波跑完并存 36 个空余槽位；下方共用波宽的先后示意时间线按纵向条高切分同波运行与空闲槽位，底部波数台阶图对照 W = ceil(N / 132k) 并标出 T = 8 上下投影两核均由 9 掉到 8 时的阶段 6 配对实测合计（A = 9 慢 10.43 / 11.41 µs，A = 8 快 1.34 / 1.68 / 1.90 µs，单波耗时没有测）。","aria.strip":"待派发专家 CTA 排队条（计数示意，派发先后与尾波成员没有测）：画出 A 个本地专家各 128 个 CTA（共 N = 128A 个）及单波容量 C = 132k 切分线。","aria.scene":"132 个 SM 驻留槽位示意图（每 SM k 个槽位，共 C = 132k 位；哪些 CTA 进后续尾波与 SM 落点没有测，仅为槽位计数示意）：展示当前波运行 CTA 与红斜线同时空转槽位，第 5 步调暗显示已全部退出的尾波回顾。","aria.tl":"共用波宽的波次先后示意时间线（1 格 = 1 波，不按微秒比例）：每波在纵向高度上切分琥珀色同时运行 CTA 占比与红斜线同时空转槽位占比，省去的波次画为空虚线格。","aria.axis":"总 CTA 数 N 对总波数 W = ceil(N / 132k) 的波次台阶图：粗实线标当前 k = {k} 台阶，虚线对照 k = {other} 台阶，标出当前 (N, W) 落点与 T = 8 阶段 6 配对实测合计（单波耗时没有测）。","tl.hdr.wide":"波次先后示意（两档共用 1 格 = 1 波；条高按同波运行与空闲槽位占比切分，不按微秒比例）","tl.hdr.narrow":"先后示意（1 格 = 1 波；纵向为同波占比）","tl.row.wide":"第 {w} 波","tl.row.narrow":"第{w}波","tl.bar.full.wide":"{C} 个 CTA（满波）","tl.bar.full.narrow":"{C}（满）","tl.bar.part.wide":"{nw} 运行 · 空 {idle} 位","tl.bar.part.narrow":"{nw} · 空 {idle}","tl.bar.part.xs":"{nw}/{idle}空","tl.empty.wide":"无第 {w} 波（已省去）","tl.empty.narrow":"无第 {w} 波","axis.y":"波数","axis.dot":"N = {N}（W = {W}）","axis.x":"横轴：网格总 CTA 数 N（粗实线为当前 k = {k}，虚线对照 k = {other}）","axis.r61":"固定 T = 8 阶段 6 配对实测合计（不随滑块 A 改变；mma.sync 换 wgmma 使上下投影两核均由每 SM 9 掉到 8，单波耗时没有测）：A = 9 两组路由（两核各多 1 波）慢 10.43 / 11.41 µs；A = 8 三组路由（仍留 1 波）快 1.34 / 1.68 / 1.90 µs","legend.1":"活跃专家 1..A 的 CTA（每专家 128 个，色块编号 = 专家号）","legend.2":"时间线：整波期间同时运行的 CTA 槽位占比（纵向高度）","legend.3":"空置的 SM CTA 驻留槽位","legend.4":"不满一波期间同时空转的闲置 CTA 槽位（C − 本波 CTA 数）","legend.5":"当前本步焦点框与当前选中 k 的波次台阶（深色实线）","legend.6":"另一档 k 对照台阶或已省去的空波次格（灰色虚线）","dt.f":"公式","dt.i":"输入","dt.o":"输出","dt.c":"代价","dt.x":"交给下一步","s0.t":"每个 SM 同时驻留 k = {k} 个 CTA，132 个 SM 单波最多容纳 C = {C} 个。","s0.f":"$C = 132\\,k$","s0.i":"132 个 SM（每 SM 共 65,536 个寄存器，按每 warp 256 个步长整块分配）；以上投影 kernel 为例：每块 4 个 warp（128 线程）、共享内存 21,504 B（取自 mma.sync 3 槽权重环配置，wgmma 版共享内存没有单列；共享内存上限 10 个不构成瓶颈）：每线程 63 个寄存器 → 每 warp 2,048 个 → 每块 8,192 个 → k = 8（wgmma）；每线程 52 个寄存器 → 每 warp 1,792 个 → 每块 7,168 个 → k = 9（mma.sync）","s0.o":"全卡单波驻留容量 C = 132 × {k} = {C} 个 CTA 槽位","s0.x":"拿单波容量 C 与本组路由生成的网格总块数 N 对照","s0.c":"要放满 k = 9 个 4-warp CTA，每 warp 最多分 ⌊65,536 ÷ (9 × 4)⌋ = 1,820 个寄存器 → 按 256 步长向下取整为 1,792 个/warp = 每线程 56 个配额：mma.sync（52 ≤ 56，每块 7,168）保住 k = 9；换成 wgmma（63 > 56，跳到每块 8,192）掉到 k = 8（每波少 132 个，132k 台阶左移）","s1.t":"本组路由命中 A = {A} 个本地专家，每专家启动 c = 128 个 CTA，共排队 N = {N} 个待派发 CTA。","s1.f":"$N = A\\,c$","s1.i":"本卡命中的本地活跃专家数 A = {A}（随每组路由分布浮动）；每专家固定启动 c = 8,192 列 ÷ 每块 64 列 = 128 个上投影 CTA（T = 8 下投影 64 列块 × Split-K 2 同样每专家 128 个，A = 9 时也是 1,152 个 CTA）","s1.o":"全卡待派发分块总数 N = {A} × 128 = {N} 个排队 CTA","s1.x":"将排队 CTA 送入 132 × {k} = {C} 个 SM 驻留槽位","s1.c":"非持久专家网格里 N 随活跃专家数 A 起伏；CUDA 规范不规定 CTA 派发先后，硬件派发顺序与哪些块进尾波没有测，图中按专家与编号顺序排布仅为槽位计数示意（哪些 CTA 最后跑不改变余量与空槽个数）","s2.t.full":"第 1 波：派入前 {w1} 个 CTA 运行，占满全部 {C} 个驻留槽位。","s2.t.part":"第 1 波：全部 {w1} 个 CTA 入驻运行，同时多出 {spare} 个空闲槽位。","s2.f":"$n_1 = \\min(N,\\ C)$","s2.i":"待派发总块数 N = {N}；全卡单波容量 C = {C}","s2.o.full":"第 1 波同时运行 {w1} 个 CTA（全部 {C} 个驻留槽位占满）","s2.o.part":"第 1 波同时运行 {w1} 个 CTA（并存 {spare} 个空余槽位，红斜线）","s2.x.more":"只要任一第 1 波 CTA 跑完退出，余下 {rem} 个排队 CTA 就立即补进腾出的槽位","s2.x.done":"全部 CTA 已在第 1 波内入驻运行，队列中余留 0 个","s2.c":"波次只是同时在场的容量上限而非同步屏障：任一槽位腾空就会立即补上；因为每个 CTA 读取的权重字节量相同，第 1 波各 CTA 几乎同时退出（见第 2 章第 1 节）。硬件派发先后与落到哪个 SM 没有测","s3.t.run_partial":"后续波次（至第 {W} 波）：前序 CTA 退出即补位，尾波 {last} 个 CTA 运行与 {idle} 个空转槽位同时并存。","s3.t.run_full":"后续波次（至第 {W} 波）：前序 CTA 退出即补位，第 {W} 波 {C} 个 CTA 占满全部槽位。","s3.t.done_early":"k = {k} 已在第 {W} 波全部跑完退出（同一进度下 k = 8 仍在跑第 {W8} 波）。","s3.t.no_w2":"无第 2 波：N = {N} ≤ C = {C}，全部 CTA 已在第 1 波内跑完退出。","s3.f":"$r = N - (W - 1)C\\quad (W = \\lceil N / C \\rceil)$","s3.i":"待派发总块数 N = {N}；单波容量 C = {C}；总波数 W = {W}","s3.o.run_partial":"第 1 波后余下 {rem} 个 CTA 依次补进腾出的槽位；尾波（第 {W} 波）整波期间 r = {last} 个 CTA 运行与 {idle} 个空转槽位同时并存","s3.o.run_full":"第 1 波后余下 {rem} 个 CTA 补进槽位；第 {W} 波 r = {C} 个 CTA 恰好占满全部驻留槽位","s3.o.done_early":"k = {k} 只需 W = {W} 波，共 {N} 个 CTA 已全部退场（时间线第 {W8} 波格留空，比 k = 8 省去 1 波）","s3.o.no_w2":"W = 1（r = {N} ≤ C = {C}），无需开启第 2 波（时间线第 2 波虚线格留空）","s3.x":"把全网格总波数 W 放到波次台阶图上，对照阶段 6 多组路由配对实测","s3.c.run":"按波次模型，哪怕尾波只剩 {last} 个 CTA，也得走完本块的完整 K 维内循环，同时空转的 {idle} 个驻留槽位分担不了它的计算（单波微秒耗时没有测）","s3.c.done_early":"留在 W = {W} 波以内，比 k = 8 省去第 {W8} 波的额外尾波开销（单波微秒耗时没有测）","s3.c.no_w2":"全部块数留在 1 波容量以内，省去额外波次开销","s4.t":"总波数 W = {W}：驻留改动必须在多组路由上同时测，并用编译属性 __launch_bounds__ / __maxnreg__ 锁住 k，使 132k 台阶固定。","s4.f":"$W = \\lceil N / C \\rceil$","s4.i":"总块数 N = {N}；当前选中 k = {k}（单波 C = {C}，跑 W = {W} 波）对照另一档 k = {other}（单波 C = {otherC}，跑 W = {otherW} 波）","s4.o.diff":"W = ⌈{N} ÷ {C}⌉ = {W} 波（N = {N} 跨过 k = 8 的 {crossedStep} 台阶但未过 k = 9 台阶：k = 8 跑 {W8} 波，k = 9 跑 {W9} 波，相差 1 波）","s4.o.same":"W = ⌈{N} ÷ {C}⌉ = {W} 波（两档落在同一阶，波数相同）","s4.x":"工程准则：多组路由同时评测 + 用编译属性锁死每 SM 驻留配额 k（见第 3 章第 1 节；注意 __maxnreg__ 上限硬压过低会把寄存器溢出到本地内存：T = 8 换 wgmma 时硬压到 56 个会溢出 8 个寄存器，阶段 6 反而慢 61.79 µs）","s4.c":"固定 T = 8 实测锚点（滑块 A 用于推演一般波数，实测固定在 T = 8 的五组路由；mma.sync 换成更快的 wgmma 让上投影寄存器 52 → 63、下投影 54 → 64，两核均由每 SM 9 掉到 8）：A = 9 两组路由两核各多跑 1 波，阶段 6 合计慢 10.43 与 11.41 µs（单波耗时没有测）；A = 8 三组路由两核仍留 1 波内，合计快 1.34 / 1.68 / 1.90 µs"},"F":{"0":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>C</mi><mo>=</mo><mn>132</mn><mtext> </mtext><mi>k</mi></mrow><annotation encoding=\"application/x-tex\">C = 132\\,k</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\">132</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0315em;\">k</span></span></span></span>","1":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>N</mi><mo>=</mo><mi>A</mi><mtext> </mtext><mi>c</mi></mrow><annotation encoding=\"application/x-tex\">N = A\\,c</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\">A</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\">c</span></span></span></span>","2":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mi>n</mi><mn>1</mn></msub><mo>=</mo><mi>min</mi><mo>⁡</mo><mo stretchy=\"false\">(</mo><mi>N</mi><mo separator=\"true\">,</mo><mtext> </mtext><mi>C</mi><mo stretchy=\"false\">)</mo></mrow><annotation encoding=\"application/x-tex\">n_1 = \\min(N,\\ C)</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.5806em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">n</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">1</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mop\">min</span><span class=\"mopen\">(</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mpunct\">,</span><span class=\"mspace\"> </span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">)</span></span></span></span>","3":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>r</mi><mo>=</mo><mi>N</mi><mo>−</mo><mo stretchy=\"false\">(</mo><mi>W</mi><mo>−</mo><mn>1</mn><mo stretchy=\"false\">)</mo><mi>C</mi><mspace width=\"1em\"/><mo stretchy=\"false\">(</mo><mi>W</mi><mo>=</mo><mo stretchy=\"false\">⌈</mo><mi>N</mi><mi mathvariant=\"normal\">/</mi><mi>C</mi><mo stretchy=\"false\">⌉</mo><mo stretchy=\"false\">)</mo></mrow><annotation encoding=\"application/x-tex\">r = N - (W - 1)C\\quad (W = \\lceil N / C \\rceil)</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0278em;\">r</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mopen\">(</span><span class=\"mord mathnormal\" style=\"margin-right:0.1389em;\">W</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mord\">1</span><span class=\"mclose\">)</span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mspace\" style=\"margin-right:1em;\"></span><span class=\"mopen\">(</span><span class=\"mord mathnormal\" style=\"margin-right:0.1389em;\">W</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mopen\">⌈</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mord\">/</span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">⌉)</span></span></span></span>","4":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>W</mi><mo>=</mo><mo stretchy=\"false\">⌈</mo><mi>N</mi><mi mathvariant=\"normal\">/</mi><mi>C</mi><mo stretchy=\"false\">⌉</mo></mrow><annotation encoding=\"application/x-tex\">W = \\lceil N / C \\rceil</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.1389em;\">W</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mopen\">⌈</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mord\">/</span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">⌉</span></span></span></span>"},"HUE":["hsl(180 65% 46%)","hsl(183.06 65% 46%)","hsl(186.13 65% 46%)","hsl(189.19 65% 46%)","hsl(192.26 65% 46%)","hsl(195.32 65% 46%)","hsl(198.38 65% 46%)","hsl(201.45 65% 46%)","hsl(204.51 65% 46%)","hsl(207.57 65% 46%)","hsl(210.64 65% 46%)","hsl(213.7 65% 46%)","hsl(216.77 65% 46%)","hsl(219.83 65% 46%)","hsl(222.89 65% 46%)","hsl(225.96 65% 46%)","hsl(229.02 65% 46%)","hsl(232.09 65% 46%)","hsl(235.15 65% 46%)","hsl(238.21 65% 46%)","hsl(241.28 65% 46%)","hsl(244.34 65% 46%)","hsl(247.4 65% 46%)","hsl(250.47 65% 46%)","hsl(253.53 65% 46%)","hsl(256.6 65% 46%)","hsl(259.66 65% 46%)","hsl(262.72 65% 46%)","hsl(265.79 65% 46%)","hsl(268.85 65% 46%)","hsl(271.91 65% 46%)","hsl(274.98 65% 46%)"],"TXT":[{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#000000"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"},{"ink":"#ffffff"}],"AMBER":"#d98200"};
+const NS="http://www.w3.org/2000/svg", $=(id)=>document.getElementById(id);
+const tin=$("tIn"), STEPQ=+tin.step||0.02, LO=0, EPS=1e-9, UEND=5, STEPU=[0,1,2,3,4];
+const L=D.L;
+const esc=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const f0=(n)=>Math.round(n).toLocaleString("en-US");
+const f1=(v)=>+(+v).toFixed(1);
+const fill=(s,v)=>s.replace(/\{(\w+)\}/g,(m,key)=>v[key]===undefined?m:typeof v[key]==="number"?f0(v[key]):v[key]);
+const mk=(tag,attrs,text)=>{ const e=document.createElementNS(NS,tag); for(const a in attrs) e.setAttribute(a,attrs[a]); if(text!=null) e.textContent=text; return e; };
+const NAR=matchMedia("(max-width:600px)").matches;
+const modeNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return r?+r.value:8; };
+const P={A:9};
+const G=NAR?{FW:334,X0:10,X1:308,GX:10,CW:52,CH:18.4,COLS:6,SW:14.2,SH:4.0,SPX:16.0,SPY:5.1,TW:294,TL0:10,TL1:308,XW0:44,XWE:304,RLX:8,AX0:32,AX1:296,YB:122,LV:18}
+  :{FW:640,X0:18,X1:622,GX:18,CW:50.4,CH:20.4,COLS:12,SW:14,SH:4.4,SPX:15.4,SPY:5.2,TW:604,TL0:104,TL1:620,XW0:168,XWE:592,RLX:96,AX0:48,AX1:616,YB:122,LV:19};
 
-.fe .ax{font-size:10px;fill:var(--anatomy-text)}.fe .axl{stroke:var(--anatomy-lo);stroke-width:.8}
-.fe .gridc{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.5}
-.fe .slot{stroke:none}.fe .slot.e{fill:none;stroke:var(--anatomy-mid);stroke-width:.6}
-.fe .kard dd .katex{font-size:1em}
-.ctl .grp{display:inline-flex;gap:6px;align-items:center}
-.ctl button.on{background:var(--anatomy-strong);color:var(--anatomy-card);border-color:var(--anatomy-strong)}
-.ctl .val{min-width:3.2em;font-weight:600}
-</style><figure class="iso-figure"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 8-3</span><span class="iso-plate-corner" data-corner="title">专家 kernel 的波次台阶</span><span class="iso-plate-corner" data-corner="readout" data-readout></span></div><div class="fe"><svg class="flat" viewBox="0 0 640 96" role="img" aria-label="算法：每个移动的块属于算法的哪一部分"><text class="lab2" id="stripT" x="18" y="14"></text><g id="strip"></g><g id="algO"></g><g id="focusS"></g></svg><svg class="isov" viewBox="0 0 640 238" role="img" aria-label="132 个 SM 的 CTA 位，和总 CTA 数对波数的台阶"><g id="scene"></g><g id="dots"></g><g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg class="flat" id="flat" viewBox="0 0 640 200" role="img" aria-label="时间线，与光标同步">
-<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V5" class="hl"/></pattern></defs>
-<text class="lab2" id="axisT" x="132" y="16"></text><g id="rowsG"></g>
-<clipPath id="clipT"><rect id="clipR" x="132" y="22" width="0" height="100"/></clipPath><g clip-path="url(#clipT)"><g id="tl"></g></g><path id="cur" class="cur" d=""/></svg><div id="axisBox"></div></div></div></figure><div class="ctl"><label class="grp">A <input id="aIn" type="range" min="1" max="32" step="1" value="9"><span class="val" id="aVal"></span></label><span class="grp">k <button type="button" data-k="9">9</button><button type="button" data-k="8">8</button></span><span class="grp">c = 128</span><button id="play">暂停</button><label>时间 <input id="tIn" type="range" min="0" max="10" step="0.01" value="0"></label></div><div class="lg"><span><i class="k1"></i>一个专家的 CTA（颜色与编号 = 专家号）</span><span><i class="k4"></i>不满的一波：多出来的 CTA 位空闲</span></div><p class="cap">拖动 A，切换 k = 9 或 8：总 CTA 数过了台阶 132k，就多一波。A = 9 时 1,152 个 CTA 在 k = 8 要两波，在 k = 9 一波就够。</p></main><script type="module">const F={"C":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>C</mi><mo>=</mo><mn>132</mn><mtext> </mtext><mi>k</mi></mrow><annotation encoding=\"application/x-tex\">C = 132\\,k</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\">132</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0315em;\">k</span></span></span></span>","N":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>N</mi><mo>=</mo><mi>A</mi><mtext> </mtext><mi>c</mi></mrow><annotation encoding=\"application/x-tex\">N = A\\,c</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\">A</span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\">c</span></span></span></span>","n1":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mi>n</mi><mn>1</mn></msub><mo>=</mo><mi>min</mi><mo>⁡</mo><mo stretchy=\"false\">(</mo><mi>N</mi><mo separator=\"true\">,</mo><mtext> </mtext><mi>C</mi><mo stretchy=\"false\">)</mo></mrow><annotation encoding=\"application/x-tex\">n_1 = \\min(N,\\ C)</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.5806em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">n</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\">1</span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mop\">min</span><span class=\"mopen\">(</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mpunct\">,</span><span class=\"mspace\"> </span><span class=\"mspace\" style=\"margin-right:0.1667em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">)</span></span></span></span>","rest":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>N</mi><mo>−</mo><mi>C</mi></mrow><annotation encoding=\"application/x-tex\">N - C</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span></span></span></span>","W":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>W</mi><mo>=</mo><mo stretchy=\"false\">⌈</mo><mi>N</mi><mi mathvariant=\"normal\">/</mi><mi>C</mi><mo stretchy=\"false\">⌉</mo></mrow><annotation encoding=\"application/x-tex\">W = \\lceil N / C \\rceil</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6833em;\"></span><span class=\"mord mathnormal\" style=\"margin-right:0.1389em;\">W</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:1em;vertical-align:-0.25em;\"></span><span class=\"mopen\">⌈</span><span class=\"mord mathnormal\" style=\"margin-right:0.109em;\">N</span><span class=\"mord\">/</span><span class=\"mord mathnormal\" style=\"margin-right:0.0715em;\">C</span><span class=\"mclose\">⌉</span></span></span></span>"};
-const COLS=12, ROWS=11, GX0=20, GY0=24, CW=50, CH=19.2;
-let P={A:9,k:8};
-function init(q){ if(q.has("A")) P.A=Math.max(1,Math.min(32,+q.get("A"))); if(q.has("k")) P.k=+q.get("k")===9?9:8; }
-function bind(re){ const a=document.getElementById("aIn"); a.value=String(P.A); const lab=()=>{ document.getElementById("aVal").textContent=String(P.A); };
-  lab(); a.addEventListener("input",()=>{ P.A=+a.value; lab(); re(); });
-  const bs=[...document.querySelectorAll("button[data-k]")]; const mark=()=>bs.forEach((b)=>b.classList.toggle("on",+b.dataset.k===P.k)); mark();
-  bs.forEach((b)=>b.addEventListener("click",()=>{ P.k=+b.dataset.k; mark(); re(); })); }
-const f0=(n)=>n.toLocaleString("en-US");
-const exCol=(e)=>"hsl("+Math.round(360*(e%8)/8)+" 62% "+(46+10*(Math.floor(e/8)%2))+"%)";
-function MODEL(){
-  const A=P.A,k=P.k,c=128,N=A*c,C=132*k,W=Math.ceil(N/C),last=N-(W-1)*C;
-  const t5=3+Math.max(W-1,1), end=t5+1.4;
-  const waveAt=(t)=>t<2?0:t<3?1:t<t5?(W>=2?Math.min(W,2+Math.floor(t-3)):1):W;
-  const cnt=(w)=>Math.min(C,N-(w-1)*C);
-  const sx=(n)=>18+604*n/N;
-  // strip: A experts, wave boundaries
-  let strip='<text class="tn" x="18" y="34">总 CTA 数 N = A × c：'+A+' 个专家 × 每专家 '+c+' 个 CTA（颜色与编号 = 专家号）</text>';
-  for(let e=0;e<A;e++){ const x=18+604*e/A, w=604/A-1; strip+='<rect class="sc" x="'+x.toFixed(1)+'" y="42" width="'+w.toFixed(1)+'" height="24" style="fill:'+exCol(e)+'"/>'+(w>=14?'<text class="sa" style="font-size:'+(w>=24?11:9)+'px" x="'+(x+w/2).toFixed(1)+'" y="54">'+(e+1)+'</text>':""); }
-  for(let w=1;w<W;w++){ const x=sx(w*C); strip+='<path d="M'+x.toFixed(1)+' 38V72" stroke="var(--anatomy-red)" stroke-width="1.6" stroke-dasharray="3 2"/>'; }
-  if(W>1) strip+='<text class="tn" x="'+sx(C).toFixed(1)+'" y="84" text-anchor="middle">一波容量 C = '+f0(C)+'</text>'; else strip+='<text class="tn" x="622" y="84" text-anchor="end">一波容量 C = '+f0(C)+' ≥ N</text>';
-    const alg1=[18,40,604*Math.min(1,C/N),28], alg2=[sx(C),40,Math.max(2,622-sx(C)),28];
-  // axis: wave count against CTA count, selected k bold, other k faint
-  const AX0=30, AX1=610, NM=4800, AX=(n)=>AX0+(AX1-AX0)*n/NM, YB=118, LV=19;
-  const stair=(kk,bold)=>{ const Ck=132*kk; let d="M"+AX(0)+" "+(YB-LV); for(let w=1;w*Ck<NM;w++){ d+="H"+AX(w*Ck)+"V"+(YB-LV*(w+1)); } d+="H"+AX1; return '<path d="'+d+'" fill="none" stroke="'+(bold?"var(--anatomy-strong)":"var(--anatomy-lo)")+'" stroke-width="'+(bold?2:1.2)+'" '+(bold?"":'stroke-dasharray="4 3"')+'/>'; };
-  let ax='<svg class="flat" viewBox="0 0 640 182" role="img" aria-label="CTA 总数与波数：台阶在 132k 处"><line class="axl" x1="'+AX0+'" y1="'+YB+'" x2="'+AX1+'" y2="'+YB+'"/>';
-  [1,2,3,4].forEach((w)=>{ ax+='<text class="ax" x="'+(AX0-4)+'" y="'+(YB-LV*w+4-LV*0)+'" text-anchor="end">'+w+'</text>'; });
-  ax+='<text class="lab2" x="'+(AX0-4)+'" y="16" text-anchor="end">波数</text>';
-  const other=k===9?8:9; ax+=stair(other,false)+stair(k,true);
-  for(let w=1;w*132*k<NM;w++){ const x=AX(w*132*k); ax+='<line class="axl" x1="'+x+'" y1="'+YB+'" x2="'+x+'" y2="'+(YB+4)+'"/><text class="ax" x="'+x+'" y="'+(YB+15)+'" text-anchor="middle">'+f0(w*132*k)+'</text>'; }
-  for(let w=1;w*132*other<NM;w++){ const x=AX(w*132*other); ax+='<text class="ax" x="'+x+'" y="'+(YB+28)+'" text-anchor="middle" style="opacity:.55">'+f0(w*132*other)+'</text>'; }
-  const nx=AX(N), ny=YB-LV*(W+0); ax+='<path d="M'+nx+' '+YB+'V'+(YB-LV*(W+1))+'" stroke="var(--anatomy-red)" stroke-width="1.6" stroke-dasharray="4 3"/><circle class="dot" cx="'+nx+'" cy="'+(YB-LV*W)+'" r="5" style="fill:var(--anatomy-red)"/>';
-  ax+='<text class="lab" x="'+nx+'" y="'+(YB-LV*(W+1)-5)+'" text-anchor="middle">N = '+f0(N)+'</text>';
-  ax+='<text class="lab2" x="'+AX1+'" y="'+(YB+46)+'" text-anchor="end" style="opacity:.8">横轴：总 CTA 数 N（粗线 k = '+k+'，虚线 k = '+other+'）</text></svg>';
-  // frame
-  const frame=(t)=>{ const w=waveAt(t); let o='<text class="lab2" x="'+GX0+'" y="14">132 个 SM，每个 SM 有 '+k+' 个 CTA 位</text>';
-    for(let s=0;s<132;s++){ const cx=GX0+(s%COLS)*CW, cy=GY0+Math.floor(s/COLS)*CH; o+='<rect class="gridc" x="'+cx+'" y="'+cy+'" width="'+(CW-2)+'" height="'+(CH-2)+'" rx="2"/>';
-      for(let r=0;r<k;r++){ const sx_=cx+2+(r%3)*15.4, sy_=cy+1.5+Math.floor(r/3)*5.2; const g=(w-1)*C+r*132+s; let cls="slot e", st="";
-        if(w>0&&g<N){ cls="slot"; st=' style="fill:'+exCol(Math.floor(g/c))+'"'; } else if(w>0&&w===W&&t>=t5){ cls="slot wait"; st=' style="fill:url(#hatch)"'; }
-        o+='<rect class="'+cls+'" x="'+sx_.toFixed(1)+'" y="'+sy_.toFixed(1)+'" width="14" height="4.4"'+st+'/>'; } }
-    return o; };
-  const key=(t)=>waveAt(t)+"|"+(t>=t5?1:0);
-  const cell0=[GX0+CW/2-1,GY0+CH/2];
-  const tl=[ [0,1],[1,2],[2,3] ];
-  const ratio=f0(N)+" 个 CTA ÷ 一波 "+f0(C)+" 个";
-  const steps=[
-    { t:0, title:"每个 SM 同时驻留 k = "+k+" 个 CTA，132 个 SM 一波最多放 "+f0(C)+" 个。", card:{ f:F.C, i:"132 个 SM；每个 SM 驻留 k = "+k+" 个 CTA（由寄存器和共享内存决定，见第 3 章第 1 节）", o:"一波容量 C = 132 × "+k+" = "+f0(C)+" 个 CTA", x:"拿 C 和总 CTA 数 N 比较", c:"k 越大，一波装得越多；改动让 k 变了，台阶 132k 整体挪动" }, ring:{g:"scene",p:cell0,r:13,n:1} },
-    { t:1, title:"本卡有 A = "+A+" 个活跃专家，每个专家开 c = "+c+" 个 CTA，总共 "+f0(N)+" 个。", card:{ f:F.N, i:"A = "+A+" 个活跃专家（本卡被命中的本地专家，随路由而变）；每个专家 c = "+c+" 个 CTA", o:"N = "+A+" × "+c+" = "+f0(N)+" 个 CTA", x:"按 CTA 序号依次派发给各个 SM", c:"A 随路由变，所以 N 跟着变；路由不同，同一个 k 下的波数也不同" }, ring:{g:"strip",p:[320,38],r:11,n:2}, alg:[18,40,604,28] },
-    { t:2, title:"第 1 波：最先的 "+f0(Math.min(N,C))+" 个 CTA 占满各 SM 的 CTA 位。", card:{ f:F.n1, i:"N = "+f0(N)+"；C = "+f0(C), o:"第 1 波 "+f0(Math.min(N,C))+" 个 CTA"+(N>=C?"，所有 CTA 位全满":"，"+f0(C-N)+" 个 CTA 位空闲"), x:W>1?"余下 "+f0(N-C)+" 个 CTA 排到后面":"没有余下的 CTA", c:"一波的执行时间，同一个 kernel 每波约相同" }, ring:{g:"scene",p:[GX0+CW*6,GY0+CH*5.5],r:13,n:3}, alg:alg1 },
-    { t:3, title:W>1?"第 2 波起：余下的 CTA 等 CTA 位空出来再跑。":"没有第 2 波：N 不超过 C，一波跑完。", card:{ f:F.rest, i:"N = "+f0(N)+"；C = "+f0(C), o:W>1?("余下 "+f0(N-C)+" 个 CTA，每波最多 "+f0(C)+" 个；最后一波只有 "+f0(last)+" 个，"+f0(C-last)+" 个 CTA 位空闲"):"N − C ≤ 0，不需要第 2 波", x:W>1?"波数交给下一步":"波数 = 1", c:W>1?"最后一波的 "+f0(last)+" 个 CTA 也要付一整波的执行时间":"没有多出的波" }, ring:{g:"scene",p:[GX0+CW*3,GY0+CH*3],r:13,n:4}, alg:W>1?alg2:alg1 },
-    { t:t5, title:"总波数 W = "+W+"：总时间约为 W 个一波的时间。", card:{ f:F.W, i:"N = "+f0(N)+"；C = "+f0(C), o:"W = ⌈"+f0(N)+" ÷ "+f0(C)+"⌉ = "+W, x:"这就是这一组路由下该 kernel 的波数", c:"总代价：多出的波按整波计时。实例（T = 8，mma.sync 换成 wgmma，k 从 9 掉到 8，阶段 6）：A = 9 的两组路由慢 10.43 和 11.41 µs，另外三组路由略快 1.34 / 1.68 / 1.90 µs" }, ring:{g:"axis",p:[nx,YB-LV*W],r:10,n:5}, alg:[18,40,604,28] },
-  ];
-  steps[4].ring={g:"scene",p:[GX0+CW*6,GY0+CH*5.5],r:13,n:5};
-  const bars=[]; const rows=[]; for(let w=1;w<=W;w++){ rows.push("第 "+w+" 波"); const t0=w===1?2:3+(w-2), t1=w===1?3:3+(w-1); const n_=cnt(w); bars.push({r:w-1,t0,t1,cls:n_<C?"wait":"bar",lab:f0(n_)+" 个 CTA"}); }
-  const ro="总 CTA 数 "+f0(N)+" · 一波容量 "+f0(C)+" · 波数 "+W;
-  return { end, speed:0.45, ro, rows, bars, axisT:"时间只表示先后；每一波按一个单位画", strip, stripT:"算法：每个专家的 CTA 依次排队", steps, key, frame, axis:ax };
+// ===================== model: one view of (A, k, u). The drawing and FIG.hw state() both read it =====================
+const SMS=132, SMEM=21504;
+function dims(A,k){ const N=A*128,C=SMS*k,W=Math.ceil(N/C),W8=Math.ceil(N/1056),W9=Math.ceil(N/1188),other=k===9?8:9,oC=SMS*other,last=N-(W-1)*C;
+  return {A,k,N,C,W,last,idle:C-last,spare:C-N,rem:N-C,n1:Math.min(N,C),W8,W9,Wmax:Math.max(W8,W9,2),other,oC,oW:Math.ceil(N/oC),crossed:Math.min(W8,W9)*1056,w1:Math.min(N,C),otherC:oC,otherW:Math.ceil(N/oC),crossedStep:Math.min(W8,W9)*1056,Ck:C,Wk:W,spareK:C-N,idleK:C-last}; }
+const modelT=(Wmax,u)=>u<=3?u:u<=4?3+(u-3)*(Wmax-1):(2+Wmax)+1.4*(u-4);
+const settledU=(i)=>i>=STEPU.length-1?UEND:+Math.max(LO+Math.floor((STEPU[i+1]-1e-6-LO)/STEPQ+EPS)*STEPQ,STEPU[i]).toFixed(6);
+const kStepOf=(u)=>u<1-EPS?0:u<2-EPS?1:u<3-EPS?2:u<4-EPS?3:4;
+function view(A,k,u){ const d=dims(A,k), t=+modelT(d.Wmax,u).toFixed(6), ks=kStepOf(u);
+  const rw=t>=2-EPS&&t<2+d.W-EPS?Math.floor(t+EPS)-1:0;   // the wave that runs at t (0 = none)
+  const gridW=rw||(ks>=3?d.W:0), full=rw?[(rw-1)*d.C,Math.min(d.N,rw*d.C)]:null;
+  return {...d,u,t,ks,rw,gridW,gridDim:gridW>0&&rw===0,kern:t<1-EPS?null:t<2-EPS?"queued":rw?"running":"done",
+    stripFull:ks===1?[0,d.N]:full, algO:ks===1?[0,d.N]:full}; }
+const outcomeText=(A,kk)=>{ const d=dims(A,kk); return d.W===1?fill(L["out.one"],d):fill(L["out.multi"],d); };
+function focusKey(V){ return V.ks===0?"focus.s0":V.ks===1?"focus.s1":V.ks===2?(V.N>V.C?"focus.s2.over":V.N===V.C?"focus.s2.eq":"focus.s2.under"):V.ks===3?(V.W===1?"focus.s3.one":V.rw?(V.last===V.C?"focus.s3.full":"focus.s3.run"):"focus.s3.done"):(V.W8!==V.W9?"focus.s4.diff":"focus.s4.same"); }
+function card(V){ const g=(key)=>fill(L[key],V), F=D.F;
+  if(V.ks===0) return { t:g("s0.t"), f:F[0], r:[g("s0.i"),g("s0.o"),g("s0.x"),g("s0.c")] };
+  if(V.ks===1) return { t:g("s1.t"), f:F[1], r:[g("s1.i"),g("s1.o"),g("s1.x"),g("s1.c")] };
+  if(V.ks===2){ const p=V.N>=V.C?"full":"part"; return { t:g("s2.t."+p), f:F[2], r:[g("s2.i"),g("s2.o."+p),g(V.W>1?"s2.x.more":"s2.x.done"),g("s2.c")] }; }
+  if(V.ks===3){ const v=V.W===1?"no_w2":V.rw?(V.last===V.C?"run_full":"run_partial"):"done_early", cv=v==="run_full"||v==="run_partial"?"run":v;
+    return { t:g("s3.t."+v), f:F[3], r:[g("s3.i"),g("s3.o."+v),g("s3.x"),g("s3.c."+cv)] }; }
+  return { t:g("s4.t"), f:F[4], r:[g("s4.i"),g("s4.o."+(V.W8!==V.W9?"diff":"same")),g("s4.x"),g("s4.c")] }; }
+const titleOf=(m,i)=>card(view(P.A,m,settledU(i))).t;
+
+// ===================== FIG.hw state (ux_review/HW_RULES.md part 2) =====================
+const SH=(id,text,value,unit,expr,refs)=>Object.assign({id,text,value,unit},expr?{expr}:{},refs?{refs}:{});
+function hwState(A,k,u){
+  const V=view(A,k,u), N=V.N, C=V.C, W=V.W, t=V.t, ks=V.ks;
+  const rpt=k===9?52:63, wrp=Math.ceil(32*rpt/256)*256, cr=4*wrp, kuse={warps:4,threads:128,regsPerThread:rpt,smemB:SMEM};
+  const units=[]; for(let s=0;s<SMS;s++) units.push({id:"sm:"+s,kind:"sm",n:1,cap:{ctas:k,warps:64,regs:65536,smemB:233472}});
+  units.push({id:"cta_queue",kind:"queue",n:1,cap:{items:N},order:"unknown",located:false});
+  const ents=[], events=[], work=[];
+  ents.push({id:"gemm1_k",kind:"kernel",n:1,coop:false,...(V.kern?{state:V.kern}:{}),use:kuse});
+  if(t>=1-EPS){
+    events.push({id:"call_gemm1",kind:"launch_call",kernel:"gemm1_k",stream:"s0",t:1});
+    if(t>=2-EPS) events.push({id:"launch_gemm1",kind:"launch",kernel:"gemm1_k",stream:"s0",t:2});
+    const mem=Array.from({length:A},()=>[]), exits=[];
+    for(let g=0;g<N;g++){ const w=Math.floor(g/C)+1, e=Math.floor(g/128);
+      if(t<2-EPS){ const id="exp_tile:"+g; ents.push({id,kind:"job",n:1,at:"cta_queue",use:{warps:4,threads:128,smemB:SMEM}}); mem[e].push(id); work.push({id:"tile:"+g,owner:id,state:"todo",n:1}); }
+      else { const sm="sm:"+Math.floor((g-(w-1)*C)/k), st=t<1+w-EPS?"queued":t<2+w-EPS?"running":"done", id="cta:"+g;
+        ents.push({id,kind:"cta",n:1,kernel:"gemm1_k",state:st,...(st==="running"?{at:sm}:{}),use:kuse}); mem[e].push(id);
+        work.push({id:"tile:"+g,owner:id,state:st==="queued"?"todo":st==="running"?"doing":"done",n:1});
+        if(st==="done") exits.push({id:"exit_cta_"+g,kind:"exit",ent:id,kernel:"gemm1_k",unit:sm,t:2+w}); } }
+    events.push(...exits.sort((a,b)=>a.t-b.t));
+    for(let e=0;e<A;e++) ents.push({id:"exp_grp:"+e,kind:"job",n:128,stat:"all",members:mem[e],use:{warps:512,threads:16384,smemB:128*SMEM}});
+  }
+  const shown=[SH("sm_total","132",132,"sm"),SH("sm_regs_pool","65,536",65536,"reg"),SH("warp_reg_step","256",256,"reg"),SH("cta_warps","4",4,"warp"),SH("cta_threads","128",128,"thread","cta_warps * 32",["cta_warps"]),
+    SH("regs_per_thread",String(rpt),rpt,"reg"),SH("regs_per_warp",f0(wrp),wrp,"reg","ceil(32 * regs_per_thread / warp_reg_step) * warp_reg_step",["regs_per_thread","warp_reg_step"]),
+    SH("regs_per_cta",f0(cr),cr,"reg","cta_warps * regs_per_warp",["cta_warps","regs_per_warp"]),SH("cta_smem_b","21,504 B",SMEM,"B"),
+    SH("ctasPerSm",String(k),k,"cta","floor(sm_regs_pool / regs_per_cta)",["gemm1_k","sm_regs_pool","regs_per_cta"]),
+    SH("wave_cap",f0(C),C,"cta","sm_total * ctasPerSm",["sm_total","ctasPerSm"]),
+    SH("gemm1_cols","8,192",8192,"col"),SH("cols_per_cta","64",64,"col"),SH("ctas_per_expert","128",128,"cta","gemm1_cols / cols_per_cta",["gemm1_cols","cols_per_cta"]),
+    SH("active_experts",String(A),A,"expert"),SH("total_ctas",f0(N),N,"cta","active_experts * ctas_per_expert",["active_experts","ctas_per_expert"]),
+    SH("wave1_ctas",f0(V.n1),V.n1,"cta","min(total_ctas, wave_cap)",["total_ctas","wave_cap"]),
+    SH("wave1_idle_slots",f0(Math.max(0,C-N)),Math.max(0,C-N),"slot","max(0, wave_cap - total_ctas)",["wave_cap","total_ctas"]),
+    SH("rem_ctas",f0(Math.max(0,N-C)),Math.max(0,N-C),"cta","max(0, total_ctas - wave_cap)",["total_ctas","wave_cap"]),
+    SH("wave_count",String(W),W,"wave","ceil(total_ctas / wave_cap)",["total_ctas","wave_cap"]),
+    SH("last_wave_ctas",f0(V.last),V.last,"cta","total_ctas - (wave_count - 1) * wave_cap",["total_ctas","wave_count","wave_cap"]),
+    SH("last_wave_idle_slots",f0(V.idle),V.idle,"slot","wave_cap - last_wave_ctas",["wave_cap","last_wave_ctas"]),
+    ...Array.from({length:4},(_,i)=>SH("step_"+(i+1),f0((i+1)*C),(i+1)*C,"cta","w * wave_cap".replace("w",String(i+1)),["wave_cap"])),
+    SH("other_k",String(V.other),V.other,"cta"),SH("other_wave_cap",f0(V.oC),V.oC,"cta","sm_total * other_k",["sm_total","other_k"]),SH("other_wave_count",String(V.oW),V.oW,"wave","ceil(total_ctas / other_wave_cap)",["total_ctas","other_wave_cap"]),
+    SH("w8_count",String(V.W8),V.W8,"wave","ceil(total_ctas / 1056)",["total_ctas"]),SH("w9_count",String(V.W9),V.W9,"wave","ceil(total_ctas / 1188)",["total_ctas"]),
+    SH("crossed_step",f0(V.crossed),V.crossed,"cta","min(w8_count, w9_count) * 1056",["w8_count","w9_count"]),
+    ...(ks===4?[SH("r61_t_tokens","8",8,"token"),SH("r61_seed1_us","+10.43",10.43,"us"),SH("r61_seed2_us","−1.34",-1.34,"us"),SH("r61_seed3_us","−1.68",-1.68,"us"),SH("r61_seed4_us","+11.41",11.41,"us"),SH("r61_seed5_us","−1.90",-1.90,"us")]:[])];
+  return { t, tUnit:"order", consts:{sm:SMS,smspPerSm:4,warpSlots:64,ctaSlots:32,regsPerSm:65536,smemPerSmB:233472,dispatchGap:0}, units, ents, events, waits:[], order:[], work, ...(t>=1-EPS?{workTotal:N}:{}), shown };
+}
+const HW_MODES=["8","9","8@A=8","9@A=8","8@A=17","9@A=17","8@A=25","9@A=25"];
+const parseHw=(s)=>{ const [kp,ap]=String(s).split("@A="); return { k:+kp===9?9:8, A:ap?Math.max(1,Math.min(32,+ap)):P.A }; };
+const HW_SPEC={ modes:HW_MODES, frames:()=>STEPU.map((_,i)=>settledU(i)), state:(m,u)=>{ const {k,A}=parseHw(m); return hwState(A,k,+u); } };
+
+// ===================== text measure and wrap =====================
+const memo=new Map();
+function textW(s,cls){ const key=cls+"|"+s; let v=memo.get(key); if(v===undefined){ const e=mk("text",{class:cls,visibility:"hidden"},s); $("scene").appendChild(e); v=e.getComputedTextLength(); e.remove(); memo.set(key,v); } return v; }
+function wrapLine(s,maxW,cls){
+  maxW-=11;   // a closing mark that may not start a line can hang past the measured width
+  const atoms=s.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[s];
+  const NOSTART=/^[，。、；：）)！？]/, NOEND=/[（(]$/, out=[]; let cur="";
+  for(const a of atoms){ const j=cur+a; if(cur&&textW(j.trimEnd(),cls)>maxW&&!NOSTART.test(a)&&!NOEND.test(cur)){ out.push(cur.trimEnd()); cur=a.trimStart(); } else cur=j; }
+  if(cur.trim()) out.push(cur.trimEnd());
+  return out;
+}
+const tspans=(lines,x,y,lh,anchor)=>lines.map((l,i)=>'<tspan x="'+f1(x)+'" y="'+f1(y+i*lh)+'">'+esc(l)+'</tspan>').join("");
+const txt=(lines,x,y,lh,cls,anchor)=>'<text class="'+cls+'"'+(anchor?' text-anchor="'+anchor+'"':"")+' x="'+f1(x)+'" y="'+f1(y)+'">'+tspans(lines,x,y,lh)+'</text>';
+
+// ===================== panel 1: queued CTA strip =====================
+function drawStrip(V){
+  const svg=$("strip"), sx=(n)=>G.X0+(G.X1-G.X0)*n/V.N, hl=wrapLine(fill(L["strip.hdr"],V),G.TW,"hd");
+  const hb=16+(hl.length-1)*13, by=hb+18, bh=24, TXT=D.TXT, HUE=D.HUE;
+  const fullIn=(g0,g1)=>V.stripFull&&g0>=V.stripFull[0]-EPS&&g1<=V.stripFull[1]+EPS;
+  let h=txt(hl,G.X0,16,13,"hd"); const labX=[];
+  for(let e=0;e<V.A;e++){
+    const x0=sx(128*e), x1=sx(128*e+128), bw=x1-x0-1, cuts=[]; for(let w=1;w<V.W;w++){ const b=w*V.C; if(b>128*e&&b<128*e+128) cuts.push(b); }
+    const edges=[128*e,...cuts,128*e+128]; let r="";
+    for(let i=0;i<edges.length-1;i++){ const a=sx(edges[i]), b=sx(edges[i+1])-(i===edges.length-2?1:0), dim=!fullIn(edges[i],edges[i+1]);
+      r+='<rect x="'+f1(a)+'" y="'+by+'" width="'+f1(b-a)+'" height="'+bh+'" fill="'+HUE[e]+'"'+(dim?' data-dim="1"':"")+'/>'; }
+    const mid=fullIn(128*e+64,128*e+65), lab=e+1;
+    if(bw>=15){ const cx=x0+bw/2, tt=TXT[e];
+      labX.push([cx,textW(String(lab),"sa")/2]); r+='<g'+(mid?"":' data-dim="1"')+'><text class="sa" fill="'+tt.ink+'" x="'+f1(cx)+'" y="'+(by+15.5)+'">'+lab+'</text></g>'; }
+    else if(V.A>1&&(e===0||e===V.A-1)) r+='<text class="sce" x="'+f1(x0+bw/2)+'" y="'+(by-6)+'">'+lab+'</text>';
+    h+='<g data-chip="e'+e+'"'+(V.ks>=1?' data-hw="exp_grp:'+e+'"':"")+'>'+r+'</g>'; }
+  for(let w=1;w<V.W;w++){ const xc=sx(w*V.C), hit=labX.some(([cx,hw])=>Math.abs(xc-cx)<hw+2.5);
+    h+='<path class="cut" d="'+(hit?'M'+f1(xc)+' '+(by-3)+'V'+(by+2.5)+'M'+f1(xc)+' '+(by+18.5)+'V'+(by+bh+4):'M'+f1(xc)+' '+(by-3)+'V'+(by+bh+4))+'"/>'; }
+  let bot=by+bh+16;
+  if(V.W>1){ const rows=[];
+    for(let w=1;w<V.W;w++){ const s=w===1?fill(L["strip.cut.multi"],V):w+"C = "+f0(w*V.C), tw=textW(s,"tn"), cx=Math.max(G.X0+tw/2,Math.min(G.X1-tw/2,sx(w*V.C)));
+      let r=0; while(rows[r]!==undefined&&cx-tw/2<rows[r]+6) r++; rows[r]=cx+tw/2;
+      h+='<text class="tn" text-anchor="middle" x="'+f1(cx)+'" y="'+(bot+r*11)+'">'+esc(s)+'</text>'; }
+    bot+=(rows.length-1)*11; }
+  else { const cl=wrapLine(fill(L["strip.cut.one"],V),G.TW,"tn"); h+=txt(cl,G.X1,bot,11,"tn","end"); bot+=(cl.length-1)*11; }
+  $("qTrack").innerHTML=h;
+  $("algO").innerHTML=V.algO?'<rect class="ao" x="'+f1(sx(V.algO[0]))+'" y="'+(by-3)+'" width="'+f1(sx(V.algO[1])-sx(V.algO[0]))+'" height="'+(bh+6)+'"/>':"";
+  svg.setAttribute("viewBox","0 0 "+G.FW+" "+Math.ceil(bot+8)); svg.setAttribute("aria-label",L["aria.strip"]);
 }
 
-
-const $=(id)=>document.getElementById(id);
-const readout=document.querySelector("[data-readout]");
-const TL0=132,TL1=620,TY0=26,RH=24;
-const esc=(s)=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-const hsl=(h,l)=>"hsl("+h+" 62% "+(l||48)+"%)";
-let M=null,t=0,end=1,key="",playing=true,last=0,hold=0,raf=0;
-const TX=(x)=>TL0+(TL1-TL0)*x/end;
-const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
-function rebuild(){
-  M=MODEL(); end=M.end; t=Math.min(t,end); key="";
-  if($("strip")){ $("strip").innerHTML=M.strip||""; $("stripT").textContent=M.stripT||""; }
-  const nr=M.rows.length, H=TY0+nr*RH+10;
-  $("flat").setAttribute("viewBox","0 0 640 "+H); $("axisT").textContent=M.axisT;
-  $("rowsG").innerHTML=M.rows.map((r,i)=>'<text class="rl" x="'+(TL0-8)+'" y="'+(TY0+i*RH+13)+'">'+esc(r)+'</text><rect class="row" x="'+TL0+'" y="'+(TY0+i*RH)+'" width="'+(TL1-TL0)+'" height="18"/>').join("");
-  $("clipR").setAttribute("height",nr*RH+8);
-  $("tl").innerHTML=M.bars.map((b)=>{ const y=TY0+b.r*RH+2, x0=TX(b.t0), w=Math.max(1.5,TX(b.t1)-x0); const st=b.h!=null?' style="fill:'+hsl(b.h)+'"':''; const rc='<rect class="'+(b.cls||"bar")+'" x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="14"'+st+'/>'; const lb=(b.lab&&w>14)?'<text class="bt'+(b.cls&&b.cls!=="bar"?' d':'')+'" x="'+(x0+w/2).toFixed(1)+'" y="'+(y+7.5)+'" text-anchor="middle">'+esc(b.lab)+'</text>':''; return rc+lb; }).join("");
-  $("tIn").max=String(end);
-  readout.innerHTML=M.ro;
-  if($("axisBox")) $("axisBox").innerHTML=M.axis||"";
-  show();
+// ===================== panel 2: 132 SMs x k residency slots =====================
+const focusLines=(A,k)=>Math.max(...[0,1,2,3,4].map((i)=>wrapLine(fill(L[focusKey(view(A,k,settledU(i)))],view(A,k,settledU(i))),G.TW-12,"fc").length));
+function drawScene(V){
+  const k=V.k, XL=G.X0, BW=G.X1-G.X0, nf=focusLines(V.A,k);
+  const fl=wrapLine(fill(L[focusKey(V)],V),G.TW-12,"fc"), fh=nf*13+8;
+  let y=4, h="";
+  const fg='<rect class="fbox" x="'+XL+'" y="'+y+'" width="'+BW+'" height="'+fh+'" rx="3"/>'+txt(fl,XL+6,y+14,13,"fc");
+  const foot=y+fh; y+=fh+6;
+  const hfull=fill(L["scene.hdr"],V)+L["scene.hdr.s4"], hn=wrapLine(hfull,G.TW,"hd").length, hl=wrapLine(fill(L["scene.hdr"],V)+(V.gridDim?L["scene.hdr.s4"]:""),G.TW,"hd");
+  h+=txt(hl,XL,y+9,12,"hd"); y+=hn*12+6;
+  const gy=y, w=V.gridW, run=V.rw>0; let gh="";
+  for(let s=0;s<SMS;s++){ const cx=G.GX+(s%G.COLS)*G.CW, cy=gy+Math.floor(s/G.COLS)*G.CH; let r="";
+    for(let q=0;q<k;q++){ const sxp=cx+2+(q%3)*G.SPX, syp=cy+1.5+Math.floor(q/3)*G.SPY, pos=' x="'+f1(sxp)+'" y="'+f1(syp)+'" width="'+G.SW+'" height="'+G.SH+'"';
+      if(!w){ r+='<rect class="sl e"'+pos+'/>'; continue; }
+      const gi=(w-1)*V.C+s*k+q;
+      if(gi<V.N) r+='<rect class="sl" data-cta="cta:'+gi+'"'+(run?' data-hw="cta:'+gi+'"':"")+pos+' fill="'+D.HUE[Math.floor(gi/128)]+'"/>';
+      else r+='<rect class="sl h"'+pos+'/>'; }
+    gh+='<g data-sm="'+s+'" data-hw="sm:'+s+'"><rect class="gc" x="'+f1(cx)+'" y="'+f1(cy)+'" width="'+f1(G.CW-2)+'" height="'+f1(G.CH-2)+'" rx="2"/>'+r+'</g>'; }
+  h+='<g id="smGrid"'+(V.gridDim?' data-dim="1"':"")+'>'+gh+'</g>';
+  const fs=V.ks===3&&run&&V.last<V.C?Math.floor(V.last/k):0, row=Math.floor(fs/G.COLS), cyd=gy+row*G.CH+(G.CH-2)/2;
+  h='<g id="focus">'+fg+'<path class="ldr" d="M'+(XL-5)+' '+f1(foot)+'V'+f1(cyd)+'H'+(G.GX+2)+'"/><circle class="ldd" cx="'+(G.GX+2)+'" cy="'+f1(cyd)+'" r="2.2"/></g>'+h;
+  y=gy+Math.ceil(SMS/G.COLS)*G.CH+8;
+  const sv=$("scene"); sv.setAttribute("viewBox","0 0 "+G.FW+" "+Math.ceil(y)); $("sbody").innerHTML=h;
 }
-function card(s){ document.getElementById("stepT").textContent=s.title||"";
-  $("stepK").innerHTML=[["公式",s.card.f],["输入",s.card.i],["输出",s.card.o],["交给下一步",s.card.x],["代价",s.card.c]].map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+(r[1]||"—")+"</dd></div>").join(""); }
-const ringSvg=(r)=>r?'<circle class="fr" cx="'+r.p[0]+'" cy="'+r.p[1]+'" r="'+(r.r||9)+'"/><text class="fn" x="'+r.p[0]+'" y="'+(r.p[1]-(r.r||9)-3)+'">'+esc(r.n)+'</text>':"";
-function narrate(){ const S=M.steps; let k=-1; for(let i=0;i<S.length;i++){ if(S[i].t<=t+1e-9) k=i; else break; }
-  if(k<0){ $("stepN").textContent=""; $("stepT").textContent="按播放，或拖动时间"; $("stepK").innerHTML=""; $("focus").innerHTML=""; if($("focusS")) $("focusS").innerHTML=""; if($("algO")) $("algO").innerHTML=""; return; }
-  const s=S[k]; $("stepN").textContent="第 "+(k+1)+" 步"; card(s);
-  $("focus").innerHTML=s.ring&&s.ring.g!=="strip"?ringSvg(s.ring):""; if($("focusS")) $("focusS").innerHTML=s.ring&&s.ring.g==="strip"?ringSvg(s.ring):"";
-  if($("algO")) $("algO").innerHTML=s.alg?'<rect class="ao" x="'+s.alg[0]+'" y="'+s.alg[1]+'" width="'+s.alg[2]+'" height="'+s.alg[3]+'"/>':""; }
+// ===================== panel 4: wave-order timeline =====================
+const BH=22;
+const RY=(w)=>26+(w-1)*26;
+const flatH=(Wmax)=>26+Wmax*26+8;
+const wWidth=(Wmax)=>(G.XWE-G.XW0)/Wmax;
+const curX=(Wmax,u)=>{ const ww=wWidth(Wmax), a=G.TL0+0.5*(G.XW0-G.TL0);
+  return u<=1?G.TL0+(a-G.TL0)*u:u<=2?a+(G.XW0-a)*(u-1):u<=3?G.XW0+ww*(u-2):u<=4?G.XW0+ww+(G.XWE-G.XW0-ww)*(u-3):G.XWE+(G.TL1-G.XWE)*(u-4); };
+function drawFlatStatic(V){
+  const s=$("flat"), H=flatH(V.Wmax), ww=wWidth(V.Wmax);
+  s.setAttribute("viewBox","0 0 "+G.FW+" "+H); $("clipR").setAttribute("height",H); $("clipR").setAttribute("x",G.TL0);
+  const hd=s.querySelector('text[data-rowlabel="head"]'); hd.setAttribute("x",G.X0); hd.textContent=L[NAR?"tl.hdr.narrow":"tl.hdr.wide"];
+  [...s.querySelectorAll(':scope>text.rl[data-rowlabel]')].forEach((e,i)=>{ const w=i+1; e.setAttribute("x",G.RLX); e.setAttribute("y",RY(w)+15); e.setAttribute("text-anchor",NAR?"start":"end"); e.textContent=w<=V.Wmax?fill(L[NAR?"tl.row.narrow":"tl.row.wide"],{w}):""; });
+  let h=""; for(let w=1;w<=V.Wmax;w++) h+='<rect class="rowg" x="'+G.XW0+'" y="'+RY(w)+'" width="'+f1(G.XWE-G.XW0)+'" height="'+BH+'"/>';
+  for(let m=0;m<=V.Wmax;m++) h+='<path class="axl" d="M'+f1(G.XW0+m*ww)+' 22V'+(RY(V.Wmax)+BH+4)+'"/>';
+  $("tlStatic").innerHTML=h; s.setAttribute("aria-label",L["aria.tl"]);
+}
+function drawBars(V){
+  const ww=wWidth(V.Wmax); let h="";
+  if(V.ks<2){ $("tl").innerHTML=""; return; }
+  const curS=curX(V.Wmax,[0.98,1.98,2.98,3.98,5][V.ks]);
+  const lim=(x0)=>(x0<curS&&x0+ww>curS)?curS:x0+ww;
+  const fit=(key,sizes,vars,x0)=>{ let s; for(const z of sizes){ s=fill(L[key+z],vars); if(textW(s,"bt")<=lim(x0)-x0-6) return s; } return s; };
+  const lab=(s,x0,ry,cls)=>{ const tw=textW(s,cls), l=lim(x0), c=Math.max(x0+tw/2+2.5,Math.min(l-tw/2-2.5,x0+ww/2)); return '<text class="'+cls+'" x="'+f1(c)+'" y="'+(ry+15)+'">'+esc(s)+'</text>'; };
+  for(let w=1;w<=V.Wmax;w++){ const ry=RY(w), x0=G.XW0+(w-1)*ww, sz=NAR?"narrow":"wide";
+    if(w>V.W){ h+='<rect class="wem" x="'+f1(x0)+'" y="'+ry+'" width="'+f1(ww)+'" height="'+BH+'"/>'+lab(fill(L["tl.empty."+sz],{w}),x0,ry,"et"); continue; }
+    const nw=Math.min(V.C,V.N-(w-1)*V.C);
+    if(nw===V.C) h+='<rect class="wam" x="'+f1(x0)+'" y="'+ry+'" width="'+f1(ww)+'" height="'+BH+'" rx="2"/>'+lab(fit("tl.bar.full.",["wide","narrow"],V,x0),x0,ry,"bt");
+    else { const hi=Math.max(5,Math.min(16,Math.round(BH*(V.C-nw)/V.C)));
+      h+='<rect class="whd" x="'+f1(x0)+'" y="'+ry+'" width="'+f1(ww)+'" height="'+hi+'"/><rect class="wam" x="'+f1(x0)+'" y="'+(ry+hi)+'" width="'+f1(ww)+'" height="'+(BH-hi)+'"/>'+lab(fit("tl.bar.part.",["wide","narrow","xs"],{nw,idle:V.C-nw},x0),x0,ry,"bt"); } }
+  $("tl").innerHTML=h;
+}
+function drawTime(V){
+  const x=curX(V.Wmax,V.u), H=flatH(V.Wmax); $("clipR").setAttribute("width",f1(x-G.TL0+1));
+  const gaps=[...$("flat").querySelectorAll(':scope>text.rl[data-rowlabel]')].filter((e)=>e.textContent).map((e)=>e.getBBox()).filter((b)=>b.width&&x>=b.x-1.5&&x<=b.x+b.width+1.5).map((b)=>[b.y-1.5,b.y+b.height+1.5]).sort((a,b)=>a[0]-b[0]);
+  let d="",y=20; gaps.forEach(([a,b])=>{ if(a>y) d+="M"+f1(x)+" "+f1(y)+"V"+f1(a); y=Math.max(y,b); }); if(y<H-6) d+="M"+f1(x)+" "+f1(y)+"V"+(H-6);
+  $("cur").setAttribute("d",d||"M"+f1(x)+" "+(H-6)+"V"+(H-6));
+}
+
+// ===================== panel 5: wave-count staircase =====================
+function drawAxis(V){
+  const NM=4800, AX=(n)=>G.AX0+(G.AX1-G.AX0)*n/NM, YB=G.YB, LV=G.LV, k=V.k;
+  const stair=(kk,cls)=>{ const Ck=SMS*kk; let d="M"+f1(AX(0))+" "+(YB-LV); for(let w=1;w*Ck<NM;w++) d+="H"+f1(AX(w*Ck))+"V"+(YB-LV*(w+1)); return '<path class="stk'+cls+'" d="'+d+"H"+G.AX1+'"/>'; };
+  let h='<path class="axl" d="M'+G.AX0+' '+YB+'H'+G.AX1+'"/>';
+  [1,2,3,4,5].forEach((w)=>{ h+='<text class="ax" text-anchor="end" x="'+(G.AX0-4)+'" y="'+(YB-LV*w+4)+'">'+w+'</text>'; });
+  h+='<text class="lab2" x="'+G.X0+'" y="16">'+esc(L["axis.y"])+'</text>'+stair(V.other," o")+stair(k,"");
+  for(let w=1;w*SMS*k<NM;w++){ const x=AX(w*SMS*k); h+='<path class="axl" d="M'+f1(x)+' '+YB+'v4"/><text class="ax" text-anchor="middle" x="'+f1(x)+'" y="'+(YB+15)+'">'+f0(w*SMS*k)+'</text>'; }
+  for(let w=1;w*V.oC<NM;w++) h+='<text class="ax" text-anchor="middle" style="opacity:.55" x="'+f1(AX(w*V.oC))+'" y="'+(YB+28)+'">'+f0(w*V.oC)+'</text>';
+  const nx=AX(V.N), ny=YB-LV*V.W, tag=fill(L["axis.dot"],V), tw=textW(tag,"lb"), tc=Math.max(G.AX0+6+tw/2,Math.min(G.X1-tw/2,nx));
+  if(V.ks>=3) h+='<path class="nd" d="M'+f1(nx)+' '+YB+'V'+(YB-LV*(V.W+1))+'"/><circle class="dot" cx="'+f1(nx)+'" cy="'+ny+'" r="4.5"/><text class="lb" text-anchor="middle" x="'+f1(tc)+'" y="'+(YB-LV*(V.W+1)-5)+'">'+esc(tag)+'</text>';
+  const xl=fill(L["axis.x"],V); let yy=YB+46;
+  if(NAR){ const ls=wrapLine(xl,G.TW,"lab2"); h+=txt(ls,G.X0,yy,12,"lab2"); yy+=(ls.length-1)*12; } else h+='<text class="lab2" text-anchor="end" x="'+G.AX1+'" y="'+yy+'">'+esc(xl)+'</text>';
+  const rl=wrapLine(L["axis.r61"],G.TW-12,"tn"), y0=yy+14, bh=rl.length*12+10;
+  if(V.ks===4) h+='<rect class="bdg" x="'+G.X0+'" y="'+y0+'" width="'+G.TW+'" height="'+bh+'" rx="3"/>'+txt(rl,G.X0+6,y0+14,12,"tn");
+  const Ht=Math.ceil(y0+bh+8), sv=$("axis"); sv.setAttribute("viewBox","0 0 "+G.FW+" "+Ht); sv.setAttribute("aria-label",fill(L["aria.axis"],V));
+  $("axisG").innerHTML=h; V.ks<4?$("axisG").setAttribute("data-dim","1"):$("axisG").removeAttribute("data-dim");
+}
+
+// ===================== step card, readout, show =====================
+function drawStep(V){ const c=card(V); $("stepT").textContent=c.t;
+  $("stepK").innerHTML=[["f",c.f],["i",esc(c.r[0])],["o",esc(c.r[1])],["x",esc(c.r[2])],["c",esc(c.r[3])]].map(([key,html])=>"<div><dt>"+esc(L["dt."+key])+"</dt><dd>"+html+"</dd></div>").join(""); }
+let drawn={};
 function show(){
-  t=Math.max(0,Math.min(t,end));
-  const fk=M.key(t)+"|"+(M.keyAxis?M.keyAxis(t):"");
-  if(fk!==key){ key=fk; $("scene").innerHTML=M.frame(t); if(M.axisFrame&&$("axisG")) $("axisG").innerHTML=M.axisFrame(t); }
-  $("dots").innerHTML=M.dots?M.dots(t):"";
-  $("clipR").setAttribute("width",(TX(t)-TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+TX(t).toFixed(1)+" "+(TY0-4)+"V"+(TY0+M.rows.length*RH)); $("tIn").value=String(t); narrate();
+  const k=modeNow(), A=P.A, u=+tin.value, V=view(A,k,u), sg=(name,sig,fn)=>{ if(drawn[name]!==sig){ drawn[name]=sig; fn(); } };
+  document.querySelector("[data-readout]").textContent=fill(L["readout"],V);
+  sg("strip",[A,k,V.ks,V.rw].join("|"),()=>drawStrip(V));
+  sg("scene",[A,k,V.ks,V.rw,V.gridW].join("|"),()=>drawScene(V));
+  sg("step",[A,k,V.ks,V.rw].join("|"),()=>drawStep(V));
+  sg("flat",[A,k,V.ks<2?0:V.ks].join("|"),()=>{ drawFlatStatic(V); drawBars(V); });
+  drawTime(V);
+  sg("axis",[A,k,V.ks].join("|"),()=>drawAxis(V));
 }
-function loop(now){ const dt=last?Math.min((now-last)/1000,0.05):0; last=now; if(playing){ if(t<end) t=Math.min(end,t+dt*(M.speed||0.6)); else { hold+=dt; if(hold>2.5){hold=0;t=0;} } } show(); raf=playing?requestAnimationFrame(loop):0; }
-const start=()=>{ if(!raf){ last=0; raf=requestAnimationFrame(loop);} };
-const play=$("play"); const setPlay=(p)=>{ playing=p; play.textContent=p?"暂停":"播放"; if(p){ if(t>=end){t=0;hold=0;} start(); } else show(); };
-play.addEventListener("click",()=>setPlay(!playing));
-$("tIn").addEventListener("input",()=>{ const v_=+$("tIn").value; setPlay(false); t=v_; show(); });
-const q=new URLSearchParams(location.search);
-init(q); bind(()=>{ t=0; hold=0; rebuild(); setPlay(true); });
-rebuild();
-t = q.has("t") ? +q.get("t") : (still ? Math.max(0,end-0.5) : 0); show();
-if(q.has("t")){ playing=false; play.textContent="播放"; } else if(!still){ start(); } else { playing=false; play.textContent="播放"; }
+// ===================== player wiring =====================
+window.FIG?.timeline?.({ steps:()=>STEPU.map((s,i)=>({t:s,title:titleOf(modeNow(),i)})), end:()=>UEND, rate:()=>UEND/(STEPU.length*0.8) });
+window.FIG?.variants?.({ kind:"compare", aligned:true, axis:L["variant.axis"], outcomes:[8,9].map((kk)=>outcomeText(P.A,kk)) });
+tin.addEventListener("input",show);
+if(typeof window.FIG?.hw==="function") window.FIG.hw(HW_SPEC);
+{ const aIn=$("aIn"), aVal=$("aVal");
+  aIn.addEventListener("input",()=>{ P.A=+aIn.value; aVal.textContent=String(P.A); const o=document.querySelectorAll(".fig-card .fig-o"); if(o.length===2){ o[0].textContent=outcomeText(P.A,8); o[1].textContent=outcomeText(P.A,9); } show(); });
+  aIn.addEventListener("change",()=>{ const r=document.querySelector("input[name=mode]:checked"); if(r) r.dispatchEvent(new Event("change",{bubbles:true})); });
+  document.addEventListener("DOMContentLoaded",()=>{ const v=document.querySelector(".fig-variants"); if(v) v.after($("aBar")); }); }
+{ const pl=document.querySelector(".iso-plate"), ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]');
+  const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; };
+  new ResizeObserver(fit).observe(pl); fit(); }
+show();
 </script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>
