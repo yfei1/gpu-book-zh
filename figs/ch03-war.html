@@ -328,11 +328,14 @@ const HW_SPEC={ modes:["1","2"], frames:(m)=>PLAN[m].starts.map((_,k)=>settled(m
 // ===================== text measure and wrap =====================
 const memo=new Map();
 function textW(s,cls){ const key=cls+"|"+s; let v=memo.get(key); if(v===undefined){ const t=mk("text",{class:cls,visibility:"hidden"},s); $("isov").appendChild(t); v=t.getComputedTextLength(); t.remove(); memo.set(key,v); } return v; }
+// wrapLine asks "is this line wider than maxW" for every growing prefix. The sum of the atom widths decides when it is farther than WRAP_TOL from maxW; only a near-tie is measured as a whole string.
+const WRAP_TOL=6, spaceW=(cls)=>textW("a a",cls)-textW("aa",cls), atomW=(a,cls)=>textW(a.trimEnd(),cls)+(/\s$/.test(a)?spaceW(cls):0);
+const overW=(arr,maxW,cls)=>{ const n=arr.length-1, est=arr.reduce((s,a,i)=>s+(i<n?atomW(a,cls):textW(a.trimEnd(),cls)),0); return Math.abs(est-maxW)>WRAP_TOL?est>maxW:textW(arr.join("").trimEnd(),cls)>maxW; };
 function wrapLine(s,maxW,cls){
   const atoms=s.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[s];
   const NOSTART=/^[，。、；：）)！？]/, NOEND=/[（(]$/, out=[]; let cur="", cura=[];
   for(const a of atoms){ const j=cur+a;
-    if(cur&&textW(j.trimEnd(),cls)>maxW){
+    if(cur&&overW(cura.concat([a]),maxW,cls)){
       if(!NOSTART.test(a)&&!NOEND.test(cur)){ out.push(cur.trimEnd()); cur=a.trimStart(); cura=[cur]; continue; }
       if(NOSTART.test(a)&&cura.length>1){ const last=cura.pop(); out.push(cura.join("").trimEnd()); cur=last+a; cura=[cur]; continue; } }
     cur=j; cura.push(a); }
@@ -356,15 +359,16 @@ function buildNames(){
   const sm=mk("text",{class:"smemL",x:f1(BP.slot.x+2),y:f1(BP.slot.y+BP.slot.h+10)}); sm.innerHTML=tsp(wrapLine(L["u.smem"],BP.slot.w-4,"smemL"),BP.slot.x+2,BP.slot.y+BP.slot.h+10,9.4); $("live").appendChild(sm);
 }
 const pathL=(pts)=>"M"+pts.map((p)=>f1(p[0])+" "+f1(p[1])).join("L");
-function setLive(id,txt){ const b=BP[id], e=lives[id], ls=txt?wrapLine(txt,b.w-8,"lv"):[], y=b.y+b.h-5-(ls.length-1)*(LH-0.6); e.innerHTML=tsp(ls,b.x+4,y,LH-0.6); e.setAttribute("y",f1(y)); }
+const setTxt=(e,s)=>{ if(e.textContent!==s) e.textContent=s; };
+function setLive(id,txt){ if(lives[id]._t===txt) return; lives[id]._t=txt; const b=BP[id], e=lives[id], ls=txt?wrapLine(txt,b.w-8,"lv"):[], y=b.y+b.h-5-(ls.length-1)*(LH-0.6); e.innerHTML=tsp(ls,b.x+4,y,LH-0.6); e.setAttribute("y",f1(y)); }
 const fmtN=(n)=>(+n).toLocaleString("en-US");
 function drawUnits(m,t,k){
   const sp=SPEC[m][k], b=barState(m,t), lt=liveText(m,t), p=P_(m), wB=wordB(m);
   UN.forEach((id)=>{ const tier=id==="cons"?sp.tier.reg==="max"?"norm":sp.tier.reg:sp.tier[id], U=$("U_"+id), g=$(CAP[id]);
     U.classList.toggle("dim",tier==="dim"); g.classList.toggle("on",tier==="max"); g.classList.toggle("wait",tier==="wait"); g.classList.toggle("red",tier==="red"); });
   // mbarrier values
-  $("f0").textContent=b.fullArr; $("f1").textContent=fmtN(b.fullBytes); $("f2").textContent=b.fullPh;
-  $("e0").textContent=b.emptyArr; $("e1").textContent="0"; $("e2").textContent=b.emptyPh;
+  setTxt($("f0"),b.fullArr); setTxt($("f1"),fmtN(b.fullBytes)); setTxt($("f2"),b.fullPh);
+  setTxt($("e0"),b.emptyArr); setTxt($("e1"),"0"); setTxt($("e2"),b.emptyPh);
   // slot fill front
   const sb=D.SB, x0=sb.x, W_=sb.w, d0=b.done0/16384*W_, d1=b.done1/16384*W_;
   $("fillA").setAttribute("x",f1(x0+d1)); $("fillA").setAttribute("width",f1(Math.max(0,d0-d1))); $("fillB").setAttribute("x",f1(x0)); $("fillB").setAttribute("width",f1(d1));
@@ -375,10 +379,10 @@ function drawUnits(m,t,k){
   // live words
   const word=(key)=>key?L[key]:"";
   setLive("prod",lt.prod?L["lv.prod."+lt.prod]:""); setLive("tma",lt.tma?L["lv.tma."+lt.tma]:""); setLive("cons",lt.reg?L["lv.reg."+lt.reg]:"");
-  lives.reg.textContent=fill(L["badge"],{n:b.pend}); lives.reg.setAttribute("y",f1(BP.reg.y+10+LH*names.reg));
-  lives.full.textContent=""; lives.empty.textContent=""; lives.slot.textContent="";
+  setTxt(lives.reg,fill(L["badge"],{n:b.pend})); lives.reg.setAttribute("y",f1(BP.reg.y+10+LH*names.reg));
+  setTxt(lives.full,""); setTxt(lives.empty,""); setTxt(lives.slot,"");
   // tags on the cells
-  const tg=(id,txt,cx,cy)=>{ const e=$(id); e.textContent=txt; e.setAttribute("x",f1(cx)); e.setAttribute("y",f1(cy)); e.setAttribute("text-anchor","start"); };
+  const tg=(id,txt,cx,cy)=>{ const e=$(id); setTxt(e,txt); e.setAttribute("x",f1(cx)); e.setAttribute("y",f1(cy)); e.setAttribute("text-anchor","start"); };
   const w0=D.WR[0], r0=D.RG[0];
   tg("wtag",(m==="2"&&k>=5)?L["tag.w0"]:"",w0.x,D.SB.y+D.SB.h+8.5);
   tg("rtag",(m==="2"&&k>=6)?L["tag.r0"]:"",r0.x,r0.y+r0.h+8.5);
@@ -481,7 +485,7 @@ function show(){
   if(drawn.m!==m){ renderTL(m); drawn={m,k:-1}; }
   drawUnits(m,t,k); drawTime(m,t); drawAlg(m,t);
   if(drawn.k!==k){ drawn.k=k; $("stepT").textContent=D.TITLES[m][k]; $("stepK").innerHTML=D.CARDS[m][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join(""); drawRoutes(m,k); drawFocus(m,k); }
-  document.querySelector("[data-readout]").textContent=fill(L["readout"],{lap:lapOf(m,t),fp:b.fullPh,ep:b.emptyPh,pend:b.pend});
+  setTxt(document.querySelector("[data-readout]"),fill(L["readout"],{lap:lapOf(m,t),fp:b.fullPh,ep:b.emptyPh,pend:b.pend}));
 }
 // ===================== player wiring (before DOMContentLoaded, so tIn.max is right before player.js switches mode) =====================
 buildNames(); sizeScene(); layoutTL();

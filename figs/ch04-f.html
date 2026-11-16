@@ -412,6 +412,7 @@ function drawCell(g,m,i,t,k,y0,fl){
 }
 const cellC=(g,i,y0)=>[g.lx+(i&15)*g.pitch+g.cs/2,y0+(i>>4)*g.rowH+g.cs/2];
 const frameRect=(g,i0,i1,y0)=>{ const a=cellC(g,i0,y0), b=cellC(g,i1,y0), h=g.cs/2+0.8; return '<rect class="ao" x="'+f1(a[0]-h)+'" y="'+f1(a[1]-h)+'" width="'+f1(b[0]-a[0]+2*h)+'" height="'+f1(b[1]-a[1]+2*h)+'" rx="3"/>'; };
+const setH=(id,s)=>{ const e=$(id); if(e._h!==s){ e._h=s; e.innerHTML=s; } };
 function drawAlg(m,t,k){
   const A=LAYO.alg, g=A, T=T100(t); let h="", o="", stat=algStat(m,k,t), sy;
   if(m==="1"){ const y=g.y1; $("algH").innerHTML=tsp(g.head1,g.lx,y.head+11,13); $("algH").style.display="";
@@ -429,8 +430,8 @@ function drawAlg(m,t,k){
         else { const top=y.g1-1, hh=(L5===5?7:(pi?9:15)); h+='<path class="arc" d="M'+f1(ca[0])+' '+f1(top)+'Q'+f1((ca[0]+cb[0])/2)+' '+f1(top-2*hh)+' '+f1(cb[0])+' '+f1(top)+'" marker-end="url(#mkI)"'+(both?' marker-start="url(#mkI)"':'')+'/>'; } }); }
     if(k<=3){ const oo=16>>k; o=frameRect(g,0,0,y.g1)+frameRect(g,oo,oo,y.g1); } else if(k===4) o=frameRect(g,0,0,y.g1)+frameRect(g,1,1,y.g1); else if(k===5) o=frameRect(g,0,0,y.g1);
     sy=y.stat; }
-  $("algD").innerHTML=h; $("algO").innerHTML=o;
-  $("algS").innerHTML=stat?tsp(wrapLine(stat,g.lw,"tn"),g.lx,sy+9,13):"";
+  setH("algD",h); setH("algO",o);
+  setH("algS",stat?tsp(wrapLine(stat,g.lw,"tn"),g.lx,sy+9,13):"");
 }
 const LSTORE={p:["regfile","lsu","l2","y"],cue:0}, SWAP=(c)=>[{p:["regfile","lsu"],c:14,cue:c?0:undefined},{p:["lsu","regfile"],c:14,cue:c?undefined:0}];
 const SV={ "1":[
@@ -442,23 +443,29 @@ const SV={ "1":[
   {on:["regfile","arith"],dim:["smem","bar","l2","hbm","y"],fl:[...SWAP(false),{p:["regfile","arith"]}]},
   {on:["lsu","y"],dim:["smem","bar","arith"],fl:[LSTORE]},
   {on:[],dim:["sched","regfile","lsu","smem","bar","arith","l2","hbm","y"],fl:[]}]};
+let SCD={};
 function drawScene(m,t,k){
   const Y=LAYO, S=Y.scene, sv=SV[m][k], narrow=Y.narrow;
+  const A=(u)=>S.anch[u];
+  const P=(u)=>{ const a=A(u); return [(a[0]-S.ax)/S.s,(a[1]-S.ay)/S.s]; };
+  const same=SCD.m===m&&SCD.k===k&&SCD.Y===Y;
+  if(!same){
   document.querySelectorAll("#isoG [data-u]").forEach((e)=>{ const u=e.dataset.u; if(u==="base") return; const on=sv.on.includes(u), dm=sv.dim.includes(u);
     e.classList.toggle("on",on); e.toggleAttribute("data-dim",dm); });
   document.querySelectorAll("#isoG [data-hw=y_row]").forEach((e)=>e.toggleAttribute("data-dim",!sv.on.includes("y")));
+  }
   let ov=""; for(let l=0;l<32;l++){ const f=cellFill(m,l,t,k), d=G.OVL[l]; ov+= f.gone?'<path data-hw="lane:'+l+'" d="'+d+'" class="exl"/>':'<path data-hw="lane:'+l+'" d="'+d+'" fill="'+f.f+'"/>'; }
-  $("ovL").innerHTML=ov;
+  setH("ovL",ov);
   let reps=""; if(m==="1"&&k<=2&&T100(t)>=100) G.REP.forEach((p,b)=>{ reps+='<circle opacity="'+(k===2?".45":"1")+'" cx="'+p[0]+'" cy="'+p[1]+'" r="3.4" fill="'+D.FILL[32][b]+'"/><text class="qn" x="'+p[0]+'" y="'+f1(p[1]+3.2)+'" fill="'+D.FTXT[32][b]+'" style="font-size:7px">'+b+'</text>'; });
-  $("repG").innerHTML=reps; $("repG").setAttribute("data-hw","rep_toks_m1");
+  setH("repG",reps); $("repG").setAttribute("data-hw","rep_toks_m1");
+  if(!same){
   let lb="", ld=""; const tg=tagsOf(m,k), LS=[];
   for(const u of Object.keys(S.lab)){ const l=S.lab[u], a=S.la[u], w=narrow?l.slot[1]:S.colW, x=narrow?l.slot[0]+2:S.cols[l.col].x, mut=m==="2"&&(u==="smem"||u==="bar");
     lb+='<text class="lab" data-lab="'+u+'">'+tsp(l.lines,x,l.y,13)+'</text>';
     let ex,ey; if(narrow){ ex=l.slot[0]+w/2; ey=l.bd==="T"?S.yT+2:S.yB-3; } else { ex=l.col==="R"?x-3:x+S.colW+3; ey=l.y-4; }
     LS.push([[ex,ey],[a[0],a[1]]]); ld+='<path class="ldr" d="M'+f1(ex)+' '+f1(ey)+'L'+f1(a[0])+' '+f1(a[1])+'"/><circle class="ldd" cx="'+f1(a[0])+'" cy="'+f1(a[1])+'" r="2"/>';
     if(tg[u]&&l.nb){ const by=l.y+13*l.lines.length-8, bl=wrapLine(tg[u],w-12,"bdg"); lb+='<rect class="bdr'+(mut?' mut':'')+'" x="'+f1(x)+'" y="'+f1(by)+'" width="'+f1(w-(narrow?4:0))+'" height="'+f1(13*bl.length+6)+'" rx="5"/><text class="bdg'+(mut?' mut':'')+'">'+tsp(bl,x+6,by+14,13)+'</text>'; } }
-  const A=(u)=>S.anch[u]; let fl="";
-  const P=(u)=>{ const a=A(u); return [(a[0]-S.ax)/S.s,(a[1]-S.ay)/S.s]; };
+  let fl="";
   // each arrow is one path through the unit anchors: o = side shift of the whole path, c = bulge of a single curved hop (screen px)
   const mids=[], cuePath=[];
   sv.fl.forEach((a)=>{ const pts=a.p.map(P), n=pts.length, px=(1/S.s), nrm=(p,q)=>{ const dx=q[0]-p[0], dy=q[1]-p[1], l=Math.hypot(dx,dy)||1; return [-dy/l,dx/l,dx/l,dy/l]; };
@@ -467,7 +474,7 @@ function drawScene(m,t,k){
     let d, mid; if(a.c){ const m0=[(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2], nn=nrm(q[0],q[1]), c=[m0[0]+nn[0]*2*a.c*px,m0[1]+nn[1]*2*a.c*px]; d="M"+f1(q[0][0])+" "+f1(q[0][1])+"Q"+f1(c[0])+" "+f1(c[1])+" "+f1(q[1][0])+" "+f1(q[1][1]); mid=[m0[0]+nn[0]*a.c*px,m0[1]+nn[1]*a.c*px]; }
     else { d="M"+q.map((p)=>f1(p[0])+" "+f1(p[1])).join("L"); const seg=q.slice(1).map((p,i)=>Math.hypot(p[0]-q[i][0],p[1]-q[i][1])), half=seg.reduce((s,e)=>s+e,0)/2; let acc=0, j=0; while(j<seg.length-1&&acc+seg[j]<half){ acc+=seg[j]; j++; } const f=(half-acc)/(seg[j]||1); mid=[q[j][0]+(q[j+1][0]-q[j][0])*f,q[j][1]+(q[j+1][1]-q[j][1])*f]; }
     fl+='<path class="fl" d="'+d+'" marker-end="url(#mkI)"/>'; if(a.cue!==undefined){ mids[a.cue]=[S.ax+S.s*mid[0],S.ay+S.s*mid[1]]; cuePath[a.cue]=d; } });
-  $("flows").innerHTML=fl;
+  setH("flows",fl);
   // each transfer label is a card below the drawing; its leader ends on the middle of its arrow (narrow: the leader runs down a gap between two unit labels)
   const cues=CUE(m,k), nC=cues.length; let ch="";
   if(nC){ const RW=S.W-(narrow?32:16), wp=nC>1?RW/2-4:Math.min(RW,330), order=cues.map((c,i)=>i).sort((i,j)=>mids[i][0]-mids[j][0]);
@@ -478,11 +485,12 @@ function drawScene(m,t,k){
         gl.forEach((gx)=>smp.forEach((q)=>{ const p0=[gx,y], p1=[gx,S.yB-4], c=1e5*bs.filter((l)=>gx>l.slot[0]+1&&gx<l.slot[0]+l.slot[1]-3).length+1e4*LS.filter((s)=>sx(p1,q,...s)||sx(p0,p1,...s)).length+Math.hypot(q[0]-mp[0],q[1]-mp[1])+Math.abs(gx-q[0]); if(!best||c<best.c) best={c,gx,q}; }));
         const gx=best.gx; mp=best.q; LS.push([[gx,S.yB-4],mp]); dd="M"+f1(Math.max(x+6,Math.min(x+wp-6,gx)))+" "+f1(y)+"L"+f1(gx)+" "+f1(S.yB-4)+"L"+f1(mp[0])+" "+f1(mp[1]); } else dd="M"+f1(lx)+" "+f1(y)+"L"+f1(mp[0])+" "+f1(mp[1]);
       ch+='<path class="ldr" d="'+dd+'"/><circle class="ldd" cx="'+f1(mp[0])+'" cy="'+f1(mp[1])+'" r="2"/><rect class="cuer" x="'+f1(x)+'" y="'+f1(y)+'" width="'+f1(wp)+'" height="'+f1(hh)+'" rx="5"/><text class="cue">'+tsp(w,x+6,y+13,13)+'</text>'; }); }
-  $("labs").innerHTML=ld+lb; $("cue").innerHTML=ch;
+  setH("labs",ld+lb); setH("cue",ch);
+  SCD={m,k,Y}; }
   const fw=wrapLine(FOC(m,k),S.fw,"lab"), g=$("focus"); g.replaceChildren(); const tx=mk("text",{class:"lab"}); tx.innerHTML=tsp(fw,10,16,13); g.appendChild(tx);
   // tokens in flight: only while the clock is between two settled frames
   const pts=dotPath(m,t); let dh=""; if(pts){ const [a,b,c,u]=pts, pa=P(a), pb=P(b), pc=P(c), seg=u<0.5?[pa,pb,u*2]:[pb,pc,(u-0.5)*2]; const x=seg[0][0]+(seg[1][0]-seg[0][0])*seg[2], y=seg[0][1]+(seg[1][1]-seg[0][1])*seg[2]; dh='<circle class="dot" cx="'+f1(x)+'" cy="'+f1(y)+'" r="'+f1(4/S.s)+'"/>'; }
-  $("dotsG").innerHTML=dh;
+  setH("dotsG",dh);
 }
 function dotPath(m,t){
   const run=(a,b,x)=>(t>a+EPS&&t<b-EPS)?[...x,(t-a)/(b-a)]:null;
@@ -535,8 +543,8 @@ function tlMode(m){
   $("tIn").max=String(M.end);
 }
 function tlCursor(m,t,k){ const T=LAYO.tl, x=T.TX(m,t); $("clipR").setAttribute("width",Math.max(0,Math.min(x-T.TL0+1,T.TL1-T.TL0+2)).toFixed(1)); $("cur").setAttribute("d","M"+f1(x)+" "+T.curY0+"V"+T.curY1);
-  $("tlLab").innerHTML=tlLabels(m,t);
-  const last=k===MOD[m].steps.length-1; $("tlNote").innerHTML=last?tsp(T.notes[m==="1"?0:1],T.noteX??T.hx,T.noteY,13):""; }
+  setH("tlLab",tlLabels(m,t));
+  const last=k===MOD[m].steps.length-1; setH("tlNote",last?tsp(T.notes[m==="1"?0:1],T.noteX??T.hx,T.noteY,13):""); }
 function drawMode(m){
   document.querySelector("[data-readout]").textContent=[L["ro"+m+"a"],L["ro"+m+"b"]].join("\n");
   document.querySelectorAll(".lg[data-m]").forEach((e)=>{ e.hidden=e.dataset.m!==m; });
@@ -571,5 +579,5 @@ function relayout(force){
 }
 const recal=()=>{ const r=document.querySelector("input[name=mode]:checked"), keep=tin.value; if(r) r.dispatchEvent(new Event("change",{bubbles:true})); tin.value=keep; tin.dispatchEvent(new Event("input",{bubbles:true})); };
 relayout(true);
-addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
+addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); const plate=document.querySelector(".iso-plate"); new ResizeObserver(()=>{ if(!plate.offsetParent||!plate.clientWidth) return; if(relayout()) recal(); }).observe(plate); });
 </script></body></html>

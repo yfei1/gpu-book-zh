@@ -96,7 +96,7 @@ function pan(){
     if(!panels.length) return;
     const hint=document.createElement("p"); hint.className="fig-pan-hint"; hint.textContent=t("pan.hint"); hint.hidden=true; panels[0].before(hint);
     const update=()=>{ const over=panels.find(w=>w.scrollWidth>w.clientWidth); hint.hidden=!over; if(over) over.before(hint); };
-    const ro=new ResizeObserver(update); panels.forEach(w=>ro.observe(w));
+    const ro=new ResizeObserver(()=>{ panels.forEach(w=>{ w._sc=null; }); update(); }); panels.forEach(w=>ro.observe(w));
   });
 }
 
@@ -108,15 +108,22 @@ function mount(){
   const el=(tag,cls,html)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.textContent=html; return e; };
   const hide=e=>{ e.style.display="none"; const c=e.closest(".ctl"); if(c&&[...c.children].every(x=>x.style.display==="none"||x.hidden)) c.style.display="none"; };
   const clampK=k=>Math.max(0,Math.min(steps().length-1,k));
+  const setA=(e,n,v)=>{ if(e.getAttribute(n)!==v) e.setAttribute(n,v); };
+  let ghostTick=()=>{};
   let quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
 
   // ---- clock: the only owner of time
   const setT=v=>{ tin.value=String(v); tin.dispatchEvent(new Event("input",{bubbles:true})); };
   const curK=()=>idx(+tin.value);
   const settled=k=>{ const S=steps(); if(k>=S.length-1) return endT(); let v=S[k+1].t-1e-6; v=lo+Math.floor((v-lo)/stepQ+1e-9)*stepQ; return +Math.max(v,S[k].t).toFixed(6); };
-  const halt=()=>{ if(raf){ CAF(raf); raf=0; } if(anim){ anim=null; tin.step=String(stepQ); setT(+tin.value); } };
+  let onScreen=true, parked=null;
+  const awake=()=>onScreen&&!document.hidden;
+  const wake=()=>{ if(parked&&awake()){ const f=parked; parked=null; raf=R(f); } };
+  new IntersectionObserver(es=>{ onScreen=es[es.length-1].isIntersecting; wake(); }).observe(figure);
+  document.addEventListener("visibilitychange",wake);
+  const halt=()=>{ parked=null; if(raf){ CAF(raf); raf=0; } if(anim){ anim=null; tin.step=String(stepQ); setT(+tin.value); } };
   function run(target,perSec,kind,onEnd,k){ halt(); anim={kind,k}; tin.step="any"; let cur=+tin.value, last=0;
-    const tick=now=>{ const dt=last?Math.min((now-last)/1000,0.1):0; last=now; cur=Math.min(target,cur+perSec*dt);
+    const tick=now=>{ if(!awake()){ raf=0; last=0; parked=tick; return; } const dt=last?Math.min((now-last)/1000,0.1):0; last=now; cur=Math.min(target,cur+perSec*dt);
       if(cur>=target-1e-9){ anim=null; raf=0; tin.step=String(stepQ); setT(target); onEnd&&onEnd(); return; }
       setT(cur); raf=R(tick); };
     raf=R(tick); sync(); }
@@ -141,18 +148,26 @@ function mount(){
   const stepTitle=k=>steps()[k].title||"";
   const preview=(k,x,y)=>{ segs.querySelectorAll("i").forEach((s,i)=>s.classList.toggle("hot",i===k)); if(k==null||k<0){ tip.hidden=true; return; } showTip(t("track.preview",{k:k+1,title:stepTitle(k)}),x,y); };
 
-  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(getComputedStyle(w).scrollPaddingLeft)||0), R=b.right-24;
+  // A pan box scrolls only where a media rule gives it overflow-x:auto; the value is cached until the box resizes, so wide pages read no layout here.
+  // Cursor-only calls (one per animation frame) run at the start of the next frame, where layout is already clean.
+  const pans=[...document.querySelectorAll(".fig-pan")], scrolls=w=>!!w&&(w._sc??(w._sc=getComputedStyle(w).overflowX!=="visible"));
+  let fq=0;
+  const followNow=(k,curOnly)=>{ const into=(w,r)=>{ if(!scrolls(w)||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(w.style.scrollPaddingLeft)||0), R=b.right-24;
       const d=(r.right-r.left>R-L||r.left<L)?r.left-L:r.right>R?r.right-R:0;
       if(d) w.scrollTo({left:w.scrollLeft+d,behavior:RM||curOnly?"instant":"smooth"}); };
     if($("cur")) into($("cur").closest(".fig-pan"),$("cur").getBoundingClientRect());
-    if(!curOnly) marks.filter(m=>m.k===k).forEach(m=>{ const e=m.n||m.g; into(e.closest(".fig-pan"),e.getBoundingClientRect()); }); };
+    if(!curOnly){ ensureMarks(); marks.filter(m=>m.k===k).forEach(m=>{ const e=m.n||m.g; into(e.closest(".fig-pan"),e.getBoundingClientRect()); }); } };
+  const follow=(k,curOnly)=>{ if(!pans.some(scrolls)) return;
+    if(!curOnly){ if(fq){ CAF(fq); fq=0; } followNow(k,false); }
+    else if(!fq) fq=R(()=>{ fq=0; followNow(k,true); }); };
   function sync(){ if(quiet) return; const S=steps(), M=S.length, k=curK(), moved=k!==lastK; lastK=k;
     if(segs.children.length!==M){ segs.replaceChildren(...S.map(()=>document.createElement("i"))); }
     [...segs.children].forEach((s,i)=>{ s.classList.toggle("cur",i===k); s.classList.toggle("past",i<k); });
-    track.setAttribute("aria-valuemax",String(M)); track.setAttribute("aria-valuenow",String(k+1)); track.setAttribute("aria-valuetext",t("track.valuetext",{k:k+1,M,title:stepTitle(k)}));
+    setA(track,"aria-valuemax",String(M)); setA(track,"aria-valuenow",String(k+1)); setA(track,"aria-valuetext",t("track.valuetext",{k:k+1,M,title:stepTitle(k)}));
     prev.disabled=k===0; next.disabled=k===M-1;
     const lab=FIG.stepLabel(); if(stepN.textContent!==lab) stepN.textContent=lab;
-    playB.textContent=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play");
+    const pl=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play"); if(playB.textContent!==pl) playB.textContent=pl;
+    ghostTick();
     document.documentElement.classList.toggle("fig-atend",atEnd());
     if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } }
   const segAt=x=>{ const r=track.getBoundingClientRect(), M=steps().length; return Math.max(0,Math.min(M-1,Math.floor((x-r.left)/r.width*M))); };
@@ -173,20 +188,33 @@ function mount(){
   // ---- time calibration for the figure's own timeline, and marks that link to steps
   const tlSvg=$("cur")?$("cur").ownerSVGElement:null;
   const visit=(fn)=>{ const keep=+tin.value; quiet=true; try{ fn(); } finally { quiet=false; setT(keep); } };
-  function calibrate(){ if(!tlSvg) return; cal=[]; visit(()=>{ const sr=tlSvg.getBoundingClientRect();
-    const ts=[...new Set([lo,...steps().map(s=>s.t).filter(v=>v>=lo),endT()])].sort((a,b)=>a-b);
-    ts.forEach(v=>{ setT(v); const r=$("cur").getBoundingClientRect(); cal.push([v,(r.left+r.width/2-sr.left)/sr.width]); }); }); }
-  const timeAt=fx=>{ if(cal.length<2) return lo; if(fx<=cal[0][1]) return cal[0][0]; for(let i=1;i<cal.length;i++){ if(fx<=cal[i][1]||i===cal.length-1){ const [t0,x0]=cal[i-1],[t1,x1]=cal[i]; return x1>x0?t0+Math.max(0,Math.min(1,(fx-x0)/(x1-x0)))*(t1-t0):t1; } } return cal[cal.length-1][0]; };
+  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does one visit per idle callback,
+  // so no long task runs; a user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
+  const modeKey=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tin.max+"|"+steps().map(s=>s.t).join(","); };
   const MARK_SEL="#focus > *, #algO > *";
-  function surveyMarks(){ marks=[]; visit(()=>{ steps().forEach((s,k)=>{ setT(settled(k));
-    document.querySelectorAll(MARK_SEL).forEach(m=>{ const g=m.parentNode; try{ const b=m.getBBox(); marks.push({g,b,k}); }catch(_){} });
-    document.querySelectorAll(".nd.on").forEach(n=>marks.push({n,k})); }); }); }
-  function stepsAt(e){ const ks=new Set(), nd=e.target.closest&&e.target.closest(".nd");
+  const calC=new Map(); let markKey=null, job=null, prepQ=false;
+  const jobFor=key=>{ if(!job||job.key!==key) job={key,cal:[],ts:tlSvg?[...new Set([lo,...steps().map(s=>s.t).filter(v=>v>=lo),endT()])].sort((a,b)=>a-b):[],mk:[],k:0,M:steps().length}; return job; };
+  const calAt=(j)=>{ const v=j.ts[j.cal.length]; setT(v); const sr=tlSvg.getBoundingClientRect(), r=$("cur").getBoundingClientRect(); j.cal.push([v,(r.left+r.width/2-sr.left)/sr.width]); };
+  const marksAt=(j)=>{ const k=j.k++; setT(settled(k));
+    document.querySelectorAll(MARK_SEL).forEach(m=>{ const g=m.parentNode; try{ const b=m.getBBox(); j.mk.push({g,b,k}); }catch(_){} });
+    document.querySelectorAll(".nd.on").forEach(n=>j.mk.push({n,k})); };
+  const calDone=j=>!tlSvg||j.cal.length>=j.ts.length;
+  const ensureCal=()=>{ const key=modeKey(), c=calC.get(key); if(c){ cal=c; return; } const j=jobFor(key); if(!calDone(j)) visit(()=>{ while(!calDone(j)) calAt(j); }); calC.set(key,cal=j.cal); };
+  const ensureMarks=()=>{ const key=modeKey(); if(markKey===key) return; const j=jobFor(key); if(j.k<j.M) visit(()=>{ while(j.k<j.M) marksAt(j); }); marks=j.mk; markKey=key; };
+  const idle=window.requestIdleCallback||(f=>setTimeout(f));
+  const prep=()=>{ if(!prepQ){ prepQ=true; idle(prepStep); } };
+  function prepStep(){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+    if(!calC.has(key)&&!calDone(j)) visit(()=>calAt(j)); else if(markKey!==key&&j.k<j.M) visit(()=>marksAt(j)); else { ensureCal(); ensureMarks(); return; }
+    prep(); }
+  const dropMarks=()=>{ markKey=null; job=null; };
+  if(tlSvg){ let w0=null; new ResizeObserver(([e])=>{ const w=e.contentRect.width; if(w0!==null&&w!==w0){ calC.clear(); dropMarks(); prep(); } w0=w; }).observe(tlSvg); }
+  const timeAt=fx=>{ if(cal.length<2) return lo; if(fx<=cal[0][1]) return cal[0][0]; for(let i=1;i<cal.length;i++){ if(fx<=cal[i][1]||i===cal.length-1){ const [t0,x0]=cal[i-1],[t1,x1]=cal[i]; return x1>x0?t0+Math.max(0,Math.min(1,(fx-x0)/(x1-x0)))*(t1-t0):t1; } } return cal[cal.length-1][0]; };
+  function stepsAt(e){ ensureMarks(); const ks=new Set(), nd=e.target.closest&&e.target.closest(".nd");
     marks.forEach(m=>{ if(m.n){ if(nd===m.n) ks.add(m.k); return; } const ctm=m.g.getScreenCTM(); if(!ctm) return; const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(ctm.inverse()), pad=22/Math.max(ctm.a,0.01);
       if(p.x>=m.b.x-pad&&p.x<=m.b.x+m.b.width+pad&&p.y>=m.b.y-pad&&p.y<=m.b.y+m.b.height+pad) ks.add(m.k); });
     return [...ks].sort((a,b)=>a-b); }
   const inBand=e=>{ if(!tlSvg||!$("cur")) return false; const r=$("cur").getBoundingClientRect(); return e.target.closest("svg")===tlSvg&&e.clientY>=r.top-12&&e.clientY<=r.bottom+12; };
-  const seek=x=>{ const r=tlSvg.getBoundingClientRect(); let v=timeAt((x-r.left)/r.width); v=lo+Math.round((v-lo)/stepQ)*stepQ; setT(Math.max(lo,Math.min(hi(),+v.toFixed(6)))); };
+  const seek=x=>{ ensureCal(); const r=tlSvg.getBoundingClientRect(); let v=timeAt((x-r.left)/r.width); v=lo+Math.round((v-lo)/stepQ)*stepQ; setT(Math.max(lo,Math.min(hi(),+v.toFixed(6)))); };
   let sk=null;
   plate.addEventListener("pointerdown",e=>{ if(!inBand(e)) return; if(e.pointerType==="touch"){ sk={x:e.clientX,y:e.clientY}; return; } e.preventDefault(); halt(); seek(e.clientX); sk={drag:true}; tlSvg.setPointerCapture(e.pointerId); });
   plate.addEventListener("pointermove",e=>{ if(sk&&sk.drag){ seek(e.clientX); return; } if(e.pointerType!=="mouse"||sk) return;
@@ -198,17 +226,18 @@ function mount(){
 
   // ---- ghost: the part of the timeline after the cursor, drawn at the ghost tier
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
-  function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
-    const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
+  // The ghost is rebuilt when the timeline DOM changes, at most once per step while the clock animates.
+  function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id; let gk=-1, dirty=false;
+    const build=()=>{ dirty=false; gk=curK(); obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ if(sc[i].tagName!=="text"&&sc[i].tagName!=="tspan"&&getComputedStyle(o).fill!=="none") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
-    const obs=new MutationObserver(build); build(); }
+    const obs=new MutationObserver(()=>{ if(anim&&curK()===gk) dirty=true; else build(); }); ghostTick=()=>{ if(dirty&&(!anim||curK()!==gk)) build(); }; build(); }
 
   // ---- variants (radio group "mode"), drawn as cards (compare) or tabs (topics)
   const modeRadios=[...document.querySelectorAll("input[name=mode]")];
   const claimed=D.param&&D.param.group==="mode";
   const modesBox=modeRadios.length?modeRadios[0].closest(".modes")||modeRadios[0].parentNode:null;
-  const switched=aligned=>{ const kp=lastK; halt(); calibrate(); surveyMarks(); setT(settled(aligned?clampK(kp):0)); follow(curK()); };
+  const switched=aligned=>{ const kp=lastK; halt(); dropMarks(); setT(settled(aligned?clampK(kp):0)); follow(curK()); prep(); };
   const markOn=(radios)=>radios.forEach(r=>r.closest("label").classList.toggle("is-on",r.checked));
   if(modeRadios.length>=2&&!claimed){
     const v=D.variants||{kind:"topics",aligned:false}, id="fig-ax"+(++uid), box=el("div","fig-variants"), cards=el("div","fig-cards");
@@ -245,7 +274,7 @@ function mount(){
 
   tin.addEventListener("input",sync);
   document.documentElement.classList.add("fig-boot");
-  calibrate(); surveyMarks(); ghost(); setT(settled(0)); sync(); follow(curK());
+  ghost(); setT(settled(0)); sync(); follow(curK()); prep();
   R(()=>R(()=>document.documentElement.classList.remove("fig-boot")));
 }
 
