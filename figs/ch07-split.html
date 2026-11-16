@@ -685,6 +685,7 @@ function drawStep(m,k,t){
 let drawn={mode:null,k:-1};
 function show(){
   const m=modeNow(), t=+tin.value, k=idx(m,t);
+  if(drawn.mode===m&&drawn.k!==k){ focusLines(m,k,LAY.W,LAY.narrow); noteBlocks(m,k,LAY.W); } // measure text before the DOM writes below dirty layout
   if(drawn.mode!==m){ drawMode(m); drawn={mode:m,k:-1}; }
   setHw(m,t); tlCursor(m,t);
   if(drawn.k!==k){ drawn.k=k; drawStep(m,k,t); }

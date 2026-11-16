@@ -110,7 +110,7 @@ function mount(){
   const clampK=k=>Math.max(0,Math.min(steps().length-1,k));
   const setA=(e,n,v)=>{ if(e.getAttribute(n)!==v) e.setAttribute(n,v); };
   let ghostTick=()=>{};
-  let quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
+  let prepWait=false, quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
 
   // ---- clock: the only owner of time
   const setT=v=>{ tin.value=String(v); tin.dispatchEvent(new Event("input",{bubbles:true})); };
@@ -169,7 +169,7 @@ function mount(){
     const pl=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play"); if(playB.textContent!==pl) playB.textContent=pl;
     ghostTick();
     document.documentElement.classList.toggle("fig-atend",atEnd());
-    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } }
+    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } resume(); }
   const segAt=x=>{ const r=track.getBoundingClientRect(), M=steps().length; return Math.max(0,Math.min(M-1,Math.floor((x-r.left)/r.width*M))); };
   prev.addEventListener("click",()=>go(baseK()-1,false)); next.addEventListener("click",()=>go(baseK()+1,true)); playB.addEventListener("click",play);
   let drag=false;
@@ -205,7 +205,9 @@ function mount(){
   const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
   let cost=0, measured=false;
   const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
-  function prepStep(dl){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+  // While the clock animates or the timeline is held, prep waits; sync() and the pointer release resume it.
+  const resume=()=>{ if(prepWait&&!anim&&!sk){ prepWait=false; prep(); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk){ prepWait=true; return; } const key=modeKey(), j=jobFor(key);
     const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
     if(!step){ ensureCal(); ensureMarks(); return; }
     if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
@@ -225,8 +227,8 @@ function mount(){
   plate.addEventListener("pointerdown",e=>{ if(!inBand(e)) return; if(e.pointerType==="touch"){ sk={x:e.clientX,y:e.clientY}; return; } e.preventDefault(); halt(); seek(e.clientX); sk={drag:true}; tlSvg.setPointerCapture(e.pointerId); });
   plate.addEventListener("pointermove",e=>{ if(sk&&sk.drag){ seek(e.clientX); return; } if(e.pointerType!=="mouse"||sk) return;
     const c=inBand(e)?[]:stepsAt(e); if(c.length) preview(c[0],e.clientX,e.clientY); else preview(null); });
-  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; });
-  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; });
+  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; resume(); return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; resume(); });
+  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; resume(); });
   plate.addEventListener("click",e=>{ if(inBand(e)||e.target.closest("button,input,label,a")) return; const c=stepsAt(e); if(!c.length) return;
     const k=curK(), i=c.indexOf(k); jump(i<0?c[0]:c[(i+1)%c.length]); });
 
@@ -1049,6 +1051,7 @@ function drawStep(m,k,t){
 let drawn={mode:null,k:-1};
 function show(){
   const m=modeNow(), t=+tin.value, k=idx(m,t);
+  if(drawn.mode===m&&drawn.k!==k){ focusLines(m,k,LAY.W,LAY.narrow); noteBlocks(m,k,LAY.W); } // measure text before the DOM writes below dirty layout
   if(drawn.mode!==m){ drawMode(m); drawn={mode:m,k:-1}; }
   setHw(m,t); tlCursor(m,t);
   if(drawn.k!==k){ drawn.k=k; drawStep(m,k,t); }

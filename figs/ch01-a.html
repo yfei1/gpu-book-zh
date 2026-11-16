@@ -359,10 +359,16 @@ function note(cls,text,maxW,x,y,side,hw,top){
   const dx=side==="r"?x-(b.x+b.width+6):x-(b.x-6), dy=y-(b.y-3+(top?0:(b.height+6)/2)); g.setAttribute("transform","translate("+dx.toFixed(1)+" "+dy.toFixed(1)+")"); g.top=b.y-3+dy; g.bot=b.y+b.height+3+dy; return g;
 }
 function arrow1(x0,y0,x1,y1){ return mk("path",{class:"flow",d:"M"+x0.toFixed(1)+" "+y0.toFixed(1)+"L"+x1.toFixed(1)+" "+y1.toFixed(1),"marker-end":"url(#fh)"}); }
+const SC=new Map(), FC=new Map();   // scene / callout nodes per step, built (and measured) once: the viewBox is fixed, so a revisit needs no layout
 function paintScene(sc){
   gCpu.classList.toggle("on",sc.cpu>0); gDisp.classList.toggle("on",sc.disp==="act"); gDisp.classList.toggle("wt",sc.disp==="wait");
   paintTiles(sc.run); dots.replaceChildren(); flows.replaceChildren();
   const ON={cpu:sc.cpu>0,pop:sc.disp==="act"&&sc.mode!=="3",dsp:sc.disp==="act"}; document.querySelectorAll("#iso [data-act]").forEach((e)=>e.classList.toggle("act",ON[e.dataset.act]));
+  const hit=SC.get(sc.sig);
+  if(hit){ dots.replaceChildren(...hit[0]); flows.replaceChildren(...hit[1]); return; }
+  buildScene(sc); SC.set(sc.sig,[[...dots.childNodes],[...flows.childNodes]]);
+}
+function buildScene(sc){
   const Y=G.YM, byId={}, R=D.RCOL, slot=D.CALL[D.SUBJ[+sc.mode-1][sc.k][0]]; sc.cmds.forEach((c)=>{ byId[c.id]=c; });
   const bdg=sc.badge?note("bdg",STR.badge[sc.mode+"."+sc.badge],R.bdgW,R.x,R.bdgTop,"l",undefined,true):null;
   if(sc.mode==="3"){ const c=byId.graph_cmd;
@@ -381,6 +387,11 @@ function paintScene(sc){
     if(sc.run!==2){ const nt=mk("text",{class:"lab3","text-anchor":"end",x:G.dieEdge[0]-12,y:G.dieEdge[1]+36},STR.note); dots.appendChild(nt); wrap(nt,190); } }
 }
 function drawFocus(mode,k){
+  const key=mode+"|"+k, hit=FC.get(key);
+  if(hit){ focus.replaceChildren(...hit); return; }
+  buildFocus(mode,k); FC.set(key,[...focus.childNodes]);
+}
+function buildFocus(mode,k){
   focus.replaceChildren(); const [slot,subj]=D.SUBJ[+mode-1][k], C=D.CALL[slot], lh=D.CALL.lh; let y=0;
   D.FOCUS[+mode-1][k].split("<br>").forEach((p)=>{ const t=mk("text",{class:"lab","text-anchor":"start",x:C.x,y:y},p); focus.appendChild(t); y+=wrap(t,C.w)*lh; });
   const ys=[...focus.querySelectorAll("tspan")].map((e)=>+e.getAttribute("y")), off=C.bottom?C.y-Math.max(...ys):C.y-Math.min(...ys);

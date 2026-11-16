@@ -188,7 +188,9 @@ const LN=(x1,y1,x2,y2,a)=>mk("line",Object.assign({x1:f1(x1),y1:f1(y1),x2:f1(x2)
 // ---- text measure and wrap (a hidden svg inside the plate, so that the figure CSS applies)
 const MEAS=document.createElementNS(NS,"svg"); MEAS.setAttribute("width","0"); MEAS.setAttribute("height","0"); MEAS.style.cssText="position:absolute;visibility:hidden";
 document.querySelector(".iso-plate").appendChild(MEAS);
-const cw={}, tw=(s,cls)=>{ const c=cw[cls]||(cw[cls]={}); let n=0; for(const ch of s){ let w=c[ch]; if(w===undefined){ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=ch==" "?"\u00a0":ch; MEAS.appendChild(t); w=c[ch]=t.getComputedTextLength(); MEAS.removeChild(t); } n+=w; } return n; };
+const cw={}, tw=(s,cls)=>{ const c=cw[cls]||(cw[cls]={}); const miss=[]; for(const ch of s){ if(c[ch]===undefined&&!miss.includes(ch)) miss.push(ch); }
+  if(miss.length){ const ts=miss.map((ch)=>{ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=ch==" "?"\u00a0":ch; MEAS.appendChild(t); return t; }); miss.forEach((ch,i)=>{ c[ch]=ts[i].getComputedTextLength(); }); ts.forEach((t)=>MEAS.removeChild(t)); }
+  let n=0; for(const ch of s) n+=c[ch]; return n; };
 const CLOSE="，。、；：）」』？！,.;:)]";
 const wrap=(s,maxW,cls)=>{ const toks=s.match(/[\x21-\x7e\u00a0-\u02ff\u0370-\u03ff\u2070-\u209f\u2190-\u21ff\u2200-\u22ff\u2026\u00b5\u2013\u2014\u2018\u2019]+|\s|[^\x00-\x7f]/g)||[]; const out=[]; let cur="";
   for(const t of toks){ const nxt=cur+t; if(cur&&tw(nxt,cls)>maxW&&t!==" "){ if(CLOSE.includes(t[0])&&cur.length>1){ const last=cur.slice(-1); out.push(cur.slice(0,-1).trimEnd()); cur=last+t; } else { out.push(cur.trimEnd()); cur=t; } } else cur=nxt; }

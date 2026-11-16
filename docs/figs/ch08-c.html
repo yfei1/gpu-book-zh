@@ -110,7 +110,7 @@ function mount(){
   const clampK=k=>Math.max(0,Math.min(steps().length-1,k));
   const setA=(e,n,v)=>{ if(e.getAttribute(n)!==v) e.setAttribute(n,v); };
   let ghostTick=()=>{};
-  let quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
+  let prepWait=false, quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
 
   // ---- clock: the only owner of time
   const setT=v=>{ tin.value=String(v); tin.dispatchEvent(new Event("input",{bubbles:true})); };
@@ -169,7 +169,7 @@ function mount(){
     const pl=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play"); if(playB.textContent!==pl) playB.textContent=pl;
     ghostTick();
     document.documentElement.classList.toggle("fig-atend",atEnd());
-    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } }
+    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } resume(); }
   const segAt=x=>{ const r=track.getBoundingClientRect(), M=steps().length; return Math.max(0,Math.min(M-1,Math.floor((x-r.left)/r.width*M))); };
   prev.addEventListener("click",()=>go(baseK()-1,false)); next.addEventListener("click",()=>go(baseK()+1,true)); playB.addEventListener("click",play);
   let drag=false;
@@ -205,7 +205,9 @@ function mount(){
   const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
   let cost=0, measured=false;
   const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
-  function prepStep(dl){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+  // While the clock animates or the timeline is held, prep waits; sync() and the pointer release resume it.
+  const resume=()=>{ if(prepWait&&!anim&&!sk){ prepWait=false; prep(); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk){ prepWait=true; return; } const key=modeKey(), j=jobFor(key);
     const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
     if(!step){ ensureCal(); ensureMarks(); return; }
     if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
@@ -225,8 +227,8 @@ function mount(){
   plate.addEventListener("pointerdown",e=>{ if(!inBand(e)) return; if(e.pointerType==="touch"){ sk={x:e.clientX,y:e.clientY}; return; } e.preventDefault(); halt(); seek(e.clientX); sk={drag:true}; tlSvg.setPointerCapture(e.pointerId); });
   plate.addEventListener("pointermove",e=>{ if(sk&&sk.drag){ seek(e.clientX); return; } if(e.pointerType!=="mouse"||sk) return;
     const c=inBand(e)?[]:stepsAt(e); if(c.length) preview(c[0],e.clientX,e.clientY); else preview(null); });
-  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; });
-  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; });
+  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; resume(); return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; resume(); });
+  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; resume(); });
   plate.addEventListener("click",e=>{ if(inBand(e)||e.target.closest("button,input,label,a")) return; const c=stepsAt(e); if(!c.length) return;
     const k=curK(), i=c.indexOf(k); jump(i<0?c[0]:c[(i+1)%c.length]); });
 
@@ -857,7 +859,7 @@ function drawTl(mode){ const g=$("tl"), ms=$("m2Static"), gr=$("tlGrid"); g.text
     ms.appendChild(rect(86,X1,84,108,"keep",{id:"kB"})); ms.appendChild(tag(L["tl.keep"],(86+X1)/2,100,"middle","")); ms.appendChild(tag(L["tl.capB"],86,122,"start","sm"));
     for(let i=0;i<6;i++) g.appendChild(rect(TX(i),TX(i+1)-1,148,170,"rail"));
   } }
-function curPath(cx){ const cuts=[]; TOP.forEach((o)=>{ const b=o.el.getBBox(); if(cx>b.x-1.5&&cx<b.x+b.width+1.5) cuts.push([b.y-1,b.y+b.height+1]); }); cuts.sort((a,b)=>a[0]-b[0]);
+function curPath(cx){ const cuts=[]; TOP.forEach((o)=>{ const b=o.b||(o.b=o.el.getBBox()); if(cx>b.x-1.5&&cx<b.x+b.width+1.5) cuts.push([b.y-1,b.y+b.height+1]); }); cuts.sort((a,b)=>a[0]-b[0]);
   let y=20, d=""; cuts.forEach((c)=>{ if(c[0]>y) d+="M"+cx.toFixed(1)+" "+y.toFixed(1)+"V"+c[0].toFixed(1); y=Math.max(y,c[1]); }); if(190>y) d+="M"+cx.toFixed(1)+" "+y.toFixed(1)+"V190"; return d; }
 function updateTl(mode,t){ const cx=TX(t); $("clipR").setAttribute("width",fm(Math.max(0,cx-86))); TOP.forEach((o)=>o.el.setAttribute("opacity",cx>=o.rev-0.01?1:0.3)); $("cur").setAttribute("d",mode==="1"?curPath(cx):"M"+cx.toFixed(1)+" 142V176");
   if(mode==="2"){ const k=stepOf(t); const a=k===0||k===1||k===2||k===5, b=k>=3; ["kA","exA"].forEach((id)=>{ const e=$(id); e.classList.toggle("emph",k>=0&&k<=2||k===5); e.setAttribute("opacity",(k===3||k===4)?".45":"1"); });
@@ -879,7 +881,7 @@ buildAlg();
 layout();
 new ResizeObserver(fitPlate).observe(document.querySelector(".iso-plate"));
 new ResizeObserver(()=>{ const n=NAR(); if(n!==LAY.nar){ layout(); show(); } }).observe($("scene").parentElement);
-if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ layout(); drawn.k=-1; show(); });
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ TOP.forEach((o)=>{ o.b=null; }); layout(); drawn.k=-1; show(); });
 FIG.timeline({ steps:()=>STEPT.map((t,k)=>({t:t,title:D.STEPN[+modeOf()-1][k]})), end:()=>END, rate:2 });
 FIG.variants({ kind:"compare", aligned:false, axis:D.L["axis"], outcomes:[D.L["out.1"],D.L["out.2"]] });
 tin.addEventListener("input",show);

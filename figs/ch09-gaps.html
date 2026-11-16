@@ -561,7 +561,7 @@ function drawCard(mode,k){ const c=D.CARDS[+mode-1][k], key=mode+"|"+k, hit=CARD
 
 let drawn={mode:null,k:-1,key:null}, lastSL="";
 function show(){ render(modeOf(),+tin.value); }
-function warmOtherMode(){ const cur=modeOf(), u0=+tin.value; HW.MODES.filter((m)=>m!==cur).forEach((m)=>HW.SETTLED[m].forEach((u)=>render(m,u))); render(cur,u0); }
+function warmOtherMode(){ const cur=modeOf(), u0=+tin.value; HW.MODES.filter((m)=>m!==cur).concat(cur).forEach((m)=>HW.SETTLED[m].forEach((u)=>render(m,u))); render(cur,u0); }
 addEventListener("load",()=>setTimeout(warmOtherMode,0));
 function render(mode,u){
   const key=keyNow(), k=idx(u);

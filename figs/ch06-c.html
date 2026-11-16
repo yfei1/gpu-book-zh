@@ -707,7 +707,6 @@ function drawFrame(m,k,t){
 }
 function show(){
   const m=modeNow(), t=+tin.value, k=stepOf(m,t);
-  $("stepN").textContent=FIG.stepLabel();
   if(DR.m!==m||DR.W!==GA.W||DR.nar!==GA.narrow){
     DR={m:m,k:-1,sa:"",sf:"",W:GA.W,nar:GA.narrow}; isoSig="";
     RO.textContent=lf("c06c.readout.m"+m).split("<br>").join("\n"); drawLegend(m);
@@ -716,8 +715,9 @@ function show(){
     FLAT.setAttribute("viewBox","0 0 "+GA.W+" "+FH[m]); FLAT.style.setProperty("--vbw",GA.W+"px"); setA(FCLIP,{x:GF.TL0,y:f1(FLAY[m].clip[0]),height:f1(Math.max(0,FLAY[m].clip[1]))});
     const pan=FLAT.closest(".fig-pan"); if(pan) pan.dispatchEvent(new Event("scroll"));
   }
+  drawFrame(m,k,t);   // text measuring (textW) forces layout: do it before the card/label writes dirty the page
+  $("stepN").textContent=FIG.stepLabel();
   if(DR.k!==k){ DR.k=k; drawCard(m,k); }
-  drawFrame(m,k,t);
 }
 function measure(){
   const narrow=matchMedia("(max-width:600px)").matches; if(!narrow) return {narrow,W:640};

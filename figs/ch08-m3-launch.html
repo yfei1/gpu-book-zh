@@ -503,7 +503,7 @@ function rowOf(items,x0,x1,y,gap,hmin){
 }
 const BK={bkt:"sbk-bkt",up:"sbk-up",dnp:"sbk-dnp",hat:"sbk-hat",dn:"sbk-dn",pnp:"sbk-pnp",pn:"sbk-pn"};
 function layoutStrip(mode,W,nar){
-  SG.replaceChildren();
+  SG.replaceChildren(); CHIPS.length=0;
   const mx=nar?10:12, R=nar?W-26:W-12, S=(k)=>TS["m3l.strip.m"+mode+"."+k], C=D.COL;
   const hdr=mk("text",{class:"lab2"}); SG.appendChild(hdr);
   const hl=fitWrap(hdr,"lab2",[S("hdr")],R-mx,mx,14,13); let y=14+(hl.length-1)*13+8;
@@ -558,20 +558,25 @@ function layoutIso(W,nar){
   let nx=0; ["1","2"].forEach((m)=>SPEC[m].XF.forEach((ids)=>{ let h=0; ids.forEach((id)=>{ h+=wrapLines(xf,"fk",[TS["m3l.iso.xfer."+id]],LY.kw).length*12+4; }); nx=Math.max(nx,h); }));
   const H=Math.ceil(LY.xy0+nx+4);
   setA(ISO,{viewBox:"0 0 "+W+" "+H}); ISO.style.setProperty("--vbw",W+"px");
+  NOTES.clear(); ["1","2"].forEach((m)=>SPEC[m].steps.forEach((_,k)=>{ drawXfer(m,k); drawFocus(m,k); }));
   const dg=$("pnDots"); dg.replaceChildren();
   D.PN16.forEach((s,j)=>{ const q=tf(D.TILE[s]); dg.appendChild(mk("circle",{class:"pdot","data-hw":"pn_cta:"+j,cx:f2(q[0]),cy:f2(q[1]-0.6),r:2.8,style:"display:none"})); });
 }
 function paintTile(s,key){ if(smKey[s]===key) return; smKey[s]=key; const g=SMG[s];
   if(key==="idle") g.removeAttribute("style"); else g.setAttribute("style",D.VARS[key]);
   WH[s].style.display=key==="wait"?"":"none"; }
-function drawXfer(mode,k){
+const NOTES=new Map();
+function cachedNodes(kind,mode,k,build){ const key=kind+mode+"|"+k; let v=NOTES.get(key); if(!v){ build(); v=[...$(kind).childNodes]; NOTES.set(key,v); } else $(kind).replaceChildren(...v); }
+function drawXfer(mode,k){ cachedNodes("xfer",mode,k,()=>buildXfer(mode,k)); }
+function buildXfer(mode,k){
   const g=$("xfer"); g.replaceChildren(); let y=LY.xy0;
   SPEC[mode].XF[k].forEach((id)=>{ const c=XC[id], t=mk("text",{class:"fk",x:LY.kx,y:f2(y+9)}); g.appendChild(t);
     const ls=fitWrap(t,"fk",[TS["m3l.iso.xfer."+id]],LY.kw,LY.kx,y+9,12);
     g.appendChild(mk("path",{class:"fl f-"+c[0],d:"M"+LY.mx+" "+f2(y+5.5)+"H"+(LY.mx+24),"marker-end":"url(#"+c[1]+")"}));
     y+=ls.length*12+4; });
 }
-function drawFocus(mode,k){
+function drawFocus(mode,k){ cachedNodes("focus",mode,k,()=>buildFocus(mode,k)); }
+function buildFocus(mode,k){
   const g=$("focus"); g.replaceChildren();
   const t=mk("text",{class:"lab",x:LY.mx,y:15}); g.appendChild(t);
   fitWrap(t,"lab",[TS["m3l.iso.focus.m"+mode+".s"+k]],LY.tw0,LY.mx,15,LH);
@@ -582,20 +587,23 @@ function drawFocus(mode,k){
 function paintScene(mode,sc){
   for(let s=0;s<SMS;s++) paintTile(s,sc.keys[s]);
   $("sceneHw").toggleAttribute("data-dim",sc.fin);
-  document.querySelectorAll(".pdot").forEach((c,j)=>{ const on=sc.pn.indexOf(j)>=0; c.style.display=on?"":"none"; c.setAttribute("r",mode==="1"?3.2:2.8); });
-  drawXfer(mode,sc.k); drawFocus(mode,sc.k);
+  const pr=mode==="1"?"3.2":"2.8", pd=$("pnDots").children;
+  for(let j=0;j<pd.length;j++){ const c=pd[j], d=sc.pn.indexOf(j)>=0?"":"none"; if(c.style.display!==d) c.style.display=d; if(c.getAttribute("r")!==pr) c.setAttribute("r",pr); }
+  if(drawn.xk!==mode+"|"+sc.k){ drawn.xk=mode+"|"+sc.k; drawXfer(mode,sc.k); drawFocus(mode,sc.k); }
 }
 
 // ===== cards and the page loop =====
+const CHIPS=[];
 function drawCard(mode,k){
   const c=D.CARDS[+mode-1][k];
   $("stepT").innerHTML=c.titleHtml;
   $("stepK").innerHTML=c.rows.map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join("");
   const lit=SPEC[mode].LIT[k];
-  document.querySelectorAll("[data-chip]").forEach((e)=>{ const on=lit===null||lit.indexOf(e.dataset.chip)>=0; e.classList.toggle("dim",!on); e.classList.toggle("lit",on); });
+  if(!CHIPS.length) CHIPS.push(...document.querySelectorAll("[data-chip]"));
+  CHIPS.forEach((e)=>{ const on=lit===null||lit.indexOf(e.dataset.chip)>=0; e.classList.toggle("dim",!on); e.classList.toggle("lit",on); });
 }
 function viewport(){ const nar=matchMedia("(max-width:600px)").matches, p=ISO.closest(".fig-pan"), pw=p?p.clientWidth:ISO.parentElement.clientWidth; return {nar:nar,W:nar?Math.max(240,Math.floor(pw)):640}; }
-let drawn={mode:null,k:-1,sig:"",W:0,nar:null};
+let drawn={mode:null,k:-1,sig:"",W:0,nar:null,xk:""};
 function show(){
   const vp=viewport(), mode=modeOf(), t=+tin.value, sc=sceneAt(mode,t), k=sc.k;
   $("stepN").textContent=FIG.stepLabel();
@@ -603,7 +611,7 @@ function show(){
   if(wChanged) layoutIso(vp.W,vp.nar);
   if(wChanged||mChanged) layoutStrip(mode,vp.W,vp.nar);
   if(mChanged){ document.querySelector("[data-readout]").textContent=D.RO[mode]; drawTl(mode); }
-  if(wChanged||mChanged){ drawn.W=vp.W; drawn.nar=vp.nar; drawn.mode=mode; drawn.k=-1; drawn.sig="";
+  if(wChanged||mChanged){ drawn.W=vp.W; drawn.nar=vp.nar; drawn.mode=mode; drawn.k=-1; drawn.sig=""; drawn.xk="";
     setA($("axisT"),{x:vp.nar?6:TL0});   // pinned heading: at <= 600 px it starts at the pan edge, so it is whole at scrollLeft 0
     const pan=FLAT.closest(".fig-pan"); if(pan) pan.dispatchEvent(new Event("scroll")); }
   if(drawn.k!==k){ drawn.k=k; drawCard(mode,k); }

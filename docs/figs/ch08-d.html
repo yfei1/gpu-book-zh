@@ -110,7 +110,7 @@ function mount(){
   const clampK=k=>Math.max(0,Math.min(steps().length-1,k));
   const setA=(e,n,v)=>{ if(e.getAttribute(n)!==v) e.setAttribute(n,v); };
   let ghostTick=()=>{};
-  let quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
+  let prepWait=false, quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
 
   // ---- clock: the only owner of time
   const setT=v=>{ tin.value=String(v); tin.dispatchEvent(new Event("input",{bubbles:true})); };
@@ -169,7 +169,7 @@ function mount(){
     const pl=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play"); if(playB.textContent!==pl) playB.textContent=pl;
     ghostTick();
     document.documentElement.classList.toggle("fig-atend",atEnd());
-    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } }
+    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } resume(); }
   const segAt=x=>{ const r=track.getBoundingClientRect(), M=steps().length; return Math.max(0,Math.min(M-1,Math.floor((x-r.left)/r.width*M))); };
   prev.addEventListener("click",()=>go(baseK()-1,false)); next.addEventListener("click",()=>go(baseK()+1,true)); playB.addEventListener("click",play);
   let drag=false;
@@ -205,7 +205,9 @@ function mount(){
   const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
   let cost=0, measured=false;
   const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
-  function prepStep(dl){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+  // While the clock animates or the timeline is held, prep waits; sync() and the pointer release resume it.
+  const resume=()=>{ if(prepWait&&!anim&&!sk){ prepWait=false; prep(); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk){ prepWait=true; return; } const key=modeKey(), j=jobFor(key);
     const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
     if(!step){ ensureCal(); ensureMarks(); return; }
     if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
@@ -225,8 +227,8 @@ function mount(){
   plate.addEventListener("pointerdown",e=>{ if(!inBand(e)) return; if(e.pointerType==="touch"){ sk={x:e.clientX,y:e.clientY}; return; } e.preventDefault(); halt(); seek(e.clientX); sk={drag:true}; tlSvg.setPointerCapture(e.pointerId); });
   plate.addEventListener("pointermove",e=>{ if(sk&&sk.drag){ seek(e.clientX); return; } if(e.pointerType!=="mouse"||sk) return;
     const c=inBand(e)?[]:stepsAt(e); if(c.length) preview(c[0],e.clientX,e.clientY); else preview(null); });
-  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; });
-  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; });
+  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; resume(); return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; resume(); });
+  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; resume(); });
   plate.addEventListener("click",e=>{ if(inBand(e)||e.target.closest("button,input,label,a")) return; const c=stepsAt(e); if(!c.length) return;
     const k=curK(), i=c.indexOf(k); jump(i<0?c[0]:c[(i+1)%c.length]); });
 
@@ -552,7 +554,9 @@ const LN=(x1,y1,x2,y2,a)=>mk("line",Object.assign({x1:f1(x1),y1:f1(y1),x2:f1(x2)
 // ---- text measure and wrap (a hidden svg inside the plate, so that the figure CSS applies)
 const MEAS=document.createElementNS(NS,"svg"); MEAS.setAttribute("width","0"); MEAS.setAttribute("height","0"); MEAS.style.cssText="position:absolute;visibility:hidden";
 document.querySelector(".iso-plate").appendChild(MEAS);
-const cw={}, tw=(s,cls)=>{ const c=cw[cls]||(cw[cls]={}); let n=0; for(const ch of s){ let w=c[ch]; if(w===undefined){ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=ch==" "?"\u00a0":ch; MEAS.appendChild(t); w=c[ch]=t.getComputedTextLength(); MEAS.removeChild(t); } n+=w; } return n; };
+const cw={}, tw=(s,cls)=>{ const c=cw[cls]||(cw[cls]={}); const miss=[]; for(const ch of s){ if(c[ch]===undefined&&!miss.includes(ch)) miss.push(ch); }
+  if(miss.length){ const ts=miss.map((ch)=>{ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=ch==" "?"\u00a0":ch; MEAS.appendChild(t); return t; }); miss.forEach((ch,i)=>{ c[ch]=ts[i].getComputedTextLength(); }); ts.forEach((t)=>MEAS.removeChild(t)); }
+  let n=0; for(const ch of s) n+=c[ch]; return n; };
 const CLOSE="，。、；：）」』？！,.;:)]";
 const wrap=(s,maxW,cls)=>{ const toks=s.match(/[\x21-\x7e\u00a0-\u02ff\u0370-\u03ff\u2070-\u209f\u2190-\u21ff\u2200-\u22ff\u2026\u00b5\u2013\u2014\u2018\u2019]+|\s|[^\x00-\x7f]/g)||[]; const out=[]; let cur="";
   for(const t of toks){ const nxt=cur+t; if(cur&&tw(nxt,cls)>maxW&&t!==" "){ if(CLOSE.includes(t[0])&&cur.length>1){ const last=cur.slice(-1); out.push(cur.slice(0,-1).trimEnd()); cur=last+t; } else { out.push(cur.trimEnd()); cur=t; } } else cur=nxt; }

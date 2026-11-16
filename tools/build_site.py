@@ -2,8 +2,10 @@
 """Build docs/index.html (the reader's merged version) from book/*.md and the built figures.
 Run from the repo root:  uv run --no-project --with markdown-it-py --with pyyaml python tools/build_site.py
 Math needs KaTeX once:  cd tools && npm ci
+Book math is MathML (KaTeX output "mathml") set in tools/fonts/GPUBookMath-subset.woff2; tools/subset_math_font.py makes it.
+Figures keep KaTeX HTML and vendor/katex.
 """
-import bisect, html, html.parser, json, os, re, shutil, subprocess, sys
+import bisect, hashlib, html, html.parser, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 from markdown_it import MarkdownIt
 
@@ -21,7 +23,9 @@ SRC_FIGS_EN = Path(os.environ.get("BOOK_FIGS_EN") or SRC_BOOK / "figs_en")  # fi
 REPO = Path(__file__).resolve().parent.parent
 BG_TREE = os.environ.get("BG_TREE") == "1"  # background hardware skill tree (tools/bg_tree.py)
 PREVIEW = os.environ.get("BOOK_OUT")  # preview build: one self-contained site per language in BOOK_OUT; writes nothing in REPO
-DOCS = Path(PREVIEW).resolve() if PREVIEW else REPO / "docs"
+ALT_DOCS = os.environ.get("BOOK_DOCS")  # docs/ layout (zh at the root, en/ below) in another folder; writes nothing else in REPO
+DOCS = Path(PREVIEW).resolve() if PREVIEW else Path(ALT_DOCS).resolve() if ALT_DOCS else REPO / "docs"
+IN_REPO = not PREVIEW and not ALT_DOCS  # the default build also refreshes REPO/book, REPO/figs and README.md
 OUT = DOCS if PREVIEW else DOCS / "en" if EN else DOCS
 UP = "" if PREVIEW else "../" if EN else ""  # path from the page to docs/
 OTHER = ("../zh/index.html" if EN else "../en/index.html") if PREVIEW else "../index.html" if EN else "en/index.html"
@@ -71,8 +75,13 @@ th{text-align:left;font-weight:600;border-bottom:1px solid var(--slate);padding:
 td{border-bottom:1px solid var(--rule);padding:7px 10px 7px 0;vertical-align:top}
 td,th{min-width:4.5em}
 td:first-child,th:first-child{min-width:0;white-space:nowrap}
-.katex{font-size:1.04em}
-.katex-display{margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden}
+.katex{font-size:1.04em;line-height:1.2;display:inline-block;max-width:100%}
+math{font-family:"GPU Book Math",var(--sans)}
+mtext[mathvariant=sans-serif]{font-family:var(--sans)}
+mtext[mathvariant=monospace]{font-family:var(--mono);font-size:.77em}
+.katex-display{display:block;text-align:center;margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden;line-height:1.2}
+.katex-display>.katex{display:inline}
+.katex-display math{display:inline math;math-style:normal}
 .fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch;contain:layout paint}
 .fig iframe{display:block;width:100%;height:900px;border:0}
 @media(min-width:1332px){.fig iframe{height:var(--h,900px)}}
@@ -82,7 +91,7 @@ td:first-child,th:first-child{min-width:0;white-space:nowrap}
 .book .sub{font-size:21px;line-height:1.7;margin:0 0 1.2em}
 .book .note{font:14px/1.7 var(--sans);color:var(--stone);margin:0}
 section{padding-top:clamp(112px,16vh,168px)}
-.sect{content-visibility:auto;contain-intrinsic-block-size:auto 3700px}
+.sect{content-visibility:auto;contain-intrinsic-block-size:auto var(--hm,@SECT_1100@px)}
 .sect:not(.open)>:last-child{margin-bottom:0}
 .ch-head{margin:0 0 26px}
 .ch-num{font:400 14px/1.5 var(--sans);color:var(--stone);margin:0 0 14px}
@@ -153,6 +162,7 @@ body{padding-top:0}
 .rail a .n{left:0;top:4px;width:calc(var(--hang) - 12px);font-size:12.5px}
 main{padding:0 24px 160px}
 td code{overflow-wrap:anywhere}
+.sect{contain-intrinsic-block-size:auto var(--hl,@SECT_1440@px)}
 }
 @media(max-width:1279px){
 .toc{position:fixed;top:0;bottom:0;left:0;z-index:40;width:min(420px,100%);padding-bottom:48px;transform:translateX(-100%);visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
@@ -181,6 +191,7 @@ table{font-size:13px}
 td,th{min-width:8em}
 .pn{grid-template-columns:1fr;gap:16px}
 .pn .next{grid-column:1}
+.sect{contain-intrinsic-block-size:auto var(--hs,@SECT_390@px)}
 }
 @media(prefers-reduced-motion:reduce){.toc{transition:none!important}}
 """
@@ -215,9 +226,15 @@ var seen=new Set(),moving=false,still=0;
 function mount(f){f.src=f.dataset.src;f.removeAttribute("data-src");figs.unobserve(f);seen.delete(f);}
 var figs=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)seen.add(e.target);else seen.delete(e.target);});if(!moving)seen.forEach(mount);});
 [].forEach.call(d.querySelectorAll("iframe[data-src]"),function(f){figs.observe(f);});
-var warm=[].slice.call(d.querySelectorAll(".sect")),skipped=new Set();
-[].forEach.call(warm,function(s){s.addEventListener("contentvisibilityautostatechange",function(e){if(e.skipped)skipped.add(s);else skipped.delete(s);});});
-function warmUp(dl){while(warm.length&&!moving&&dl.timeRemaining()>0){var s=warm.shift();if(!skipped.has(s))continue;s.style.contentVisibility="visible";s.offsetHeight;s.style.contentVisibility="";}if(warm.length)requestIdleCallback(warmUp);}
+var warm=[].slice.call(d.querySelectorAll(".sect")),skipped=new Set(),laid=new Set(),far=[],freeing=0;
+[].forEach.call(warm,function(s){s.addEventListener("contentvisibilityautostatechange",function(e){if(e.skipped){skipped.add(s);if(laid.has(s)){far.push(s);if(!freeing&&window.requestIdleCallback)freeing=requestIdleCallback(freeFar);}}else{skipped.delete(s);laid.add(s);}});});
+// A skipped section keeps its layout tree, and every major GC traces it. display:none drops the tree; after one style flush the
+// section comes back skipped (content-visibility:auto), at its measured height (fractional: a rounded height moves what follows),
+// so nothing moves. One section per idle callback. The warm-up measures with the containment of an on-screen content-visibility:auto
+// section: without it the first h2's margin (60 px) collapses through the section edge and the height is 60 px short.
+function free(s,h){s.style.containIntrinsicBlockSize="auto "+h+"px";s.style.display="none";getComputedStyle(s).display;s.style.display="";laid.delete(s);}
+function freeFar(){freeing=0;var s=far.shift();if(s&&skipped.has(s)&&laid.has(s))free(s,s.getBoundingClientRect().height);if(far.length)freeing=requestIdleCallback(freeFar);}
+function warmUp(dl){while(warm.length&&!moving&&dl.timeRemaining()>0){var s=warm.shift();if(!skipped.has(s))continue;s.style.contentVisibility="visible";s.style.contain="layout style paint";var h=s.getBoundingClientRect().height;s.style.contentVisibility=s.style.contain="";free(s,h);}if(warm.length)requestIdleCallback(warmUp);}
 if(window.requestIdleCallback)addEventListener("load",function(){var i=0;while(i<warm.length-1&&warm[i].getBoundingClientRect().bottom<0)i++;warm=warm.slice(i).concat(warm.slice(0,i));requestIdleCallback(warmUp);});
 addEventListener("scroll",function(){moving=true;clearTimeout(still);still=setTimeout(function(){moving=false;seen.forEach(mount);},120);},{passive:true});
 function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&navA[onSec])||(onCh&&navA[onCh]);if(a)reveal(nav,a);nav.querySelector(".toc-close").focus({preventScroll:true});}
@@ -242,7 +259,7 @@ UI = {
 BOOK = UI["book"]
 BOOK_SHORT = UI["short"]
 TMPL = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{book}</title><link rel="stylesheet" href="{up}vendor/katex/katex.min.css"><style>{css}</style>
+<title>{book}</title><style>{css}</style>
 <script>var wide=matchMedia("(min-width:1332px)");addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source){{var h=Math.ceil(e.data.figH)+4+"px";if(wide.matches&&f.style.getPropertyValue("--h")===h)h="";if(f.style.height!==h)f.style.height=h;}}}});}});</script></head>
 <body>
 <header class="bar"><a class="bar-book" href="#top">{short}</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">{ui_toc}</button><span class="lang">{tog}</span></header>
@@ -395,14 +412,14 @@ def resolve(items):
     if math:
         if not KATEX.exists():
             sys.exit("KaTeX is missing. Run:  cd tools && npm ci")
-        res = subprocess.run(["node", str(REPO / "tools" / "katex_render.mjs")], input=json.dumps([{"tex": it["tex"], "display": it["display"]} for it in math]), capture_output=True, text=True, cwd=REPO)
+        res = subprocess.run(["node", str(REPO / "tools" / "katex_render.mjs"), "--mathml"], input=json.dumps([{"tex": it["tex"], "display": it["display"]} for it in math]), capture_output=True, text=True, cwd=REPO)
         if res.returncode:
             sys.exit("node failed:\n" + res.stderr)
         for it, r in zip(math, json.loads(res.stdout)):
             if "error" in r:
                 errors.append(f"{it['chapter']}:{it['line']}: math error: {html.unescape(r['error'])}  in  {it['tex'][:80]}")
             else:
-                it["html"] = r["html"]
+                it["html"] = f'<span class="katex-display">{r["html"]}</span>' if it["display"] else r["html"]
     for it in items:
         if it["kind"] == "C":
             try:
@@ -413,6 +430,16 @@ def resolve(items):
 
 
 BOOK_FONT = os.environ.get("BOOK_FONT", "google")
+MATH_FONT = REPO / "tools" / "fonts" / "GPUBookMath-subset"
+MATH_CSS = """@font-face{font-family:"GPU Book Math";src:url('@UP@fonts/GPUBookMath-subset.woff2') format('woff2');font-display:swap}"""
+
+
+def check_math_font(items):
+    """The math font is a subset: fail when the book's MathML uses a character that tools/subset_math_font.py has not seen."""
+    from subset_math_font import math_chars
+    seen = json.loads(MATH_FONT.with_suffix(".json").read_text())
+    used = set().union(*(math_chars(it["html"]) for it in items if it["kind"] == "M" and "html" in it))
+    return "".join(sorted(used - set(seen["kept"]) - set(seen["absent"])))
 GOOGLE_CSS = """
 @font-face{font-family:"Google Sans";src:url('@UP@fonts/GoogleSans-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
 @font-face{font-family:"Noto Sans SC";src:url('@UP@fonts/NotoSansSC-subset.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
@@ -423,11 +450,13 @@ h1,h2,h3{font-weight:650}
 
 
 def vendor_fonts():
-    dst = DOCS / "fonts"
+    dst, src = DOCS / "fonts", REPO / "tools" / "fonts"
     shutil.rmtree(dst, ignore_errors=True)
+    dst.mkdir(parents=True)
+    for f in [MATH_FONT.with_suffix(".woff2"), src / "GUST-FONT-LICENSE.txt"]:
+        shutil.copy2(f, dst / f.name)
     if BOOK_FONT == "google":
-        dst.mkdir(parents=True)
-        for f in [*(REPO / "tools" / "fonts").glob("*.woff2"), *(REPO / "tools" / "fonts").glob("OFL-*.txt")]:
+        for f in [*src.glob("*.woff2"), *src.glob("OFL-*.txt")]:
             shutil.copy2(f, dst / f.name)
 
 
@@ -536,13 +565,33 @@ def sect_chunks(part):
     return [part[a:b] for a, b in zip(bounds, bounds[1:])]
 
 
+# A skipped .sect takes its contain-intrinsic-block-size. tools/sect_heights.mjs measures each one in a built site at the 3 widths of
+# the page's breakpoints (<=600, 601-1279, >=1280 px: 390, 1100, 1440); the key is the chunk's hash. A changed chunk falls back to the
+# measured median section height of its language and width ("_median" in the JSON); with no JSON, to 3700px (the earlier constant).
+SECT_H_PATH = REPO / "tools" / "sect_heights.json"
+SECT_H = json.loads(SECT_H_PATH.read_text()) if SECT_H_PATH.exists() else {}
+SECT_BAKED = []
+
+
+def sect_css(css):
+    med = SECT_H.get("_median", {}).get(LANG, {})
+    for w in ("390", "1100", "1440"):
+        css = css.replace(f"@SECT_{w}@", str(med.get(w, 3700)))
+    return css
+
+
 def wrap_sects(body):
     out = []
     for part in re.split(r'(?=<h2 id=")', body):
         if not part.strip():
             continue
         chunks = sect_chunks(part)
-        out += [f'<div class="sect{" open" if i + 1 < len(chunks) else ""}">{c}</div>' for i, c in enumerate(chunks)]
+        for i, c in enumerate(chunks):
+            k = f"{LANG}/{hashlib.sha1(c.encode()).hexdigest()[:12]}"
+            h = SECT_H.get(k)
+            SECT_BAKED.append(bool(h))
+            style = f' style="--hs:{h["390"]}px;--hm:{h["1100"]}px;--hl:{h["1440"]}px"' if h else ""
+            out.append(f'<div class="sect{" open" if i + 1 < len(chunks) else ""}" data-k="{k}"{style}>{c}</div>')
     return "".join(out)
 
 
@@ -602,10 +651,10 @@ def main():
     check_control_chars()
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
     (OUT / "figs").mkdir(parents=True, exist_ok=True)
-    if not EN and not PREVIEW:
+    if not EN and IN_REPO:
         (REPO / "book").mkdir(exist_ok=True); (REPO / "figs").mkdir(exist_ok=True)
     built = {}
-    for old in list((OUT / "figs").glob("*.html")) + ([] if EN or PREVIEW else list((REPO / "figs").glob("*.html"))):
+    for old in list((OUT / "figs").glob("*.html")) + ([] if EN or not IN_REPO else list((REPO / "figs").glob("*.html"))):
         old.unlink()
     def emit(h, zh=not EN):
         t = h.read_text()
@@ -622,7 +671,7 @@ def main():
                 emit(he); en_figs.add(d.name)
             elif not EN:
                 emit(h)
-                if not PREVIEW:
+                if IN_REPO:
                     shutil.copy2(h, REPO / "figs" / h.name)
             elif PREVIEW:  # the en preview carries its own copy of the zh figure it falls back to
                 emit(h, zh=True); en_figs.add(d.name)
@@ -644,7 +693,7 @@ def main():
         if not p.exists():
             continue
         t = p.read_text()
-        if not EN and not PREVIEW:
+        if not EN and IN_REPO:
             shutil.copy2(p, REPO / "book" / p.name)
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = protect(t, c, items)
@@ -670,7 +719,7 @@ def main():
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
     vendor_fonts()
-    css, js, tree = CSS + (GOOGLE_CSS.replace("@UP@", UP) if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", JS, ""
+    css, js, tree = MATH_CSS.replace("@UP@", UP) + sect_css(CSS) + (GOOGLE_CSS.replace("@UP@", UP) if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", JS, ""
     if BG_TREE:
         import bg_tree
         tcss, tree, js = bg_tree.build([sid for *_, sec_list in heads for sid, _, _ in sec_list], JS)
@@ -680,11 +729,14 @@ def main():
         page = page.replace("<body>\n", "<body>\n" + tree, 1)
     page = re.sub("\ue002(.*?)\ue003", lambda m: wrap_sects(m.group(1)), substitute(page, items), flags=re.S)
     (OUT / "index.html").write_text(nowrap_code(page))
-    if not EN and not PREVIEW:
+    if not EN and IN_REPO:
         write_readme(chapters, built, (OUT / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))
+    if new := check_math_font(items):
+        sys.exit(f"math font subset lacks {new!r}: run tools/subset_math_font.py on the built pages, then build again")
     print(f"math expressions rendered: {sum(1 for it in items if it['kind'] == 'M')}, charts: {sum(1 for it in items if it['kind'] == 'C')}")
+    print(f"section heights baked {sum(SECT_BAKED)}/{len(SECT_BAKED)} ({SECT_H_PATH.name}; run tools/sect_heights.mjs on a built site to refresh)")
     print(f"chapters {len(secs)}, figures embedded {sum(1 for _ in re.finditer('<iframe', (OUT/'index.html').read_text()))}")
 
 if __name__ == "__main__":
