@@ -188,8 +188,9 @@ function mount(){
   // ---- time calibration for the figure's own timeline, and marks that link to steps
   const tlSvg=$("cur")?$("cur").ownerSVGElement:null;
   const visit=(fn)=>{ const keep=+tin.value; quiet=true; try{ fn(); } finally { quiet=false; setT(keep); } };
-  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does one visit per idle callback,
-  // so no long task runs; a user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
+  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does at most one visit per frame:
+  // it skips the frame that renders the current change, then runs a visit only in an idle period that has more time left than the costliest visit so far.
+  // A user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
   const modeKey=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tin.max+"|"+steps().map(s=>s.t).join(","); };
   const MARK_SEL="#focus > *, #algO > *";
   const calC=new Map(); let markKey=null, job=null, prepQ=false;
@@ -201,10 +202,15 @@ function mount(){
   const calDone=j=>!tlSvg||j.cal.length>=j.ts.length;
   const ensureCal=()=>{ const key=modeKey(), c=calC.get(key); if(c){ cal=c; return; } const j=jobFor(key); if(!calDone(j)) visit(()=>{ while(!calDone(j)) calAt(j); }); calC.set(key,cal=j.cal); };
   const ensureMarks=()=>{ const key=modeKey(); if(markKey===key) return; const j=jobFor(key); if(j.k<j.M) visit(()=>{ while(j.k<j.M) marksAt(j); }); marks=j.mk; markKey=key; };
-  const idle=window.requestIdleCallback||(f=>setTimeout(f));
-  const prep=()=>{ if(!prepQ){ prepQ=true; idle(prepStep); } };
-  function prepStep(){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
-    if(!calC.has(key)&&!calDone(j)) visit(()=>calAt(j)); else if(markKey!==key&&j.k<j.M) visit(()=>marksAt(j)); else { ensureCal(); ensureMarks(); return; }
+  const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
+  let cost=0, measured=false;
+  const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+    const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
+    if(!step){ ensureCal(); ensureMarks(); return; }
+    if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
+    const t0=performance.now(); visit(step); void document.documentElement.offsetHeight;
+    const c=performance.now()-t0; cost=measured?Math.max(cost,c):c; measured=true;
     prep(); }
   const dropMarks=()=>{ markKey=null; job=null; };
   if(tlSvg){ let w0=null; new ResizeObserver(([e])=>{ const w=e.contentRect.width; if(w0!==null&&w!==w0){ calC.clear(); dropMarks(); prep(); } w0=w; }).observe(tlSvg); }
@@ -246,7 +252,7 @@ function mount(){
     modeRadios.forEach((r,i)=>{ const l=r.closest("label"), name=l.textContent.trim().replace(/^\d+\.\s*/,""); l.className="fig-card"; l.replaceChildren(r,el("span","fig-n",name));
       if(v.kind==="compare"&&v.outcomes) l.append(el("span","fig-o",v.outcomes[i])); cards.append(l); });
     box.append(cards); figure.before(box); if(modesBox) hide(modesBox); markOn(modeRadios);
-    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); r.closest("label").scrollIntoView({block:"nearest",inline:"nearest"}); switched(!!v.aligned); }));
+    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); switched(!!v.aligned); R(()=>r.closest("label").scrollIntoView({block:"nearest",inline:"nearest"})); }));
   } else if(modeRadios.length&&!claimed&&modesBox) hide(modesBox);
 
   // ---- measured parameter: one radio per measured point, dots strip at true x, baseline as a reference line
@@ -274,18 +280,20 @@ function mount(){
 
   tin.addEventListener("input",sync);
   document.documentElement.classList.add("fig-boot");
-  ghost(); setT(settled(0)); sync(); follow(curK()); prep();
+  ghost(); const t0=performance.now(); setT(settled(0)); sync(); void document.documentElement.offsetHeight; cost=performance.now()-t0; follow(curK()); prep();
   R(()=>R(()=>document.documentElement.classList.remove("fig-boot")));
 }
 
 addEventListener("DOMContentLoaded",()=>{ pan(); if(D.tl) mount(); else legacy(); });
 // ---- legacy path: figures without FIG.timeline keep the previous controls (step buttons, speed, key handler)
 const LEG={prev:t("legacy.prev"),next:t("legacy.next"),speed:t("legacy.speed")};
-let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
+// A sandboxed frame (opaque origin) has no localStorage; the speed then lasts for the page only.
+const store=(()=>{ try{ return window.localStorage; }catch(_){ return null; } })();
+let speed=+(store&&store.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
 const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
 window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
 const SPEEDS=[0.1,0.25,0.5,1];
-const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; if(store) store.setItem("figSpeed2",String(s));
   document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
 function legacyShell(){
   const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
@@ -767,10 +775,10 @@ function arrange(g, entries, cfg) {
   const M = entries.map(([key, tg]) => { const r = putText(pr, "ul", L[key], 0, 0, cfg.w, 11.5, "start"); return { key: key, tg: tg, w: r.b.width, h: r.b.height, dy: r.b.y, n: r.ls.length }; }); pr.remove();
   const lay = (perm) => { const ys = cfg.cols.map(() => cfg.y0); return perm.map((i, q) => { const c = q % cfg.cols.length, e = M[i], x = cfg.cols[c], y = ys[c]; ys[c] += e.n * 11.5 + cfg.gap;
     const b = { x: x, y: y + e.dy, width: e.w, height: e.h }; return { i: i, x: x, y: y, b: b, seg: [lstart(b, e.tg[0], e.tg[1]), e.tg] }; }); };
-  const cost = (L_) => { let c = 0; for (let a = 0; a < L_.length; a++) { for (let b = a + 1; b < L_.length; b++) if (segX(L_[a].seg[0], L_[a].seg[1], L_[b].seg[0], L_[b].seg[1])) c += 1000;
-      for (let b = 0; b < L_.length; b++) if (a !== b && segInBox(L_[a].seg[0], L_[a].seg[1], L_[b].b, 1)) c += 1000; c += Math.hypot(L_[a].seg[1][0] - L_[a].seg[0][0], L_[a].seg[1][1] - L_[a].seg[0][1]); } return c; };
+  const cost = (L_, lim) => { let c = 0; for (let a = 0; a < L_.length; a++) { for (let b = a + 1; b < L_.length; b++) if (segX(L_[a].seg[0], L_[a].seg[1], L_[b].seg[0], L_[b].seg[1])) c += 1000;
+      for (let b = 0; b < L_.length; b++) if (a !== b && segInBox(L_[a].seg[0], L_[a].seg[1], L_[b].b, 1)) c += 1000; c += Math.hypot(L_[a].seg[1][0] - L_[a].seg[0][0], L_[a].seg[1][1] - L_[a].seg[0][1]); if (c >= lim) return c; } return c; };
   let bestL = null, bc = Infinity; const idxs = M.map((_, i) => i);
-  const permute = (arr, k) => { if (k === arr.length) { const l = lay(arr), c = cost(l); if (c < bc) { bc = c; bestL = l; } return; } for (let i = k; i < arr.length; i++) { [arr[k], arr[i]] = [arr[i], arr[k]]; permute(arr, k + 1); [arr[k], arr[i]] = [arr[i], arr[k]]; } };
+  const permute = (arr, k) => { if (k === arr.length) { const l = lay(arr), c = cost(l, bc); if (c < bc) { bc = c; bestL = l; } return; } for (let i = k; i < arr.length; i++) { [arr[k], arr[i]] = [arr[i], arr[k]]; permute(arr, k + 1); [arr[k], arr[i]] = [arr[i], arr[k]]; } };
   permute(idxs, 0);
   bestL.forEach((p) => { const r = labelAt(g, L[M[p.i].key], p.x, p.y, "start", cfg.w, M[p.i].tg); cfg.reg.push(r.b); });
   return { bottom: Math.max(...cfg.cols.map((_, c) => bestL.filter((p, q) => q % cfg.cols.length === c).reduce((s, p) => Math.max(s, p.y + M[p.i].n * 11.5), cfg.y0))) }; }
@@ -870,7 +878,17 @@ function fitWrap(t, cls, src, maxW, x, y, lh) { let mw = maxW, ls;
   return ls; }
 const barRect = (g, row, t0, t1, fillc, sub, yTrack, hTrack) => { const hh = sub ? hTrack / 2 - 1 : hTrack, y = yTrack + (sub === 2 ? hTrack / 2 + 1 : 0);
   return g.appendChild(mk("rect", { x: f2(X(t0)), y: f2(y), width: f2(X(t1) - X(t0)), height: hh, fill: fillc, rx: 1.5 })); };
+const TLSNAP = {};
 function drawTlMode(mode) {
+  const s = TLSNAP[mode];
+  if (s) { tl.replaceChildren(...s.tl); tlStatic.replaceChildren(...s.st); tlAxis.replaceChildren(...s.ax);
+    rlab.forEach((e, i) => { e.replaceChildren(...s.rl[i]); e.style.display = s.rd[i]; }); rrect.forEach((e, i) => { e.style.display = s.rr[i][0]; setA(e, { y: s.rr[i][1], height: s.rr[i][2] }); });
+    tlTop = s.top; tlBot = s.bot; TLH[mode] = s.h; setA(flat, { viewBox: s.vb }); return; }
+  buildTlMode(mode);
+  const kd = (e) => [...e.childNodes];
+  TLSNAP[mode] = { tl: kd(tl), st: kd(tlStatic), ax: kd(tlAxis), rl: rlab.map(kd), rd: rlab.map((e) => e.style.display), rr: rrect.map((e) => [e.style.display, e.getAttribute("y"), e.getAttribute("height")]), top: tlTop, bot: tlBot, h: TLH[mode], vb: flat.getAttribute("viewBox") };
+}
+function buildTlMode(mode) {
   const m1 = mode === "stream", rows = m1 ? 5 : 4, T = (s) => L["onl.tl." + s];
   tl.replaceChildren(); tlStatic.replaceChildren();
   const axLines = fitWrap(tlAxis, "lab2", T("axis"), W - 24, 12, 14, LH);
@@ -961,9 +979,10 @@ const keyTxt = (g, s, x, y, anchor, maxW) => { const r = putText(g, "fk", s, x, 
 const SLOTH = ["ah0", "ah1", "ah2"];
 
 // ---- the drawing of one frame (mode 1)
+const DKW = new Map();
 function paint1(t) {
   const k = idx(STEPS.stream, t), dj = doneJ1(t), dk = DONE1[k] <= t + EPS;
-  document.querySelectorAll("[data-badge],[data-bt]").forEach((e) => { const j = e.dataset.badge !== undefined ? +e.dataset.badge : +e.dataset.bt; if (j !== k) e.setAttribute("data-dim", ""); else e.removeAttribute("data-dim"); });
+  document.querySelectorAll("[data-badge],[data-bt]").forEach((e) => { const j = e.dataset.badge !== undefined ? +e.dataset.badge : +e.dataset.bt; if (j !== k) { if (!e.hasAttribute("data-dim")) e.setAttribute("data-dim", ""); } else e.removeAttribute("data-dim"); });
   gFlows.replaceChildren(); gTags.replaceChildren(); regLead.replaceChildren(); FL.length = 0;
   FL.push([A.sm.dockFrom, [A.sm.dockFrom[0], DYNY + 2 - LANE]]);
   const tg = [A.slabEdge[k], A.l2in, A.l2out, A.sm.lsu];
@@ -977,7 +996,7 @@ function paint1(t) {
     if (k === 1) place(gTags, "tg", L["onl.iso.m1.s2_note"], colW, [cx, r.b.y + r.b.height + 12], o); }
   // dock values: the tile that has finished last
   const vals = dj >= 0 ? DOCK[dj] : DOCK0;
-  Object.keys(DK).forEach((key) => { dock.froms[key].textContent = vals[key][0]; dock.vals[key].textContent = vals[key][1]; dock.vals[key].style.fontSize = ""; if (dock.vals[key].getBBox().width > (NARROW ? 144 : 146) - 14) dock.vals[key].style.fontSize = "10px"; });
+  Object.keys(DK).forEach((key) => { dock.froms[key].textContent = vals[key][0]; dock.vals[key].textContent = vals[key][1]; dock.vals[key].style.fontSize = ""; let wide = DKW.get(vals[key][1]); if (wide === undefined) { wide = dock.vals[key].getBBox().width > (NARROW ? 144 : 146) - 14; DKW.set(vals[key][1], wide); } if (wide) dock.vals[key].style.fontSize = "10px"; });
   dock.foot.textContent = dj === 2 ? L["onl.iso.m1.dock.s3.out"] : "";
   const dh = dockH + (dj === 2 ? 32 : 0);
   const dockBox = [MARG, DYNY + 2, W - 2 * MARG, dh + 12];
@@ -990,7 +1009,7 @@ function paint1(t) {
   ro.textContent = dj < 0 ? L["onl.readout.init"] : L["onl.readout.m1.s" + (dj + 1)];
   // algorithm band
   aM1.querySelectorAll(".eqg").forEach((g) => { const j = +g.dataset.j; g.style.display = (j < 3 ? j <= dj : dj === 2) ? "" : "none"; });
-  aM1.querySelectorAll(".pil").forEach((g) => { if (+g.dataset.j !== k) g.setAttribute("data-dim", ""); else g.removeAttribute("data-dim"); });
+  aM1.querySelectorAll(".pil").forEach((g) => { if (+g.dataset.j !== k) { if (!g.hasAttribute("data-dim")) g.setAttribute("data-dim", ""); } else g.removeAttribute("data-dim"); });
   frame(!dk ? R.m1.pill[k] : k === 2 ? joinBox(R.m1.eq[2], R.m1.out) : R.m1.eq[k]);
   return { svgH: DYNY + dh + 22 };
 }
@@ -1003,10 +1022,10 @@ function paint2(t) {
   const k = idx(STEPS.split2, t), dk = DONE2[k] <= t + EPS, nd = DONE2.filter((v) => v <= t + EPS).length;
   gFlows.replaceChildren(); gTags.replaceChildren(); regLead.replaceChildren(); lower.querySelector("#dockLead")?.remove(); lower.querySelector("#dockZoom")?.remove(); FL.length = 0;
   const SL = A.slot, ex = [t >= T2.exA - EPS, t >= T2.exB - EPS, t < T2.launchM - EPS];
-  document.querySelectorAll("[data-slot]").forEach((e) => { const i = +e.dataset.slot, em = i === 0 ? ex[0] : i === 1 ? ex[1] : ex[2]; e.classList.toggle("empty", em); if (em) e.setAttribute("style", EMPTY_STYLE); else e.removeAttribute("style"); });
-  document.querySelectorAll("[data-ws]").forEach((e) => { const i = +e.dataset.ws, filled = t >= (i === 0 ? T2.wsA : T2.wsB) - EPS; e.setAttribute("style", filled ? SLATE_STYLE : EMPTY_STYLE); e.classList.toggle("empty", !filled); });
-  document.querySelectorAll("[data-badge],[data-bt]").forEach((e) => { if (k > 0) e.setAttribute("data-dim", ""); else e.removeAttribute("data-dim"); });
-  aM2.querySelectorAll(".pil").forEach((g) => { if (k > 0) g.setAttribute("data-dim", ""); else g.removeAttribute("data-dim"); });
+  document.querySelectorAll("[data-slot]").forEach((e) => { const i = +e.dataset.slot, em = i === 0 ? ex[0] : i === 1 ? ex[1] : ex[2]; if (e.classList.contains("empty") === em) return; e.classList.toggle("empty", em); if (em) e.setAttribute("style", EMPTY_STYLE); else e.removeAttribute("style"); });
+  document.querySelectorAll("[data-ws]").forEach((e) => { const i = +e.dataset.ws, filled = t >= (i === 0 ? T2.wsA : T2.wsB) - EPS; if (e.classList.contains("empty") === !filled) return; e.setAttribute("style", filled ? SLATE_STYLE : EMPTY_STYLE); e.classList.toggle("empty", !filled); });
+  document.querySelectorAll("[data-badge],[data-bt]").forEach((e) => { if (k > 0) { if (!e.hasAttribute("data-dim")) e.setAttribute("data-dim", ""); } else e.removeAttribute("data-dim"); });
+  aM2.querySelectorAll(".pil").forEach((g) => { if (k > 0) { if (!g.hasAttribute("data-dim")) g.setAttribute("data-dim", ""); } else g.removeAttribute("data-dim"); });
   const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], off = (p, q, d) => { const l = Math.hypot(q[0] - p[0], q[1] - p[1]); return [p[0] + (q[0] - p[0]) / l * d, p[1] + (q[1] - p[1]) / l * d]; };
   const tb = [...REG.m2], tags = [];
   const tag = (s, at, maxW, want) => tags.push([s, at, maxW, want]);
@@ -1044,7 +1063,7 @@ function paint2(t) {
   else { const b = bb[2]; box = [b.x, b.y, b.w, b.h]; outline(box, 2); }
   drawFocus(dk ? L["onl.iso.focus.m2.s" + (k + 1)] : "");
   ro.textContent = nd === 0 ? L["onl.readout.m2.init"] : L["onl.readout.m2.s" + nd];
-  aM2.querySelectorAll(".eqg").forEach((g) => { const j = +g.dataset.j; g.style.display = DONE2[j] <= t + EPS ? "" : "none"; if (j < k) g.setAttribute("data-dim", ""); else g.removeAttribute("data-dim"); });
+  aM2.querySelectorAll(".eqg").forEach((g) => { const j = +g.dataset.j; g.style.display = DONE2[j] <= t + EPS ? "" : "none"; if (j < k) { if (!g.hasAttribute("data-dim")) g.setAttribute("data-dim", ""); } else g.removeAttribute("data-dim"); });
   if (dk && R.m2.row[k]) frame(R.m2.row[k]); else algO.replaceChildren();
   return { svgH: bd.top + bd.H + 4 };
 }
@@ -1073,4 +1092,11 @@ FIG.timeline({ steps: () => { const m = modeOf(); return STEPS[m].map((t, k) => 
 FIG.variants({ kind: "topics", axis: L["onl.variant.axis"], aligned: false });
 tin.addEventListener("input", show);
 show();
+// idle warm-up of the other mode: one visit (a draw and the way back) per idle callback, so a later mode switch finds its caches filled
+{ const idle = window.requestIdleCallback || ((f) => setTimeout(f)), done = new Set();
+  const warm = () => { const rs = [...document.querySelectorAll("input[name=mode]")], cur = rs.find((r) => r.checked), o = rs.find((r) => !r.checked); if (!o) return;
+    const S = STEPS[o.value], ts = [0, ...S.map((_, k) => settledOf(S, k))], t = ts.find((v) => !done.has(o.value + "|" + v));
+    if (t === undefined) return; done.add(o.value + "|" + t);
+    const tv = tin.value; o.checked = true; tin.value = t; show(); cur.checked = true; tin.value = tv; show(); idle(warm); };
+  idle(warm); }
 </script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

@@ -384,19 +384,22 @@ const restoreEls=(sn)=>sn.forEach(({e,kids,at})=>{ e.replaceChildren(...kids); S
 const flatEls=()=>[$("tlStatic"),$("tl"),$("flat"),$("clipR"),$("flat").querySelector('text[data-rowlabel="head"]'),...$("flat").querySelectorAll(':scope>text.rl[data-rowlabel]')];
 let lastReadout="";
 function show(){ render(modeNow(),P.A,+tin.value); }
-function warmOtherMode(){ const cur=modeNow(), A=P.A, u0=+tin.value; [8,9].filter((kk)=>kk!==cur).forEach((kk)=>STEPU.forEach((_,i)=>render(kk,A,settledU(i)))); render(cur,A,u0); }
+// the other mode is drawn one step per task, and each task draws the current state back, so no frame shows it
+const warmJobs=[];
+function warmNext(){ const j=warmJobs.shift(); if(!j) return; render(j[0],P.A,settledU(j[1]),j[2]); render(modeNow(),P.A,+tin.value,j[2]); setTimeout(warmNext,0); }
+function warmOtherMode(){ [8,9].forEach((kk)=>STEPU.forEach((_,i)=>["strip","scene","flat","axis"].forEach((p)=>warmJobs.push([kk,i,p])))); warmNext(); }
 addEventListener("load",()=>setTimeout(warmOtherMode,0));
-function render(k,A,u){
+function render(k,A,u,only){
   const V=view(A,k,u);
-  const sg=(name,sig,fn,els)=>{ if(drawn[name]===sig) return; drawn[name]=sig; if(name==="flat") rlBoxes=null;
+  const sg=(name,sig,fn,els)=>{ if(only&&only!==name||drawn[name]===sig) return; drawn[name]=sig; if(name==="flat") rlBoxes=null;
     if(!els){ fn(); return; }
     const key=name+"|"+sig, c=PANEL.get(key); if(c) restoreEls(c); else { fn(); PANEL.set(key,snapEls(els())); } };
-  const ro=fill(L["readout"],V); if(ro!==lastReadout){ lastReadout=ro; document.querySelector("[data-readout]").textContent=ro; }
+  const ro=only?lastReadout:fill(L["readout"],V); if(ro!==lastReadout){ lastReadout=ro; document.querySelector("[data-readout]").textContent=ro; }
   sg("strip",[A,k,V.ks,V.rw].join("|"),()=>drawStrip(V),()=>[$("qTrack"),$("algO"),$("strip")]);
   sg("scene",[A,k,V.ks,V.rw,V.gridW].join("|"),()=>drawScene(V),()=>[$("sbody"),$("scene")]);
   sg("step",[A,k,V.ks,V.rw].join("|"),()=>drawStep(V));
   sg("flat",[A,k,V.ks<2?0:V.ks].join("|"),()=>{ drawFlatStatic(V); drawBars(V); },flatEls);
-  drawTime(V);
+  if(!only) drawTime(V);
   sg("axis",[A,k,V.ks].join("|"),()=>drawAxis(V),()=>[$("axisG"),$("axis")]);
 }
 

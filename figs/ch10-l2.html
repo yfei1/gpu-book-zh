@@ -502,10 +502,16 @@ function drawMode(m){
   document.querySelector("[data-readout]").textContent=Ln("l2.readout.m"+m).join("\n");
   drawStrip(m); tlMode(m);
 }
+// a step is drawn once per layout (the focus callout measures text boxes, which forces a layout); later visits copy the markup back
+const STEPC=new Map(), STEPG=["stepK","clN","arrows","tags","focus","tlO"];
 function drawStep(m,k){
   $("stepT").textContent=D.TITLES[m][k];
+  drawStripStep(k);
+  const key=LAY.W+"|"+LAY.narrow+"|"+m+"|"+k, c=STEPC.get(key);
+  if(c){ STEPG.forEach((id,i)=>{ $(id).innerHTML=c[i]; }); return; }
   $("stepK").innerHTML=D.CARDS[m][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
-  drawStripStep(k); drawIsoStep(m,k); tlOver(m,k);
+  drawIsoStep(m,k); tlOver(m,k);
+  STEPC.set(key,STEPG.map((id)=>$(id).innerHTML));
 }
 let drawn={mode:null,k:-1};
 function show(){

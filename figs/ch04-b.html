@@ -570,7 +570,8 @@ function drawFocus(m,FM){
   cand.sort((a,c)=>Math.abs(a-dot[0])-Math.abs(c-dot[0]));
   const ak=m+"|"+(FM.sum?1:0), AV=LAY.avoid||(LAY.avoid={});
   const stat=AV[ak]||(AV[ak]=[...document.querySelectorAll("#lbl text,#tag text,#rn text")].map((e)=>e.getBBox()));
-  const avoid=stat.concat([...document.querySelectorAll("#dots rect")].map((e)=>({x:+e.getAttribute("x"),y:+e.getAttribute("y"),width:+e.getAttribute("width"),height:+e.getAttribute("height")})));
+  const rx0=Math.min(b.x+6,dot[0])-2, rx1=Math.max(b.x+b.width-6,dot[0])+2, ry0=Math.min(y0,dot[1])-2, ry1=Math.max(y0,dot[1])+2;
+  const avoid=stat.concat([...document.querySelectorAll("#dots rect")].map((e)=>({x:+e.getAttribute("x"),y:+e.getAttribute("y"),width:+e.getAttribute("width"),height:+e.getAttribute("height")}))).filter((rr)=>rr.x-2<=rx1&&rr.x+rr.width+2>=rx0&&rr.y-2<=ry1&&rr.y+rr.height+2>=ry0);
   const hit=(p,rr)=>p[0]>rr.x-2&&p[0]<rr.x+rr.width+2&&p[1]>rr.y-2&&p[1]<rr.y+rr.height+2;
   const clear=(a,b)=>{ const xa=Math.min(a[0],b[0])-2, xb=Math.max(a[0],b[0])+2, ya=Math.min(a[1],b[1])-2, yb=Math.max(a[1],b[1])+2;
     const rel=avoid.filter((rr)=>rr.x-2<=xb&&rr.x+rr.width+2>=xa&&rr.y-2<=yb&&rr.y+rr.height+2>=ya); if(!rel.length) return true;

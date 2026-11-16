@@ -188,8 +188,9 @@ function mount(){
   // ---- time calibration for the figure's own timeline, and marks that link to steps
   const tlSvg=$("cur")?$("cur").ownerSVGElement:null;
   const visit=(fn)=>{ const keep=+tin.value; quiet=true; try{ fn(); } finally { quiet=false; setT(keep); } };
-  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does one visit per idle callback,
-  // so no long task runs; a user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
+  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does at most one visit per frame:
+  // it skips the frame that renders the current change, then runs a visit only in an idle period that has more time left than the costliest visit so far.
+  // A user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
   const modeKey=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tin.max+"|"+steps().map(s=>s.t).join(","); };
   const MARK_SEL="#focus > *, #algO > *";
   const calC=new Map(); let markKey=null, job=null, prepQ=false;
@@ -201,10 +202,15 @@ function mount(){
   const calDone=j=>!tlSvg||j.cal.length>=j.ts.length;
   const ensureCal=()=>{ const key=modeKey(), c=calC.get(key); if(c){ cal=c; return; } const j=jobFor(key); if(!calDone(j)) visit(()=>{ while(!calDone(j)) calAt(j); }); calC.set(key,cal=j.cal); };
   const ensureMarks=()=>{ const key=modeKey(); if(markKey===key) return; const j=jobFor(key); if(j.k<j.M) visit(()=>{ while(j.k<j.M) marksAt(j); }); marks=j.mk; markKey=key; };
-  const idle=window.requestIdleCallback||(f=>setTimeout(f));
-  const prep=()=>{ if(!prepQ){ prepQ=true; idle(prepStep); } };
-  function prepStep(){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
-    if(!calC.has(key)&&!calDone(j)) visit(()=>calAt(j)); else if(markKey!==key&&j.k<j.M) visit(()=>marksAt(j)); else { ensureCal(); ensureMarks(); return; }
+  const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
+  let cost=0, measured=false;
+  const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk) return prep(); const key=modeKey(), j=jobFor(key);
+    const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
+    if(!step){ ensureCal(); ensureMarks(); return; }
+    if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
+    const t0=performance.now(); visit(step); void document.documentElement.offsetHeight;
+    const c=performance.now()-t0; cost=measured?Math.max(cost,c):c; measured=true;
     prep(); }
   const dropMarks=()=>{ markKey=null; job=null; };
   if(tlSvg){ let w0=null; new ResizeObserver(([e])=>{ const w=e.contentRect.width; if(w0!==null&&w!==w0){ calC.clear(); dropMarks(); prep(); } w0=w; }).observe(tlSvg); }
@@ -246,7 +252,7 @@ function mount(){
     modeRadios.forEach((r,i)=>{ const l=r.closest("label"), name=l.textContent.trim().replace(/^\d+\.\s*/,""); l.className="fig-card"; l.replaceChildren(r,el("span","fig-n",name));
       if(v.kind==="compare"&&v.outcomes) l.append(el("span","fig-o",v.outcomes[i])); cards.append(l); });
     box.append(cards); figure.before(box); if(modesBox) hide(modesBox); markOn(modeRadios);
-    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); r.closest("label").scrollIntoView({block:"nearest",inline:"nearest"}); switched(!!v.aligned); }));
+    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); switched(!!v.aligned); R(()=>r.closest("label").scrollIntoView({block:"nearest",inline:"nearest"})); }));
   } else if(modeRadios.length&&!claimed&&modesBox) hide(modesBox);
 
   // ---- measured parameter: one radio per measured point, dots strip at true x, baseline as a reference line
@@ -274,18 +280,20 @@ function mount(){
 
   tin.addEventListener("input",sync);
   document.documentElement.classList.add("fig-boot");
-  ghost(); setT(settled(0)); sync(); follow(curK()); prep();
+  ghost(); const t0=performance.now(); setT(settled(0)); sync(); void document.documentElement.offsetHeight; cost=performance.now()-t0; follow(curK()); prep();
   R(()=>R(()=>document.documentElement.classList.remove("fig-boot")));
 }
 
 addEventListener("DOMContentLoaded",()=>{ pan(); if(D.tl) mount(); else legacy(); });
 // ---- legacy path: figures without FIG.timeline keep the previous controls (step buttons, speed, key handler)
 const LEG={prev:t("legacy.prev"),next:t("legacy.next"),speed:t("legacy.speed")};
-let speed=+(localStorage.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
+// A sandboxed frame (opaque origin) has no localStorage; the speed then lasts for the page only.
+const store=(()=>{ try{ return window.localStorage; }catch(_){ return null; } })();
+let speed=+(store&&store.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
 const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
 window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
 const SPEEDS=[0.1,0.25,0.5,1];
-const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; localStorage.setItem("figSpeed2",String(s));
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; if(store) store.setItem("figSpeed2",String(s));
   document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
 function legacyShell(){
   const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
@@ -681,11 +689,15 @@ function layoutScene(W,narrow){
 function pill(g,x,y,ls,cls){ const t=mk("text",{class:cls}); g.appendChild(t); lines(t,ls,x+6,y+11,12);
   const w=Math.max(...ls.map((s)=>wid(iso,cls,s)))+12, h=ls.length*12+6; const r=mk("rect",{x:f1(x),y:f1(y),width:f1(w),height:f1(h),rx:4}); g.insertBefore(r,t); return {w,h,r,t}; }
 const FLOWKEYS=[null,{rd:"iso.arrows.s1.rd",wr:"iso.arrows.s1.wr",nv:"iso.arrows.s1.nvlink"},{rd:"iso.arrows.s2.hbm",nv:"iso.arrows.s2.nvlink"},{rd:"iso.arrows.s3.rd",wr:"iso.arrows.s3.wr",nv:"iso.arrows.s3.nvlink"},{rd:"iso.arrows.s4.rd",wr:"iso.arrows.s4.wr"}];
+const SCENEG=["scBack","scFront","peers","statics","flows","calloutBox","focus"];
 function drawScene(k){
   const s=LS, g=s.g, step=k+1, measured=k===1, P=s.P, narrow=s.narrow;
   ["scBack","scFront","peers","statics","flows","calloutBox","focus"].forEach((id)=>$(id).replaceChildren());
   const pkgG=$("pkgG"), pv=narrow?"n":"w"; if(pkgG.getAttribute("data-v")!==pv){ pkgG.innerHTML=g.svg; pkgG.setAttribute("data-v",pv); }
   $("pkgWrap").setAttribute("transform","translate("+f1(s.pkg.x)+" "+f1(s.pkg.y)+")");
+  // a step is drawn once per layout; later visits copy the markup back
+  const memo=s.memo||(s.memo={}), hit=memo[k];
+  if(hit){ SCENEG.forEach((id,i)=>{ $(id).innerHTML=hit.h[i]; }); if(hit.dim) $("peers").setAttribute("data-dim",""); else $("peers").removeAttribute("data-dim"); iso.setAttribute("viewBox",hit.vb); return; }
   const sc=s.scope;
   // whole-package scope frame (this_gpu): corner-bracketed steel-blue frame when measured, dashed unknown outline otherwise
   const gsc=mk("g",{id:"pkgScope","data-hw":"this_gpu"});
@@ -727,6 +739,7 @@ function drawScene(k){
   const cb=$("calloutBox"), c=s.call; cb.appendChild(mk("rect",{x:c.x,y:c.y,width:c.w,height:c.h,rx:5,class:"cbx"}));
   const ct=mk("text",{class:"cot"}); cb.appendChild(ct); lines(ct,nl("iso.callout.s"+step),c.x+8,c.y+19,17);
   iso.setAttribute("viewBox","0 0 "+s.W+" "+Math.ceil(Math.max(s.die.bot,ky)+8));
+  memo[k]={h:SCENEG.map((id)=>$(id).innerHTML),dim:pg.hasAttribute("data-dim"),vb:iso.getAttribute("viewBox")};
 }
 
 // ===================== timeline (svg#flat): drawn from the model at width W =====================

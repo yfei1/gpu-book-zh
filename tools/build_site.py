@@ -634,7 +634,8 @@ def main():
             src = f"figs/{nm}.html" if nm in en_figs or not EN else f"../figs/{nm}.html"
             h = FIG_H.get(f"{LANG}/{nm}")
             style = f' style="--h:{h + 4}px"' if h else ""
-            return f'\n\n<figure class="fig"><iframe data-src="{src}" title="{num}"{style}></iframe><a class="fig-open" href="{src}" target="_blank" rel="noopener">{FIG_OPEN}</a></figure>\n\n'
+            # sandbox without allow-same-origin: the figure gets an opaque origin, so Chrome runs it in its own renderer process and its boot cannot block host scrolling.
+            return f'\n\n<figure class="fig"><iframe data-src="{src}" title="{num}" sandbox="allow-scripts"{style}></iframe><a class="fig-open" href="{src}" target="_blank" rel="noopener">{FIG_OPEN}</a></figure>\n\n'
         missing.append(num)
         return "\n\n"
     heads, bodies, missing, chapters, items = [], [], [], [], []

@@ -325,11 +325,15 @@ function layoutScene(W,narrow){
 function pill(g,x,y,ls,cls){ const t=mk("text",{class:cls}); g.appendChild(t); lines(t,ls,x+6,y+11,12);
   const w=Math.max(...ls.map((s)=>wid(iso,cls,s)))+12, h=ls.length*12+6; const r=mk("rect",{x:f1(x),y:f1(y),width:f1(w),height:f1(h),rx:4}); g.insertBefore(r,t); return {w,h,r,t}; }
 const FLOWKEYS=[null,{rd:"iso.arrows.s1.rd",wr:"iso.arrows.s1.wr",nv:"iso.arrows.s1.nvlink"},{rd:"iso.arrows.s2.hbm",nv:"iso.arrows.s2.nvlink"},{rd:"iso.arrows.s3.rd",wr:"iso.arrows.s3.wr",nv:"iso.arrows.s3.nvlink"},{rd:"iso.arrows.s4.rd",wr:"iso.arrows.s4.wr"}];
+const SCENEG=["scBack","scFront","peers","statics","flows","calloutBox","focus"];
 function drawScene(k){
   const s=LS, g=s.g, step=k+1, measured=k===1, P=s.P, narrow=s.narrow;
   ["scBack","scFront","peers","statics","flows","calloutBox","focus"].forEach((id)=>$(id).replaceChildren());
   const pkgG=$("pkgG"), pv=narrow?"n":"w"; if(pkgG.getAttribute("data-v")!==pv){ pkgG.innerHTML=g.svg; pkgG.setAttribute("data-v",pv); }
   $("pkgWrap").setAttribute("transform","translate("+f1(s.pkg.x)+" "+f1(s.pkg.y)+")");
+  // a step is drawn once per layout; later visits copy the markup back
+  const memo=s.memo||(s.memo={}), hit=memo[k];
+  if(hit){ SCENEG.forEach((id,i)=>{ $(id).innerHTML=hit.h[i]; }); if(hit.dim) $("peers").setAttribute("data-dim",""); else $("peers").removeAttribute("data-dim"); iso.setAttribute("viewBox",hit.vb); return; }
   const sc=s.scope;
   // whole-package scope frame (this_gpu): corner-bracketed steel-blue frame when measured, dashed unknown outline otherwise
   const gsc=mk("g",{id:"pkgScope","data-hw":"this_gpu"});
@@ -371,6 +375,7 @@ function drawScene(k){
   const cb=$("calloutBox"), c=s.call; cb.appendChild(mk("rect",{x:c.x,y:c.y,width:c.w,height:c.h,rx:5,class:"cbx"}));
   const ct=mk("text",{class:"cot"}); cb.appendChild(ct); lines(ct,nl("iso.callout.s"+step),c.x+8,c.y+19,17);
   iso.setAttribute("viewBox","0 0 "+s.W+" "+Math.ceil(Math.max(s.die.bot,ky)+8));
+  memo[k]={h:SCENEG.map((id)=>$(id).innerHTML),dim:pg.hasAttribute("data-dim"),vb:iso.getAttribute("viewBox")};
 }
 
 // ===================== timeline (svg#flat): drawn from the model at width W =====================
