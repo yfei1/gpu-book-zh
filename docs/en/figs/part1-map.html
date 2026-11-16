@@ -73,11 +73,26 @@ const PANCSS=`
 .iso-plate-corner[data-corner="title"]{margin:4px 0 8px;line-height:1.4}
 .iso-plate-corner[data-corner="readout"],.iso-plate-corner[data-corner="hint"]{order:1;margin-top:8px;font-size:12px;line-height:1.5}
 }
+.fig-rlbg{fill:var(--anatomy-card)}
 `;
+// Row labels. A <text data-rowlabel> that is a direct child of a panel svg keeps its left edge inside the pan box while the pan scrolls (<= 600 px).
+// It sits on a plate-coloured chip, and follow() keeps the cursor clear of the chips (scroll-padding-left). data-rowlabel="head" marks a heading with nothing under it: no chip, no clearance.
+function pin(w,s){
+  const L=[...s.querySelectorAll(":scope>[data-rowlabel]")]; if(!L.length) return;
+  const chips=L.map(e=>{ if(e.dataset.rowlabel==="head") return null; const r=document.createElementNS("http://www.w3.org/2000/svg","rect"); r.setAttribute("class","fig-rlbg"); return r; });
+  let raised=false;
+  const raise=()=>{ raised=true; const top=s.querySelector(":scope>#cur"); L.forEach((e,i)=>{ if(chips[i]) s.insertBefore(chips[i],top); s.insertBefore(e,top); }); };
+  const upd=()=>{ const sr=s.getBoundingClientRect(), k=s.viewBox.baseVal.width/sr.width, left=(w.getBoundingClientRect().left-sr.left)*k; let clear=0;
+    L.forEach((e,i)=>{ const b=e.getBBox(), d=Math.max(0,left-b.x), r=chips[i], tr=d?"translateX("+d.toFixed(2)+"px)":"";
+      if(d&&!raised) raise(); e.style.transform=tr; if(!r) return;
+      r.style.transform=tr; r.style.display=d?"":"none"; r.setAttribute("x",b.x-2); r.setAttribute("y",b.y-2); r.setAttribute("width",b.width+4); r.setAttribute("height",b.height+4); clear=Math.max(clear,(b.width+2)/k); });
+    w.style.scrollPaddingLeft=clear+"px"; };
+  w.addEventListener("scroll",upd,{passive:true}); new ResizeObserver(upd).observe(w); upd();
+}
 function pan(){
   const st=document.createElement("style"); st.textContent=PANCSS; document.head.appendChild(st);
   document.querySelectorAll(".iso-plate").forEach(plate=>{
-    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); return w; });
+    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); pin(w,s); return w; });
     if(!panels.length) return;
     const hint=document.createElement("p"); hint.className="fig-pan-hint"; hint.textContent=t("pan.hint"); hint.hidden=true; panels[0].before(hint);
     const update=()=>{ const over=panels.find(w=>w.scrollWidth>w.clientWidth); hint.hidden=!over; if(over) over.before(hint); };
@@ -126,7 +141,7 @@ function mount(){
   const stepTitle=k=>steps()[k].title||"";
   const preview=(k,x,y)=>{ segs.querySelectorAll("i").forEach((s,i)=>s.classList.toggle("hot",i===k)); if(k==null||k<0){ tip.hidden=true; return; } showTip(t("track.preview",{k:k+1,title:stepTitle(k)}),x,y); };
 
-  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24, R=b.right-24;
+  const follow=(k,curOnly)=>{ const into=(w,r)=>{ if(!w||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(getComputedStyle(w).scrollPaddingLeft)||0), R=b.right-24;
       const d=(r.right-r.left>R-L||r.left<L)?r.left-L:r.right>R?r.right-R:0;
       if(d) w.scrollTo({left:w.scrollLeft+d,behavior:RM||curOnly?"instant":"smooth"}); };
     if($("cur")) into($("cur").closest(".fig-pan"),$("cur").getBoundingClientRect());
