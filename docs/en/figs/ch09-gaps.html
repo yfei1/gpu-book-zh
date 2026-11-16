@@ -701,9 +701,12 @@ function wrapLines(parent,cls,srcLines,maxW){
   return out;
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
-function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
+const FITM=new Map();
+function fitWrap(t,cls,src,maxW,x,y,lh){ const fk=[cls,maxW,x,y,lh,src.join("\u0001")].join("|"), hit=FITM.get(fk);
+  if(hit){ setLines(t,hit,x,y,lh); return hit; }
+  let mw=maxW, ls;
   for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
-  return ls;
+  FITM.set(fk,ls); return ls;
 }
 const LH=13.5, setA=(e,o)=>{ for(const k in o) e.setAttribute(k,o[k]); };
 const phoneNow=()=>matchMedia("(max-width:600px)").matches;
@@ -813,8 +816,12 @@ function paintScene(mode,k){
   const tiles=tileStates(mode,k), c=D.COLIX[Math.min(k,8)];
   for(let i=0;i<132;i++){ const st=tiles[i]; paintTile(i,st==="neutral"?"neutral":st+"|"+c+(k===6&&i===64?"|hi":"")); }
   $("sceneHw").toggleAttribute("data-dim",k===9); $("gL2").classList.toggle("on",mode==="1"&&k===2);
+  const ck=keyNow()+"|"+mode+"|"+k, els=[$("focus"),$("flows"),$("xfer"),$("megaCtr")], e=SCN.get(ck);
+  if(e){ els.forEach((el,i)=>el.replaceChildren(...e.k[i])); els[3].style.display=e.disp; return; }
   drawMega(mode,k,tiles); drawFlows(mode,k,tiles); drawFocus(mode,k,tiles);
+  SCN.set(ck,{k:els.map((el)=>Array.from(el.childNodes)),disp:els[3].style.display});
 }
+const SCN=new Map();
 
 // ===== strip: ten chips, one row above 600 px and two rows of five at or below 600 px =====
 const CHIPPOS=[];
@@ -831,7 +838,15 @@ function drawStrip(k){ document.querySelectorAll("[data-chip]").forEach((g,i)=>g
 // ===== timeline: to scale in mode 1, order only in mode 2 =====
 const TL0=16, TL1=626, TMAX=66, SCL=(TL1-TL0)/TMAX, TX=(t)=>TL0+t*SCL, LEV=[0,0,1,2,3,0,0,1], RH=22;
 const TLS={mode:null,key:null,y0:0,rowEnd:0,H:0};
+const TLC=new Map();
+const tlSnap=()=>{ const ip=$("inset").closest(".fig-pan"), L=[[$("tl")],[$("tkG")],[$("axisT")],[$("inset"),["viewBox","style"]],[ip,["style"]],[$("rlMain"),["x","y"]],[$("rlRef"),["x","y"]],[$("clipR"),["x","y","height"]],[$("flat"),["viewBox"]]].filter(([e])=>e);
+  return {L:L.map(([e,at])=>({e,kids:Array.from(e.childNodes),at:(at||[]).map((a)=>[a,e.getAttribute(a)])})),tls:Object.assign({},TLS)}; };
 function buildTimeline(mode,key){
+  const ck=key+"|"+mode, c=TLC.get(ck);
+  if(c){ c.L.forEach(({e,kids,at})=>{ e.replaceChildren(...kids); at.forEach(([a,v])=>{ if(v==null) e.removeAttribute(a); else e.setAttribute(a,v); }); }); Object.assign(TLS,c.tls); return; }
+  buildTimelineNew(mode,key); TLC.set(ck,tlSnap());
+}
+function buildTimelineNew(mode,key){
   const M=HW.MOD[mode], m2=mode==="2", ax=$("axisT"), IW=D.SC[key].W, axL=fitWrap(ax,"lab2",[D.STR.axisT[+mode-1]],IW-(key==="w"?30:34),6,15,LH), hdrY=15+(axL.length-1)*LH+16;
   const y0=15+(axL.length-1)*LH+8+8+36+8+18, yRef=y0+RH+26, rowEnd=(m2?yRef:y0)+RH, axisY=rowEnd+8, tl=$("tl"), tk=$("tkG"); tl.replaceChildren(); tk.replaceChildren();
   const rect=(x,y,w,h,cls,extra)=>mk("rect",Object.assign({class:cls,x:f2(x),y:f2(y),width:f2(Math.max(w,0.8)),height:h},extra||{}));
@@ -863,17 +878,24 @@ function buildTimeline(mode,key){
 function drawTimeline(mode,k,u){
   const M=HW.MOD[mode], tc=HW.tcOf(M,Math.min(u,9)), x=TX(tc), a=k===0||k===9?M.s[0]:M.e[k-1], b=k===9?M.e[8]:M.e[k];
   $("cur").setAttribute("d","M"+x.toFixed(2)+" "+(TLS.y0-4)+"V"+(TLS.rowEnd+4)); $("clipR").setAttribute("width",f2(x-TL0+1));
-  const hl=$("hlg"); if(hl) hl.replaceChildren(mk("rect",{class:"hl",x:f2(TX(a)-1),y:TLS.y0-2,width:f2(TX(b)-TX(a)+2),height:RH+4,rx:2}));
+  const hl=$("hlg"); if(hl){ let r=hl.firstChild; if(!r){ r=mk("rect",{class:"hl",rx:2}); hl.appendChild(r); }
+    const at={x:f2(TX(a)-1),y:TLS.y0-2,width:f2(TX(b)-TX(a)+2),height:RH+4}; for(const n in at){ const v=String(at[n]); if(r.getAttribute(n)!==v) r.setAttribute(n,v); } }
 }
-function drawCard(mode,k){ const c=D.CARDS[+mode-1][k]; $("stepT").textContent=c.title; $("stepK").innerHTML=c.rows.map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); }
+const CARDN=new Map();
+function drawCard(mode,k){ const c=D.CARDS[+mode-1][k], key=mode+"|"+k, hit=CARDN.get(key); $("stepT").textContent=c.title;
+  if(hit){ $("stepK").replaceChildren(...hit); return; }
+  $("stepK").innerHTML=c.rows.map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); CARDN.set(key,Array.from($("stepK").childNodes)); }
 
-let drawn={mode:null,k:-1,key:null};
-function show(){
-  const key=keyNow(), mode=modeOf(), u=+tin.value, k=idx(u);
+let drawn={mode:null,k:-1,key:null}, lastSL="";
+function show(){ render(modeOf(),+tin.value); }
+function warmOtherMode(){ const cur=modeOf(), u0=+tin.value; HW.MODES.filter((m)=>m!==cur).forEach((m)=>HW.SETTLED[m].forEach((u)=>render(m,u))); render(cur,u0); }
+addEventListener("load",()=>setTimeout(warmOtherMode,0));
+function render(mode,u){
+  const key=keyNow(), k=idx(u);
   let full=false;
   if(ISO.key!==key||!ISO.ok){ layoutIso(key); full=true; }
   if(drawn.key!==key||drawn.mode!==mode){ layoutStrip(key,mode); buildTimeline(mode,key); drawn.key=key; drawn.mode=mode; full=true; }
-  $("stepN").textContent=FIG.stepLabel();
+  const sl=FIG.stepLabel(); if(sl!==lastSL){ lastSL=sl; $("stepN").textContent=sl; }
   if(full||drawn.k!==k){ if(k===0&&drawn.k>0){ const fp=$("flat").closest(".fig-pan"); if(fp) fp.scrollLeft=0; } drawn.k=k; drawCard(mode,k); drawStrip(k); paintScene(mode,k); }
   drawTimeline(mode,k,u);
 }

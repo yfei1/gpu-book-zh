@@ -262,7 +262,8 @@ function hwState(mode,t){
 // ===================== text helpers: measured wrap, no markup =====================
 let PROBE=null;
 const probe=(svg,cls)=>{ if(!PROBE||PROBE.parentNode!==svg){ if(PROBE) PROBE.remove(); PROBE=mk("text",{visibility:"hidden"}); svg.appendChild(PROBE); } PROBE.setAttribute("class",cls||""); return PROBE; };
-const wid=(svg,cls,s)=>{ const p=probe(svg,cls); p.textContent=s; return p.getComputedTextLength(); };
+const WID=new Map();
+const wid=(svg,cls,s)=>{ const key=(LAY&&LAY.narrow?"n|":"w|")+cls+"|"+s; let v=WID.get(key); if(v===undefined){ const p=probe(svg,cls); p.textContent=s; v=p.getComputedTextLength(); WID.set(key,v); } return v; };
 const ATOM=/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]+\s*|\s+/g;
 function wrapLines(svg,cls,s,maxW){ const atoms=s.match(ATOM)||[s], out=[]; let cur="";
   atoms.forEach((a)=>{ const j=cur+a; if(cur&&wid(svg,cls,j.trimEnd())>maxW&&!/^[，。、；：）)]/.test(a)&&!/[（(]$/.test(cur)){ out.push(cur.trimEnd()); cur=a; } else cur=j; });
@@ -415,7 +416,8 @@ function drawFlat(f){
   $("clipR").setAttribute("x",TL0); $("clipR").setAttribute("y",RY[0]-8); $("clipR").setAttribute("height",RY[3]+RH-RY[0]+12);
   return f;
 }
-function curTo(t){ $("tlN").style.display=idxOf(t)>=1?"":"none"; const f=FL, x=f.TX(t); $("clipR").setAttribute("width",Math.max(0,x-f.TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+x.toFixed(1)+" "+(f.RY[0]-8)+"V"+(f.RY[3]+f.RH+4)); }
+let lastTlN=null;
+function curTo(t){ const dv=idxOf(t)>=1?"":"none"; if(dv!==lastTlN){ lastTlN=dv; $("tlN").style.display=dv; } const f=FL, x=f.TX(t); $("clipR").setAttribute("width",Math.max(0,x-f.TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+x.toFixed(1)+" "+(f.RY[0]-8)+"V"+(f.RY[3]+f.RH+4)); }
 
 // ===================== step card, chips, show() =====================
 const STEP_TITLE=(k)=>L["card.s"+(k+1)+".t"];
@@ -426,7 +428,8 @@ function drawStep(k){
   document.querySelectorAll("#alg .chip").forEach((e,i)=>{ e.classList.toggle("on",i===k); if(i===k) e.removeAttribute("data-dim"); else e.setAttribute("data-dim",""); });
   drawScene(k); dropProbe();
 }
-function show(){ const t=+tin.value, k=idxOf(t); $("stepN").textContent=F.stepLabel();
+let lastSL="";
+function show(){ const t=+tin.value, k=idxOf(t); const sl=F.stepLabel(); if(sl!==lastSL){ lastSL=sl; $("stepN").textContent=sl; }
   if(drawn.lay!==LS||drawn.k!==k){ drawn={k,lay:LS}; drawStep(k); }
   curTo(t); }
 function relayout(force){

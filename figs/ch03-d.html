@@ -180,7 +180,8 @@ const T=(cls,x,y,s,a,extra)=>'<text class="'+cls+'" x="'+f1(x)+'" y="'+f1(y)+'"'
 const TS=(cls,x,y,lines,lh,a,extra)=>'<text class="'+cls+'"'+(a?' text-anchor="'+a+'"':"")+(extra||"")+'>'+lines.map((s,i)=>'<tspan x="'+f1(x)+'" y="'+f1(y+i*lh)+'">'+esc(s)+'</tspan>').join("")+'</text>';
 
 
-const textW=(s,cls)=>{ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=s; $("alg").appendChild(t); const v=t.getComputedTextLength(); t.remove(); return v; };
+const textWMemo=new Map();
+const textW=(s,cls)=>{ const key=cls+"|"+s; let v=textWMemo.get(key); if(v===undefined){ const t=document.createElementNS(NS,"text"); t.setAttribute("class",cls); t.textContent=s; $("alg").appendChild(t); v=t.getComputedTextLength(); t.remove(); textWMemo.set(key,v); } return v; };
 // greedy wrap: a CJK character or a Latin word is one atom; zh strings that already fit are returned whole
 function wrapTo(s,maxW,cls){ if(textW(s,cls)<=maxW) return [s];
   const atoms=s.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[s], out=[]; let cur="";

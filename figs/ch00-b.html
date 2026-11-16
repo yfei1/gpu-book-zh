@@ -656,6 +656,7 @@ buildAll(); t = +tin.value; show();
   const fit = () => { plate.style.paddingTop = Math.max(52, ti.offsetHeight + 34) + "px"; plate.style.paddingBottom = Math.max(58, ro.offsetHeight + 34) + "px"; };
   new ResizeObserver(() => { fit(); relayout(); }).observe(plate); fit(); }
 addEventListener("DOMContentLoaded", equalizeCardHeight);   // after the player has put its buttons into the card header
+eqW = fig0.clientWidth;
 new ResizeObserver(() => { if (fig0.clientWidth !== eqW) requestAnimationFrame(equalizeCardHeight); }).observe(fig0);
 document.fonts.addEventListener("loadingdone", equalizeCardHeight);
 </script></body></html>

@@ -621,13 +621,19 @@ function drawOverlay(k,t){
 // micro-tags that name the active units of SMSP 0 (and the 4-SMSP cue), placed on the first free spot; pill texts, cell tags and badges are already drawn
 const UNIT_KEY={regfile:"reg",alu:"alu",fma:"fma",sfu:"sfu",lsu:"lsu",tc:"tc"}, SAME4=[0,1,3,4,6,7];
 const boxHit=(a,b)=>a.x<b.x+b.width+1.5&&a.x+a.width+1.5>b.x&&a.y<b.y+b.height+1&&a.y+a.height+1>b.y;
+const LMET={};
+function lineMetrics(parent,cls){ if(!LMET[cls]){ const p=mk("text",{class:cls,x:0,y:100},"Hg"); p.style.visibility="hidden"; parent.appendChild(p); const b=p.getBBox(); LMET[cls]={asc:100-b.y,h:b.height}; p.remove(); } return LMET[cls]; }
+let FTO=null;
+function tagBox(el,x,y,an){ const cls=el.getAttribute("class"), w=tw(OV,cls,el.textContent), mt=lineMetrics(OV,cls); return {x:an==="end"?x-w:an==="middle"?x-w/2:x,y:y-mt.asc,width:w,height:mt.h}; }
 function fitTag(el,cands){
-  const others=[...TAGS.children,...OV.children].filter((n)=>n!==el&&n.nodeName==="text").map((n)=>n.getBBox());
-  for(const [x,y,an] of cands){ setA(el,{x:f2(x),y:f2(y),"text-anchor":an}); const b=el.getBBox();
-    if(b.x>=4&&b.x+b.width<=LY.sceneR&&!others.some((o)=>boxHit(b,o))) return true; }
-  const [x,y,an]=cands[0]; setA(el,{x:f2(x),y:f2(y),"text-anchor":an}); el.setAttribute("data-clash",""); return false; }
+  if(!FTO) FTO=[...TAGS.children,...OV.children].filter((n)=>n!==el&&n.nodeName==="text").map((n)=>n._bb||n.getBBox());
+  const put=([x,y,an])=>{ setA(el,{x:f2(x),y:f2(y),"text-anchor":an}); return el._bb=tagBox(el,+f2(x),+f2(y),an); };
+  for(const c of cands){ const b=put(c);
+    if(b.x>=4&&b.x+b.width<=LY.sceneR&&!FTO.some((o)=>boxHit(b,o))){ FTO.push(b); return true; } }
+  FTO.push(put(cands[0])); el.setAttribute("data-clash",""); return false; }
 const around=(p,r)=>[[p[0]+r,p[1]+3,"start"],[p[0]-r,p[1]+3,"end"],[p[0],p[1]-r-1,"middle"],[p[0],p[1]+r+8,"middle"],[p[0]+r,p[1]-r,"start"],[p[0]-r,p[1]-r,"end"],[p[0]+r,p[1]+r+7,"start"],[p[0]-r,p[1]+r+7,"end"]];
 function drawUnitTags(k){
+  FTO=null;
   const add=(key,cls)=>{ const el=mk("text",{class:cls},TS[key]); OV.appendChild(el); return el; };
   const lit=LIT[k].on;
   Object.keys(UNIT_KEY).forEach((u)=>{ if(lit.indexOf("sm0:smsp0:"+u)<0) return; const el=add("f88.iso.sm.unit."+UNIT_KEY[u],"tg ut"); const p=A["smsp0_"+u]; fitTag(el,around(p,6).concat(around(p,16))); });
@@ -636,7 +642,7 @@ function drawUnitTags(k){
     fitTag(done,[[m[0],m[1]-8,"middle"],[m[0],m[1]+14,"middle"],[m[0]-10,m[1]-8,"end"],[m[0]+10,m[1]+14,"start"],[b[0]-6,b[1]+18,"end"],[b[0]-40,b[1]+18,"middle"],[b[0]-6,b[1]+30,"end"],].concat([-24,-34,-44,16,26,36].flatMap((dy)=>[0,-40,40,-80,80,-120].map((dx)=>[m[0]+dx,m[1]+dy,"middle"]))));
     const sky=add("f88.iso.sm.smem.s4_pend_tag","tg bd bd-pend"), r=A.xring;
     fitTag(sky,[[r[0],r[1]+20,"middle"],[r[0]-30,r[1]+20,"middle"],[r[0]-60,r[1]+20,"middle"]]);
-    const sb=sky.getBBox(); OV.insertBefore(mk("path",{class:"ldr",d:"M"+f2(sb.x+sb.width/2)+" "+f2(sb.y)+"L"+f2(r[0])+" "+f2(r[1]+2)}),sky); }
+    const sb=sky._bb; OV.insertBefore(mk("path",{class:"ldr",d:"M"+f2(sb.x+sb.width/2)+" "+f2(sb.y)+"L"+f2(r[0])+" "+f2(r[1]+2)}),sky); }
 }
 
 // ===== timeline (svg#flat): order-only axis; row names are static direct children with data-rowlabel =====
@@ -713,6 +719,6 @@ drawTimeline();
 { const pl=document.querySelector(".iso-plate"), ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]');
   const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; };
   new ResizeObserver(fit).observe(pl); fit(); }
-new ResizeObserver(()=>{ const vp=viewport(); if(drawn.k>=0&&(vp.W!==drawn.W||vp.nar!==drawn.nar)) show(); }).observe(document.querySelector(".iso-plate"));
+new ResizeObserver(()=>{ if(!document.querySelector(".iso-plate").offsetWidth) return; const vp=viewport(); if(drawn.k>=0&&(vp.W!==drawn.W||vp.nar!==drawn.nar)) show(); }).observe(document.querySelector(".iso-plate"));
 show();
 </script></body></html>

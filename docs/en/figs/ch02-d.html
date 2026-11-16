@@ -678,6 +678,11 @@ function drawNotes(m,k){
   $("notes").innerHTML=h; $("iso").setAttribute("viewBox","0 0 "+g.W+" "+Math.ceil(y+4));
 }
 function drawFocus(m,k){
+  const c=(LAY.fc=LAY.fc||{}), key=m+"|"+k, fg=$("focus");
+  if(c[key]){ fg.innerHTML=c[key].h; LAY.focusBox=c[key].b; return; }
+  drawFocus0(m,k); c[key]={h:fg.innerHTML,b:LAY.focusBox};
+}
+function drawFocus0(m,k){
   const g=LAY.iso, f=FR[m+"."+k], fg=$("focus"); fg.replaceChildren();
   const lines=wrapAll(Ln(f.focus),g.right-g.fx-8,"lab"), x=g.fx, y=18, stk=polyOf(g,"stacks"), stkR=Math.max(...stk.map((q)=>q[0]));
   const t=mk("text",{class:"lab",x,y}); t.innerHTML=tsp(lines,x,y,13); fg.appendChild(t);
@@ -699,7 +704,7 @@ function drawFocus(m,k){
     fg.insertBefore(mk("path",{class:"ldr",d:"M"+pts.map((q)=>f1(q[0])+" "+f1(q[1])).join("L")}),t); fg.appendChild(mk("circle",{class:"ldd",cx:p[0],cy:p[1],r:2.4})); pts.slice(1).forEach((q,i)=>segs.push([pts[i],q])); });
   return segs;
 }
-function drawIso(m,k){ drawRig(m,k); arrowsOf(m,k); drawFocus(m,k); drawLabels(m,k); drawNotes(m,k); }
+function drawIso(m,k){ drawRig(m,k); arrowsOf(m,k); drawLabels(m,k); drawNotes(m,k); }
 
 // ===================== drawing: timeline (svg#flat) =====================
 const TXT=(x,y,s,cls,a,extra)=>'<text class="'+cls+'" x="'+f1(x)+'" y="'+f1(y)+'"'+(a?' text-anchor="'+a+'"':"")+(extra||"")+">"+esc(s)+"</text>";
@@ -876,8 +881,10 @@ function show(){
   const m=modeNow(), t=clampT(m,+tin.value), k=idx(m,t);
   if(drawn.m!==m){ drawMode(m); drawn={m,k:-1}; }
   tlCursor(m,t);
-  if(drawn.k!==k){ drawn.k=k; drawStep(m,k); }
+  if(drawn.k!==k){ drawn.k=k; drawFocus(m,k); queueMicrotask(flushStep); }
 }
+let done={m:null,k:-1,L:null};
+function flushStep(){ const m=drawn.m, k=drawn.k; if(done.m===m&&done.k===k&&done.L===LAY) return; done={m,k,L:LAY}; drawStep(m,k); }
 const STEPS=(m)=>STEPT[m].map((t,k)=>({t,title:D.TITLES[m][k]}));
 F.timeline({steps:()=>STEPS(modeNow()),end:()=>END[modeNow()],rate:4});
 F.variants({kind:"compare",aligned:false,axis:Ls("variant.axis"),outcomes:[1,2].map((i)=>Ls("variant."+i+".outcome"))});

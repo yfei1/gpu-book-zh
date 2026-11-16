@@ -724,6 +724,7 @@ if(typeof F.hw==="function") F.hw(hwSpec); F.hwData=hwSpec;
 
 // ===================== text measure and wrap =====================
 const memo=new Map();
+Object.defineProperty(Element.prototype,"html",{configurable:true,set(h){ if(this._h!==h){ this._h=h; this.innerHTML=h; } }});
 function textW(s,cls){ const key=cls+"|"+s; let v=memo.get(key); if(v===undefined){ const t=mk("text",{class:cls,visibility:"hidden"},s); $("iso").appendChild(t); v=t.getComputedTextLength(); t.remove(); memo.set(key,v); } return v; }
 // a line breaks after a space or a CJK character and never before a closing mark or after an opening one
 function wrapLine(s,maxW,cls){
@@ -920,10 +921,10 @@ function drawAlg(m,k){
     h+='<g data-chip="'+c.id+'"><rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" rx="5" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(tail?1.6:1.2)+'"/><text class="tx" fill="'+C.ink+'">'+tsp(c.l,c.x+8,c.y+16,13)+'</text></g>'; });
   if(!LAY.narrow&&m!=="empty_seg") for(let r=0;r<2;r++){ const a=g.chips[2*r], b=g.chips[2*r+1], y=a.y+a.h/2; h+='<path class="ar" d="M'+(a.x+a.w+2)+' '+y+'H'+(b.x-3)+'" marker-end="url(#ar)"/>'; }
   if(g.sub) h+='<text class="tx">'+tsp(g.sub,10,g.suby,13)+'</text>';
-  $("algH").innerHTML=tsp(g.hdr,10,14,13); $("algB").innerHTML=h;
+  $("algH").html=tsp(g.hdr,10,14,13); $("algB").html=h;
   const act=ACTIVE[m][k];
   document.querySelectorAll("#algB [data-chip]").forEach((e)=>{ const i=CHIPS[m].indexOf(e.dataset.chip); e.classList.toggle("dim",!act.includes(i)); });
-  $("algO").innerHTML=act.map((i)=>{ const c=g.chips[i]; return '<rect class="ao" x="'+(c.x-2)+'" y="'+(c.y-2)+'" width="'+(c.w+4)+'" height="'+(c.h+4)+'" rx="7"/>'; }).join("");
+  $("algO").html=act.map((i)=>{ const c=g.chips[i]; return '<rect class="ao" x="'+(c.x-2)+'" y="'+(c.y-2)+'" width="'+(c.w+4)+'" height="'+(c.h+4)+'" rx="7"/>'; }).join("");
 }
 function drawIsoStatic(){
   const I=LAY.iso, P=I.P, W=LAY.W;
@@ -939,17 +940,18 @@ function drawIsoStatic(){
   $("l2L").innerHTML='<text class="lab2 l2t" text-anchor="end" x="'+f1(lx)+'" y="'+f1(q[1]+4)+'">'+esc(l2)+'</text><path class="ldr" d="M'+f1(lx+3)+' '+f1(q[1])+'L'+q[0]+' '+q[1]+'"/><circle class="ldd" r="2.4" cx="'+q[0]+'" cy="'+q[1]+'"/>';
 }
 function drawIsoStep(m,k,t){
+  if(m!=="empty_seg"){ if(drawn.iso===m+"|"+k) return; drawn.iso=m+"|"+k; }
   const I=LAY.iso, P=I.P, W=LAY.W, narrow=LAY.narrow, C=D.C, s=KK(m,k);
   // focus callout in the top lane
   const fl=focusLines(m,k,W,narrow), fw=Math.max(...fl.map((l)=>textW(l,"lab")));
-  $("focus").innerHTML='<text class="lab" text-anchor="'+(narrow?"start":"middle")+'">'+tsp(fl,narrow?12:W/2,16,13)+'</text>'; void fw;
+  $("focus").html='<text class="lab" text-anchor="'+(narrow?"start":"middle")+'">'+tsp(fl,narrow?12:W/2,16,13)+'</text>'; void fw;
   // flows over the package
   let fh="";
   s.flows.forEach((a,i)=>{ const key=m+"."+k+"."+i, spec=ARROW_PATH[key]; if(!spec) return;
     let kind=spec[0]; if(m==="empty_seg"&&kind==="mg") kind="mg3"; if(m==="empty_seg"&&kind==="wr") kind="wr3"; const pts=flowPts(kind); if(!pts) return;
     if(kind==="wr3"){ for(let j=0;j<pts.length;j+=2) fh+='<path class="fl '+(j<4?"b":spec[1])+'" d="M'+pts.slice(j,j+2).map(P).map((p)=>p.join(" ")).join("L")+'" marker-end="url(#m'+spec[1].slice(0,1)+')"/>'; return; }
     const q=pts.map(P); if(i===1&&m==="empty_seg") q[1]=P(D.GEO.TC[M3.mtile[1]]); fh+='<path class="fl '+spec[1]+'" d="M'+q.map((p)=>p.join(" ")).join("L")+'" marker-end="url(#m'+spec[1].slice(0,1)+(spec[0]==="inr"?"o":"")+')"/>'; });
-  $("flows").innerHTML=fh;
+  $("flows").html=fh;
   // notes under the package
   let y=I.pbot+4, h=""; const L=LAY;
   if(m==="empty_seg"){ h+=insetSvg(k,t,y); y+=INSET_H+8; }
@@ -962,7 +964,7 @@ function drawIsoStep(m,k,t){
     else h+='<text class="tx mut">'+tsp(b.lines,12,y+9,lh)+'</text>';
     y+=bh+4;
   });
-  $("notes").innerHTML=h;
+  $("notes").html=h;
 }
 // the L2 workspace of Mode 3 (one KV head): o_1..o_4 BF16 and lse_1..lse_4 FP32, one hue per segment; unlit = not written
 function insetSvg(k,t,y0){
@@ -1004,7 +1006,7 @@ function tlCursor(m,t){ const g=LAY.tl, b=g.built[m], x=g.X(t); $("tlL").querySe
 function drawMode(m){ setHeights(m); document.querySelector("[data-readout]").textContent=Ls("sp.readout."+MI[m]).replace(/<br>/g,"\n"); tlMode(m); }
 function drawStep(m,k,t){
   $("stepT").textContent=D.TITLES[MI[m]][k];
-  $("stepK").innerHTML=D.CARDS[MI[m]][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
+  $("stepK").html=D.CARDS[MI[m]][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
   drawAlg(m,k);
 }
 let drawn={mode:null,k:-1};
@@ -1037,5 +1039,5 @@ function relayout(force){
 // after a layout change the player re-reads the cursor positions and the marks: a change event on the checked radio makes it do so, on the same step
 const recal=()=>{ const r=document.querySelector("input[name=mode]:checked"); if(r) r.dispatchEvent(new Event("change",{bubbles:true})); };
 relayout(true);
-addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
+addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(!document.querySelector(".iso-plate").offsetWidth) return; if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
 </script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

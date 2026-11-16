@@ -557,7 +557,10 @@ const idx=(v)=>{ let k=0; S.forEach((s,i)=>{ if(s.t<=v+1e-9) k=i; }); return k; 
 function settled(k){ if(k>=M-1) return D.END; let v=S[k+1].t-1e-6; v=LO+Math.floor((v-LO)/STEPQ+1e-9)*STEPQ; return +Math.max(v,S[k].t).toFixed(6); }
 const TX=(st,time)=>D.TL0+(D.TL1-D.TL0)*time/st.total;
 const mk=(tag,attrs)=>{ const e=document.createElementNS(NS,tag); Object.keys(attrs||{}).forEach((a)=>e.setAttribute(a,attrs[a])); return e; };
-const probes={}; const meas=(s,cls,svg)=>{ const key=cls+svg; if(!probes[key]){ const p=mk("text",{x:0,y:-30,visibility:"hidden",class:cls}); $(svg).appendChild(p); probes[key]=p; } const p=probes[key]; p.textContent=s; const w=p.getComputedTextLength(); p.textContent=""; return w; };
+const probes={}, MW=new Map(); document.fonts.addEventListener("loadingdone",()=>MW.clear());
+const meas=(s,cls,svg)=>{ const mk_=cls+"|"+svg+"|"+s, hit=MW.get(mk_); if(hit!==undefined) return hit; const key=cls+svg; if(!probes[key]){ const p=mk("text",{x:0,y:-30,visibility:"hidden",class:cls}); $(svg).appendChild(p); probes[key]=p; } const p=probes[key]; p.textContent=s; const w=p.getComputedTextLength(); p.textContent=""; MW.set(mk_,w); return w; };
+// The sum of the atom widths decides "wider than maxW" when it is farther than WRAP_TOL from maxW; only a near-tie is measured as a whole string.
+const WRAP_TOL=6, spaceW=(cls,svg)=>meas("a a",cls,svg)-meas("aa",cls,svg), atomW=(a,cls,svg)=>meas(a.replace(/[ \t]+$/,""),cls,svg)+(/[ \t]$/.test(a)?spaceW(cls,svg):0);
 // break a text into lines no wider than maxW (measured with the class of the text); break after spaces, after CJK characters, not before closing marks
 function wrapLines(txt,maxW,cls,svg,whole){
   txt=txt.replace(/\[[^\]]*\]/g,(b)=>b.replace(/ /g,"\u00a0"));   // the shape [T, 8192] stays whole
@@ -565,7 +568,8 @@ function wrapLines(txt,maxW,cls,svg,whole){
   const UNIT=/^[A-Za-zµ%]/, NUM=/[0-9][ \t]+$/;
   const raw=txt.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]|[^ \t\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]+[ \t]*|[ \t]+/g)||[txt];
   const atoms=whole?raw.reduce((u,a)=>{ const p=u.length-1; if(p>=0&&(NOSTART.test(a)||NOEND.test(u[p])||(NUM.test(u[p])&&UNIT.test(a)))) u[p]+=a; else u.push(a); return u; },[]):raw;   // whole: a closing mark, an opening mark and a unit stay with their word, so a line is wider than maxW only when one word alone is
-  atoms.forEach((a)=>{ const j=cur+a; if(cur&&meas(j.replace(/[ \t]+$/,""),cls,svg)>maxW&&!NOSTART.test(a)&&!NOEND.test(cur)&&!(NUM.test(cur)&&UNIT.test(a))){ out.push(cur.replace(/[ \t]+$/,"")); cur=a; } else cur=j; });
+  let est=0;
+  atoms.forEach((a)=>{ const j=cur+a, aw=atomW(a,cls,svg), estJ=est+aw-(/[ \t]$/.test(a)?spaceW(cls,svg):0), over=cur&&(Math.abs(estJ-maxW)>WRAP_TOL?estJ>maxW:meas(j.replace(/[ \t]+$/,""),cls,svg)>maxW); if(over&&!NOSTART.test(a)&&!NOEND.test(cur)&&!(NUM.test(cur)&&UNIT.test(a))){ out.push(cur.replace(/[ \t]+$/,"")); cur=a; est=aw; } else { cur=j; est+=aw; } });
   if(cur.trim()) out.push(cur.replace(/[ \t]+$/,"")); return out;
 }
 function setLines(el,lines,lh){ el.textContent=""; const x=el.getAttribute("x"), y=+el.dataset.y0; lines.forEach((ln,i)=>{ const ts=mk("tspan",{x:x,y:y+i*lh}); ts.textContent=ln; el.appendChild(ts); }); }
@@ -690,10 +694,16 @@ const fig0=document.querySelector(".f0"), nar=$("stepN").closest(".nar"), phone=
 phone.addEventListener("change",()=>{ drawn=""; show(); });   // the headline wraps on a phone only: draw the frame again when the width crosses 600 px
 let eqW=-1;
 function equalizeCardHeight(){
-  const ti=$("stepT"), kd=$("stepK"), keepT=ti.textContent, keepK=kd.innerHTML; let hmax=0;
-  eqW=fig0.clientWidth; nar.style.minHeight="0px";
-  (phone.matches?[m]:D.CARDS.map((_,i)=>i)).forEach((mi)=>D.CARDS[mi].forEach((c)=>{ ti.textContent=c.t; kd.innerHTML=c.rows; hmax=Math.max(hmax,nar.getBoundingClientRect().height); }));
-  ti.textContent=keepT; kd.innerHTML=keepK; nar.style.minHeight=Math.ceil(hmax)+"px";
+  eqW=fig0.clientWidth; if(!eqW||!nar.offsetParent) return;
+  nar.style.minHeight="0px";
+  // every card is set once in a hidden copy of the card and read after one layout; the live card is not touched
+  const cards=(phone.matches?[m]:D.CARDS.map((_,i)=>i)).flatMap((mi)=>D.CARDS[mi]), w=nar.getBoundingClientRect().width, wrap=document.createElement("div");
+  wrap.setAttribute("aria-hidden","true"); wrap.style.cssText="position:absolute;visibility:hidden;left:0;top:0;pointer-events:none";
+  const copies=cards.map((c)=>{ const cp=nar.cloneNode(true), t=cp.querySelector("#stepT"), kd=cp.querySelector("#stepK"); cp.querySelectorAll("[id]").forEach((e)=>e.removeAttribute("id"));
+    cp.style.cssText="box-sizing:border-box;margin:0;min-height:0px;width:"+w+"px"; t.textContent=c.t; kd.innerHTML=c.rows; wrap.appendChild(cp); return cp; });
+  fig0.appendChild(wrap);
+  const hmax=Math.max(...copies.map((cp)=>cp.getBoundingClientRect().height));
+  wrap.remove(); nar.style.minHeight=Math.ceil(hmax)+"px";
 }
 addEventListener("DOMContentLoaded",equalizeCardHeight);   // after the player has put its buttons into the card header
 new ResizeObserver(()=>{ if(fig0.clientWidth!==eqW) requestAnimationFrame(equalizeCardHeight); }).observe(fig0);

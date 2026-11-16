@@ -568,9 +568,13 @@ function drawFocus(m,FM){
   const dot=(I.dot&&I.dot[pt])||P(p), b=t.getBBox(), y0=b.y+b.height+3, cand=[];
   for(let cx=b.x+6;cx<=b.x+b.width-6;cx+=4) cand.push(cx);
   cand.sort((a,c)=>Math.abs(a-dot[0])-Math.abs(c-dot[0]));
-  const avoid=[...document.querySelectorAll("#lbl text,#tag text,#rn text,#dots rect")].map((e)=>e.getBBox());
+  const ak=m+"|"+(FM.sum?1:0), AV=LAY.avoid||(LAY.avoid={});
+  const stat=AV[ak]||(AV[ak]=[...document.querySelectorAll("#lbl text,#tag text,#rn text")].map((e)=>e.getBBox()));
+  const avoid=stat.concat([...document.querySelectorAll("#dots rect")].map((e)=>({x:+e.getAttribute("x"),y:+e.getAttribute("y"),width:+e.getAttribute("width"),height:+e.getAttribute("height")})));
   const hit=(p,rr)=>p[0]>rr.x-2&&p[0]<rr.x+rr.width+2&&p[1]>rr.y-2&&p[1]<rr.y+rr.height+2;
-  const clear=(a,b)=>{ for(let i=0;i<=30;i++){ const u=i/30; if(avoid.some((rr)=>hit([a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u],rr))) return false; } return true; };
+  const clear=(a,b)=>{ const xa=Math.min(a[0],b[0])-2, xb=Math.max(a[0],b[0])+2, ya=Math.min(a[1],b[1])-2, yb=Math.max(a[1],b[1])+2;
+    const rel=avoid.filter((rr)=>rr.x-2<=xb&&rr.x+rr.width+2>=xa&&rr.y-2<=yb&&rr.y+rr.height+2>=ya); if(!rel.length) return true;
+    for(let i=0;i<=30;i++){ const u=i/30; if(rel.some((rr)=>hit([a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u],rr))) return false; } return true; };
   // the leader lies under the labels (their halo cuts it where it must cross one). Its route: the straight line from the start point nearest to the dot that crosses no label or token;
   // else the shortest route with one bend (down from a start point, then straight to the dot; the first clear bend of a start point is its shortest); else the straight line from the nearest start point
   let route=null;
@@ -596,7 +600,7 @@ let drawn={mode:null,k:-1};
 function show(){
   const m=modeNow(), t=+tin.value, FM=frameModel(m,t);
   if(drawn.mode!==m){ drawn={mode:m,k:-1}; modeStatic(m); }
-  flatCursor(t); drawTop(m,FM); drawIso(m,FM);
+  flatCursor(t); const sg=m+"|"+FM.c+"|"+(FM.sum?1:0)+"|"+FM.k; if(drawn.sig!==sg){ drawn.sig=sg; drawTop(m,FM); drawIso(m,FM); }
   if(drawn.k!==FM.k){ drawn.k=FM.k; drawStep(m,FM.k); }
 }
 // ===================== player wiring =====================

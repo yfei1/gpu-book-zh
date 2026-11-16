@@ -575,8 +575,10 @@ function wrapLines(parent,cls,srcLines,maxW){
   return out;
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
+const BBC=new Map();
+function bbox(t){ const key=LK+"|"+t.getAttribute("class")+"|"+t.getAttribute("text-anchor")+"|"+[...t.childNodes].map((n)=>(n.getAttribute?n.getAttribute("x")+","+n.getAttribute("y")+",":"")+n.textContent).join("¦"); let b=BBC.get(key); if(!b){ b=t.getBBox(); BBC.set(key,b); } return b; }
 function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
-  for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
+  for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=bbox(t).width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
   return ls;
 }
 const LH=13.5, nar=()=>matchMedia("(max-width:600px)").matches;
@@ -584,19 +586,19 @@ let LK="w", curMode="1";
 const WW={w:640,n:334}, f2=(v)=>+v.toFixed(2);
 
 // ===== the isometric scene =====
-let ISO={};
+let ISO={}, BARS=null;
 const UP={};   // layout -> mode -> {oy,H}
 function drawIso(mode,sc,measure){
   const lk=LK, wd=D.world[lk][mode], g=D.GEO[lk][mode], W=WW[lk], nr=lk==="n";
   const Pt=(x,y,z)=>{ z=z||0; return [g.O[0]+x*g.Ex[0]+y*g.Ey[0]+z*g.Ez[0], g.O[1]+x*g.Ex[1]+y*g.Ey[1]+z*g.Ez[1]]; };
   const pp=(a)=>a.map((v)=>v.toFixed(1)).join(" ");
   const poly=(x0,x1,y0,y1,z)=>"M"+[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map((p)=>pp(Pt(p[0],p[1],z))).join("L")+"Z";
-  const dyn=$("dyn"); dyn.replaceChildren();
+  const dyn=$("dyn"); dyn.replaceChildren(); BARS=null;
   ["w","n"].forEach((l)=>MODES.forEach((m)=>{ const e=$("s_"+l+m); e.style.display=(l===lk&&m===mode)?"":"none"; }));
   document.querySelectorAll("#s_"+lk+mode+" [data-wg]").forEach((e)=>{ const on=sc.act.includes(e.dataset.wg); e.classList.toggle("ao",on&&sc.act.length<3); e.classList.toggle("dim",!on); });
   const add=(tag,attrs,text)=>dyn.appendChild(mk(tag,attrs,text));
   const grpOf=(wgid,cls)=>{ const e=mk("g",{class:(cls||"")+(sc.act.includes(wgid)?"":" dim")}); dyn.appendChild(e); return e; };
-  const txt=(parent,cls,anchor,x,y,src,maxW,lh)=>{ const t=mk("text",{class:cls,"text-anchor":anchor,x,y}); parent.appendChild(t); const ls=fitWrap(t,cls,Array.isArray(src)?src:[src],maxW,x,y,lh||12); return {t,ls,b:t.getBBox()}; };
+  const txt=(parent,cls,anchor,x,y,src,maxW,lh)=>{ const t=mk("text",{class:cls,"text-anchor":anchor,x,y}); parent.appendChild(t); const ls=fitWrap(t,cls,Array.isArray(src)?src:[src],maxW,x,y,lh||12); return {t,ls,b:bbox(t)}; };
   const anchors=[], R=(lo)=>W-24;
   const trayY0=wd.trayY+3, trayY1=wd.trayY+wd.trayD-3, trayFront=Pt(0,wd.trayY+wd.trayD+8,0)[1];
   const X0=Pt(0,0,0)[0], xw=(x)=>Pt(x,0,0)[0], xr=(r)=>xw(r/512), capX=xr(CAP);
@@ -611,7 +613,7 @@ function drawIso(mode,sc,measure){
     segs.forEach(([id,a,b])=>{ const x0=xr(a), w=xr(b)-x0-6, gp=grpOf(id,"bl"), cx=Math.min(x0+(xr(b)-x0)/2,R()-w/2);
       const rg=txt(gp,"lab2","middle",cx,topY-9,S("c1.iso.wgs.req_val"),w,11); const n=rg.ls.length; setLines(rg.t,rg.ls,cx,topY-9-(n-1)*11,11);
       const nm=txt(gp,"lab","middle",cx,topY-23,S("c1.iso.wgs.wg_"+id),w,12); const n2=nm.ls.length; setLines(nm.t,nm.ls,cx,topY-11-n*11-(n2-1)*12,12);
-      if(id==="P"&&sc.k>=1) anchors.push([cx,nm.t.getBBox().y-4]); });
+      if(id==="P"&&sc.k>=1) anchors.push([cx,bbox(nm.t).y-4]); });
     segs.forEach(([id,a,b])=>{ add("path",{class:"rq "+(sc.act.includes(id)?"":"dim"),"data-hw":"shown_req_total",style:"--rc:"+D.COLS[id],d:poly(a/512,b/512,rqY0,rqY1,bz)}); });
     add("path",{class:"rOv","data-hw":"shown_overflow",d:poly(128,174,rqY0-1,rqY1+1,bz+0.2)});
     if(sc.k>=1){ add("path",{class:"hw",d:poly(10,58,rqY0,rqY1,bz+0.1)}); add("path",{class:"cfgm",d:"M"+pp(Pt(10,rqY0-2,bz))+"L"+pp(Pt(10,rqY1+2,bz))}); }
@@ -631,10 +633,13 @@ function drawIso(mode,sc,measure){
     const sc2=txt(dyn,"lab2","start",X0,trayFront+13+14*em.ls.length+4,S("c1.iso.pool.scale_hdr"),R()-X0,12);
     const sm=txt(dyn,"lab2","start",X0,sc2.b.y+sc2.b.height+14,S("c1.iso.sm.corner"),R()-X0,12);
   } else {
-    const y0=trayY0, y1=trayY1, z=3.2, vp=sc.v.vp, vc=sc.v.vc, pool=sc.poolV;
-    const a1=128*vp, a2=a1+pool, a3=a2+128*vc, a4=a3+128*vc;
-    const seg=(x0,x1,cls,hw)=>{ if(x1-x0>0.5) add("path",{class:"bar "+cls,"data-hw":hw||"",d:poly(x0/512,x1/512,y0,y1,z)}); };
-    seg(0,a1,"bP","alloc_wgP"); seg(a1,a2,"bPool","cta_pool"); seg(a2,a3,"bC1","alloc_wgC1"); seg(a3,a4,"bC2","alloc_wgC2"); seg(CTA,CAP,"bFree","sm_free");
+    const y0=trayY0, y1=trayY1, z=3.2;
+    const bg=mk("g",{}); dyn.appendChild(bg);
+    BARS=(s2)=>{ const vp=s2.v.vp, vc=s2.v.vc, pool=s2.poolV, a1=128*vp, a2=a1+pool, a3=a2+128*vc, a4=a3+128*vc, out=[];
+      const seg=(x0,x1,cls,hw)=>{ if(x1-x0>0.5) out.push(mk("path",{class:"bar "+cls,"data-hw":hw||"",d:poly(x0/512,x1/512,y0,y1,z)})); };
+      seg(0,a1,"bP","alloc_wgP"); seg(a1,a2,"bPool","cta_pool"); seg(a2,a3,"bC1","alloc_wgC1"); seg(a3,a4,"bC2","alloc_wgC2"); seg(CTA,CAP,"bFree","sm_free");
+      bg.replaceChildren(...out); };
+    BARS(sc);
     // the tick of the empty pool, seam of P and the consumers
     const tx5=xr(5120);
     if(sc.tick){ const ty0=Pt(0,y0-3,z)[1], ty1=Pt(0,y1+3,z)[1], cy=(ty0+ty1)/2; add("path",{class:"tick","data-hw":"cta_pool_mark",d:"M"+tx5.toFixed(1)+" "+ty0.toFixed(1)+"V"+ty1.toFixed(1)}); add("path",{class:"tickd",d:"M"+tx5.toFixed(1)+" "+(cy-4).toFixed(1)+"l4 4l-4 4l-4 -4z"}); }
@@ -645,7 +650,7 @@ function drawIso(mode,sc,measure){
     [["P",6],["C1",48],["C2",90]].forEach(([id,bx])=>{ const gp=grpOf(id,"bl"), cx=xw(bx)+bw/2, w=xw(42)-xw(0)-(nr?8:12);
       const rg=txt(gp,"lab2","middle",cx,topY-9,S("c1.iso.wgs.cur_"+rv[id]),w,11); const n=rg.ls.length; setLines(rg.t,rg.ls,cx,topY-9-(n-1)*11,11);
       const nm=txt(gp,"lab","middle",cx,topY-23,S("c1.iso.wgs.wg_"+id),w,12); const n2=nm.ls.length; setLines(nm.t,nm.ls,cx,topY-11-n*11-(n2-1)*12,12);
-      hdTop[id]=nm.t.getBBox().y; hdX[id]=cx; minTop=Math.min(minTop,hdTop[id]); });
+      hdTop[id]=bbox(nm.t).y; hdX[id]=cx; minTop=Math.min(minTop,hdTop[id]); });
     // the resident-CTA outline sits above every header; the badge sits above the outline, on the side that leaves the leader free
     const ctaTop=minTop-7, yb=(ctaTop-Pt(0,0,0.4)[1])/g.Ey[1];
     add("path",{class:"ctaO","data-hw":"cta0",d:poly(1,133,yb,wd.blkY+50,0.4)});
@@ -679,7 +684,7 @@ function drawIso(mode,sc,measure){
 function drawFocus(mode,sc,anchors,oy){
   const g=$("focus"); g.replaceChildren(); const W=WW[LK], x0=14, maxW=W-28-(LK==="n"?0:0);
   const t=mk("text",{class:"lab","text-anchor":"start",x:x0,y:16}); g.appendChild(t); fitWrap(t,"lab",FOC(mode,sc.k),maxW,x0,16,LH);
-  const b=t.getBBox(), ay=b.y+b.height+2;
+  const b=bbox(t), ay=b.y+b.height+2;
   anchors.forEach((a)=>{ const ax=a[0], ay2=a[1]+oy, vx=a[2], sx=clamp(vx!=null?vx:ax,b.x+6,b.x+b.width-6);
     const d=vx!=null?"M"+sx.toFixed(1)+" "+ay.toFixed(1)+"V"+(ay+6).toFixed(1)+"H"+vx.toFixed(1)+"V"+ay2.toFixed(1)+"H"+ax.toFixed(1):"M"+sx.toFixed(1)+" "+ay.toFixed(1)+"L"+ax.toFixed(1)+" "+ay2.toFixed(1);
     g.insertBefore(mk("path",{class:"lead",d}),t);
@@ -763,8 +768,9 @@ function show(){
   const t=+tin.value, sc=sceneAt(mode,t), k=sc.k;
   $("stepN").textContent=FIG.stepLabel();
   if(tlKey!==mode+LK) buildTimeline(mode);
-  const sig=[mode,k,LK,sc.poolV.toFixed(0),sc.v.vp.toFixed(1),sc.v.vc.toFixed(1)].join("|");
+  const sig=[mode,k,LK,sc.pr.rp,sc.pr.rc].join("|");
   if(drawn.sig!==sig){ drawn.sig=sig; const anchors=drawIso(mode,sc); const u=setIsoFrame(mode); drawFocus(mode,sc,anchors,u.oy); drawAlg(mode,sc); }
+  else if(BARS) BARS(sc);
   if(drawn.mode!==mode||drawn.k!==k||drawn.lk!==LK){ document.querySelector("[data-readout]").textContent=TX["c1.readout.m"+mode+".s"+(k+1)].replace(/<br>/g,"\n"); drawCard(mode,k); drawn.mode=mode; drawn.k=k; drawn.lk=LK; }
   drawTimeline(mode,t);
 }

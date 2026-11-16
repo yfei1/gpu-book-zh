@@ -294,16 +294,15 @@ const RL=(x,y,s,maxW)=>{ const ls=wrap(s,maxW||x-10,"rl"); return mk("text",{cla
 function algGeom(m,W){
   const cw2=(W-34)/2, names=CHIPS[m], n=MIX[m]+1, hl=wrap(L["f79.alg.m"+n+".hdr"],W-34,"lab2");
   return {cw2,names,hl,lines:names.map((c)=>wrap(L["f79.alg.m"+n+".chip_"+c],cw2-10,"tx"))}; }
-function drawAlg(m,k,W){
+function algParts(m,k,W){
   const a=algGeom(m,W), act=SCH[m][k]; let B="", O="", y=14+a.hl.length*LH+4;
-  $("algH").innerHTML=a.hl.map((l,i)=>'<tspan x="8" y="'+f1(14+i*LH)+'">'+esc(l)+"</tspan>").join(""); B+=TX(8,y+10,L["f79.alg.order_cue"],"sm2"); y+=16;
+  const H=a.hl.map((l,i)=>'<tspan x="8" y="'+f1(14+i*LH)+'">'+esc(l)+"</tspan>").join(""); B+=TX(8,y+10,L["f79.alg.order_cue"],"sm2"); y+=16;
   for(let i=0;i<a.names.length;i+=2){ const h=Math.max(...[i,i+1].filter((j)=>j<a.names.length).map((j)=>a.lines[j].length))*LH+8;
     for(const j of [i,i+1]){ if(j>=a.names.length) continue; const x=8+(j%2)*(a.cw2+6), on=act.includes(a.names[j]);
       B+=mk("g",{"data-chip":a.names[j],class:on?"":"dim"},R_(x,y,a.cw2,h,{rx:6,class:"box"})+tb("tx",a.lines[j],x+5,y+13,LH));
       if(on) O+=R_(x,y,a.cw2,h,{rx:6,fill:"none",stroke:C.ink,"stroke-width":1.8}); }
     y+=h+6; }
-  $("algB").innerHTML=B; $("algO").innerHTML=O;
-  const s=$("alg"); s.setAttribute("viewBox","0 0 "+W+" "+f1(y+2)); s.style.setProperty("--vbw",W+"px");
+  return {H,B,O,vb:f1(y+2)};
 }
 // ---- focus callout lane (top of the scene, fixed height per mode)
 function focusLane(m,W,y0){
@@ -492,9 +491,18 @@ function tlCursor(m,t){ if(!TLG||TLG.m!==m) return; const x=TLG.tx(t); $("clipR"
 // ===================== draw and player wiring =====================
 const SCN={lazy_tau:drawM1,sfu_to_alu:drawM2,e4m3_bits:drawM3};
 const READ=(m,k)=>m==="lazy_tau"?"f79.readout.m1":m==="e4m3_bits"?"f79.readout.m3":k<=2?"f79.readout.m2.s12":"f79.readout.m2.s34";
+const SD=new Map();
+const stepData=(m,k)=>{ const W=LAY.W, key=m+"|"+k+"|"+W+"|"+LAY.narrow; let d=SD.get(key); if(!d){ d={a:algParts(m,k,W),r:SCN[m](k,W)}; SD.set(key,d); } return d; };
+function drawMarks(m,k){
+  const W=LAY.W, d=stepData(m,k), s=$("alg"), sc=$("scene");
+  $("algO").innerHTML=d.a.O; s.setAttribute("viewBox","0 0 "+W+" "+d.a.vb); s.style.setProperty("--vbw",W+"px");
+  $("focus").innerHTML="<g>"+d.r.fc+"</g>"; sc.setAttribute("viewBox","0 0 "+W+" "+f1(d.r.H)); sc.style.setProperty("--vbw",W+"px");
+}
+let done={m:null,k:-1,L:null};
+function flushStep(){ const m=drawn.mode, k=drawn.k; if(done.m===m&&done.k===k&&done.L===LAY) return; done={m,k,L:LAY}; drawStep(m,k); }
 function drawStep(m,k){
-  const W=LAY.W; drawAlg(m,k,W); const r=SCN[m](k,W);
-  $("sc").innerHTML=r.sc; $("focus").innerHTML="<g>"+r.fc+"</g>"; const s=$("scene"); s.setAttribute("viewBox","0 0 "+W+" "+f1(r.H)); s.style.setProperty("--vbw",W+"px");
+  const d=stepData(m,k);
+  $("algH").innerHTML=d.a.H; $("algB").innerHTML=d.a.B; $("sc").innerHTML=d.r.sc;
   $("stepT").textContent=stepTitle(m,k); document.querySelector("[data-readout]").textContent=L[READ(m,k)];
   $("flat").classList.toggle("k1",m==="sfu_to_alu"&&k===1); const dl=$("stepK"); if(dl) dl.innerHTML=D.CARDS[m][k].map((h,i)=>"<div><dt>"+esc(D.CARDDT[i])+"</dt><dd>"+D.HT[h]+"</dd></div>").join("");
 }
@@ -505,7 +513,7 @@ const VAR={kind:"topics",aligned:false,axis:L["f79.variants.axis"]}; F.variants(
 function show(){
   const m=modeNow(), t=+tin.value, k=idx(m,t);
   if(drawn.mode!==m||drawn.W!==LAY.W){ drawMode(m); drawn={mode:m,k:-1,W:LAY.W}; }
-  if(drawn.k!==k){ drawn.k=k; drawStep(m,k); }
+  if(drawn.k!==k){ drawn.k=k; drawMarks(m,k); queueMicrotask(flushStep); }
   tlCursor(m,t);
 }
 document.querySelectorAll("input[name=mode]").forEach((r)=>r.addEventListener("change",()=>{ tin.max=String(END[r.value]); }));

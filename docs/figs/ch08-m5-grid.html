@@ -708,6 +708,8 @@ function drawM2(k){
   return {h:Math.max(y,ry)+8, tgt:[[one?clamp(GX+la.w+14,250,292):250,geo.a+9],[250,geo.b+4],[270,geo.a+5*MY+4]][k], lane:k===0&&one?null:299};
 }
 let drawnTop="";
+const SCENE=new Map(), TLC=new Map();
+const kids=(e)=>Array.from(e.childNodes);
 function drawTop(m,k){
   const key=m+"|"+k; if(drawnTop===key) return; drawnTop=key;
   TG.textContent=""; let r=m==="1"?drawM1(k):drawM2(k);
@@ -783,13 +785,20 @@ function drawTimeline(m){
   }
   FLAT.setAttribute("viewBox","0 0 640 "+Math.ceil(H));
 }
+const TLEL=()=>[TLA,TLB,TLGH,TLT,R0T,AXT,$("tlBg"),...RLS];
+let lastD0=null;
+function drawTimelineCached(m){
+  lastD0=null; const e=TLC.get(m);
+  if(e){ TLEL().forEach((el,i)=>el.replaceChildren(...e.k[i])); FLAT.setAttribute("viewBox",e.vb); tlCur=e.cur; return; }
+  drawTimeline(m); TLC.set(m,{k:TLEL().map(kids),vb:FLAT.getAttribute("viewBox"),cur:tlCur});
+}
 function drawCursor(m,t){
   const x=curX(m,t); CUR.setAttribute("d","M"+x.toFixed(2)+" "+tlCur[0]+"V"+tlCur[1]);
   CLR0.setAttribute("width",m==="1"?(TLW*clamp(t,0,12)/12).toFixed(2):Math.min(TLW,20*clamp(t,0,10.3)).toFixed(2));
   CLR1.setAttribute("width",m==="1"?"0":clamp(20*(t-T1OFF),0,TLW).toFixed(2));
   const d0=m==="2"&&stepIdx(m,t)===1;
-  ["row0Wrap","rl0","rl1"].forEach((id)=>$(id).classList.toggle("dim",d0)); document.querySelectorAll("#tlBg .r0").forEach((e)=>e.classList.toggle("dim",d0));
-  const dl=$("tlDelta"); if(dl) dl.style.display=(m==="2"&&t>=STEPS["2"][2]-EPS)?"":"none";
+  if(d0!==lastD0){ lastD0=d0; ["row0Wrap","rl0","rl1"].forEach((id)=>$(id).classList.toggle("dim",d0)); document.querySelectorAll("#tlBg .r0").forEach((e)=>e.classList.toggle("dim",d0)); }
+  const dl=$("tlDelta"), dv=(m==="2"&&t>=STEPS["2"][2]-EPS)?"":"none"; if(dl&&dl.style.display!==dv) dl.style.display=dv;
 }
 
 // ===== FIG.hw: the state of one mode at one settled time, a pure function of the model above (HW_RULES.md Part 2) =====
@@ -892,16 +901,29 @@ function setMode(m){
   document.querySelector("[data-readout]").textContent=S("readout.m"+m);
   document.querySelectorAll("[data-lgm]").forEach((e)=>{ e.style.display=e.dataset.lgm===m?"":"none"; });
   ALG.setAttribute("aria-label",S("alg.aria.m"+m)); TOP.setAttribute("aria-label",S("top.aria.m"+m)); FLAT.setAttribute("aria-label",S("tl.aria.m"+m));
-  measureOff(m); drawTimeline(m);
+  measureOff(m); drawTimelineCached(m);
   document.querySelectorAll(".fig-pan").forEach((p)=>{ p.scrollLeft=0; });
 }
+function sceneFor(m,k){
+  const key=m+"|"+k, e=SCENE.get(key);
+  if(e){ ALGG.replaceChildren(...e.algG); ALGO.replaceChildren(...e.algO); TG.replaceChildren(...e.top); FG.replaceChildren(...e.focus);
+    ALG.setAttribute("viewBox",e.algVB); TOP.setAttribute("viewBox",e.topVB); drawnTop=key; }
+  else { drawnTop=""; drawAlg(m,k); drawTop(m,k);
+    SCENE.set(key,{algG:kids(ALGG),algO:kids(ALGO),top:kids(TG),focus:kids(FG),algVB:ALG.getAttribute("viewBox"),topVB:TOP.getAttribute("viewBox")}); }
+}
+function warmOtherMode(){
+  const cur=modeOf();
+  ["1","2"].filter((m)=>m!==cur).forEach((m)=>{ measureOff(m); drawTimelineCached(m); for(let k=0;k<3;k++) sceneFor(m,k); });
+  setMode(cur); drawn.k=-1; show();
+}
+addEventListener("load",()=>setTimeout(warmOtherMode,0));
 function show(){
   const m=modeOf(), t=+tin.value, k=stepIdx(m,t);
   if(drawn.m!==m) setMode(m);
   $("stepN").textContent=FIG.stepLabel();
   if(drawn.k!==k){ drawn.k=k; const c=D.CARD[m][k]; $("stepT").textContent=c.t;
     $("stepK").innerHTML=["f","i","o","x","c"].map((f)=>"<div><dt>"+S("card.dt."+f)+"</dt><dd"+(f==="f"?' class="m"':"")+">"+c[f]+"</dd></div>").join("");
-    drawAlg(m,k); drawTop(m,k); }
+    sceneFor(m,k); }
   drawCursor(m,t);
 }
 tin.addEventListener("input",show);

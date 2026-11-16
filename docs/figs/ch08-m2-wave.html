@@ -526,7 +526,8 @@ function card(V){ const g=(key)=>fill(L[key],V), F=D.F;
   if(V.ks===3){ const v=V.W===1?"no_w2":V.rw?(V.last===V.C?"run_full":"run_partial"):"done_early", cv=v==="run_full"||v==="run_partial"?"run":v;
     return { t:g("s3.t."+v), f:F[3], r:[g("s3.i"),g("s3.o."+v),g("s3.x"),g("s3.c."+cv)] }; }
   return { t:g("s4.t"), f:F[4], r:[g("s4.i"),g("s4.o."+(V.W8!==V.W9?"diff":"same")),g("s4.x"),g("s4.c")] }; }
-const titleOf=(m,i)=>card(view(P.A,m,settledU(i))).t;
+const TITLES=new Map(), STEPL={key:null,v:null};
+const titleOf=(m,i)=>{ const key=P.A+"|"+m+"|"+i; let v=TITLES.get(key); if(v===undefined){ v=card(view(P.A,m,settledU(i))).t; TITLES.set(key,v); } return v; };
 
 // ===================== FIG.hw state (ux_review/HW_RULES.md part 2) =====================
 const SH=(id,text,value,unit,expr,refs)=>Object.assign({id,text,value,unit},expr?{expr}:{},refs?{refs}:{});
@@ -675,7 +676,8 @@ function drawBars(V){
 }
 function drawTime(V){
   const x=curX(V.Wmax,V.u), H=flatH(V.Wmax); $("clipR").setAttribute("width",f1(x-G.TL0+1));
-  const gaps=[...$("flat").querySelectorAll(':scope>text.rl[data-rowlabel]')].filter((e)=>e.textContent).map((e)=>e.getBBox()).filter((b)=>b.width&&x>=b.x-1.5&&x<=b.x+b.width+1.5).map((b)=>[b.y-1.5,b.y+b.height+1.5]).sort((a,b)=>a[0]-b[0]);
+  if(!rlBoxes) rlBoxes=[...$("flat").querySelectorAll(':scope>text.rl[data-rowlabel]')].filter((e)=>e.textContent).map((e)=>e.getBBox());
+  const gaps=rlBoxes.filter((b)=>b.width&&x>=b.x-1.5&&x<=b.x+b.width+1.5).map((b)=>[b.y-1.5,b.y+b.height+1.5]).sort((a,b)=>a[0]-b[0]);
   let d="",y=20; gaps.forEach(([a,b])=>{ if(a>y) d+="M"+f1(x)+" "+f1(y)+"V"+f1(a); y=Math.max(y,b); }); if(y<H-6) d+="M"+f1(x)+" "+f1(y)+"V"+(H-6);
   $("cur").setAttribute("d",d||"M"+f1(x)+" "+(H-6)+"V"+(H-6));
 }
@@ -702,19 +704,31 @@ function drawAxis(V){
 // ===================== step card, readout, show =====================
 function drawStep(V){ const c=card(V); $("stepT").textContent=c.t;
   $("stepK").innerHTML=[["f",c.f],["i",esc(c.r[0])],["o",esc(c.r[1])],["x",esc(c.r[2])],["c",esc(c.r[3])]].map(([key,html])=>"<div><dt>"+esc(L["dt."+key])+"</dt><dd>"+html+"</dd></div>").join(""); }
-let drawn={};
-function show(){
-  const k=modeNow(), A=P.A, u=+tin.value, V=view(A,k,u), sg=(name,sig,fn)=>{ if(drawn[name]!==sig){ drawn[name]=sig; fn(); } };
-  document.querySelector("[data-readout]").textContent=fill(L["readout"],V);
-  sg("strip",[A,k,V.ks,V.rw].join("|"),()=>drawStrip(V));
-  sg("scene",[A,k,V.ks,V.rw,V.gridW].join("|"),()=>drawScene(V));
+let drawn={}, rlBoxes=null;
+const SNAP_ATTR=["viewBox","aria-label","data-dim","x","y","text-anchor","height"], PANEL=new Map();
+const snapEls=(els)=>els.map((e)=>({e,kids:Array.from(e.childNodes),at:SNAP_ATTR.map((a)=>e.getAttribute(a))}));
+const restoreEls=(sn)=>sn.forEach(({e,kids,at})=>{ e.replaceChildren(...kids); SNAP_ATTR.forEach((a,i)=>{ if(at[i]==null) e.removeAttribute(a); else e.setAttribute(a,at[i]); }); });
+const flatEls=()=>[$("tlStatic"),$("tl"),$("flat"),$("clipR"),$("flat").querySelector('text[data-rowlabel="head"]'),...$("flat").querySelectorAll(':scope>text.rl[data-rowlabel]')];
+let lastReadout="";
+function show(){ render(modeNow(),P.A,+tin.value); }
+function warmOtherMode(){ const cur=modeNow(), A=P.A, u0=+tin.value; [8,9].filter((kk)=>kk!==cur).forEach((kk)=>STEPU.forEach((_,i)=>render(kk,A,settledU(i)))); render(cur,A,u0); }
+addEventListener("load",()=>setTimeout(warmOtherMode,0));
+function render(k,A,u){
+  const V=view(A,k,u);
+  const sg=(name,sig,fn,els)=>{ if(drawn[name]===sig) return; drawn[name]=sig; if(name==="flat") rlBoxes=null;
+    if(!els){ fn(); return; }
+    const key=name+"|"+sig, c=PANEL.get(key); if(c) restoreEls(c); else { fn(); PANEL.set(key,snapEls(els())); } };
+  const ro=fill(L["readout"],V); if(ro!==lastReadout){ lastReadout=ro; document.querySelector("[data-readout]").textContent=ro; }
+  sg("strip",[A,k,V.ks,V.rw].join("|"),()=>drawStrip(V),()=>[$("qTrack"),$("algO"),$("strip")]);
+  sg("scene",[A,k,V.ks,V.rw,V.gridW].join("|"),()=>drawScene(V),()=>[$("sbody"),$("scene")]);
   sg("step",[A,k,V.ks,V.rw].join("|"),()=>drawStep(V));
-  sg("flat",[A,k,V.ks<2?0:V.ks].join("|"),()=>{ drawFlatStatic(V); drawBars(V); });
+  sg("flat",[A,k,V.ks<2?0:V.ks].join("|"),()=>{ drawFlatStatic(V); drawBars(V); },flatEls);
   drawTime(V);
-  sg("axis",[A,k,V.ks].join("|"),()=>drawAxis(V));
+  sg("axis",[A,k,V.ks].join("|"),()=>drawAxis(V),()=>[$("axisG"),$("axis")]);
 }
+
 // ===================== player wiring =====================
-window.FIG?.timeline?.({ steps:()=>STEPU.map((s,i)=>({t:s,title:titleOf(modeNow(),i)})), end:()=>UEND, rate:()=>UEND/(STEPU.length*0.8) });
+window.FIG?.timeline?.({ steps:()=>{ const m=modeNow(), key=P.A+"|"+m; if(STEPL.key!==key){ STEPL.key=key; STEPL.v=STEPU.map((s,i)=>({t:s,title:titleOf(m,i)})); } return STEPL.v; }, end:()=>UEND, rate:()=>UEND/(STEPU.length*0.8) });
 window.FIG?.variants?.({ kind:"compare", aligned:true, axis:L["variant.axis"], outcomes:[8,9].map((kk)=>outcomeText(P.A,kk)) });
 tin.addEventListener("input",show);
 if(typeof window.FIG?.hw==="function") window.FIG.hw(HW_SPEC);

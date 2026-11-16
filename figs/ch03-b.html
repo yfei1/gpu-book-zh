@@ -338,6 +338,7 @@ if(typeof F.hw==="function") F.hw(hwSpec); F.hwData=hwSpec;
 
 // ===================== text measure and wrap =====================
 const memo=new Map();
+Object.defineProperty(Element.prototype,"html",{configurable:true,set(h){ if(this._h!==h){ this._h=h; this.innerHTML=h; } }});
 function textW(s,cls){ const key=cls+"|"+s; let v=memo.get(key); if(v===undefined){ const t=mk("text",{class:cls,visibility:"hidden"},s); $("iso").appendChild(t); v=t.getComputedTextLength(); t.remove(); memo.set(key,v); } return v; }
 function wrapLine(s,maxW,cls){
   const atoms=s.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[s];
@@ -413,7 +414,7 @@ function drawAlg(m,k){
   if(all) o='<rect class="ao" x="'+f1(g.AGX0-1)+'" y="'+f1(g.AGY0-1)+'" width="'+f1(8*g.AGW+2)+'" height="'+f1(4*g.AGH+2)+'"/>';
   if(hdr) o='<rect class="ao" x="'+f1(tile.x-2)+'" y="'+f1(tile.y-2)+'" width="'+f1(tile.w+4)+'" height="'+f1(tile.h+4)+'"/>';
   s+='<g id="algO">'+o+'</g>';
-  $("algB").innerHTML=s;
+  $("algB").html=s;
 }
 function polyAt(pts,u){ const segs=[]; let Lt=0; for(let i=1;i<pts.length;i++){ const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); segs.push(d); Lt+=d; }
   let s=Math.max(0,Math.min(1,u))*Lt; for(let i=0;i<segs.length;i++){ if(s<=segs[i]){ const f=segs[i]?s/segs[i]:0; return [pts[i][0]+(pts[i+1][0]-pts[i][0])*f,pts[i][1]+(pts[i+1][1]-pts[i][1])*f]; } s-=segs[i]; } return pts[pts.length-1]; }
@@ -440,32 +441,37 @@ function drawIso(m,k,t){
   const ROUTE=m==="1"?(k<=2?[...head,[R.regfile.x-1,A.lsuY]]:k===3?[[R.regfile.x+12,A.lsuY],[gx,A.lsuY],[gx,c0[1]]]:null)
     :m==="2"?(k<3?[...head,[gx,A.lsuY],[gx,c0[1]]]:null):(k<3?[...head,[gx,A.tmaY]]:null);
   const pend=k<2;
-  $("mpath").setAttribute("opacity",(m==="1"&&k>=3)||k===SETTLED[m].length-1?".18":".55");
   const poly=(pts)=>"M"+pts.map((p)=>p.join(" ")).join("L");
-  $("flows").innerHTML=ROUTE?'<path class="fl'+(pend?" fl-pend":"")+'" d="'+poly(ROUTE)+'" marker-end="url(#mk)"/>'+(m==="1"&&k===3?'<circle class="org" cx="'+ROUTE[0][0]+'" cy="'+ROUTE[0][1]+'" r="2.4"/>':""):"";
+  const sk=m+"|"+k, fresh=drawn.sk!==sk; drawn.sk=sk;
+  if(fresh){
+  $("mpath").setAttribute("opacity",(m==="1"&&k>=3)||k===SETTLED[m].length-1?".18":".55");
+  $("flows").html=ROUTE?'<path class="fl'+(pend?" fl-pend":"")+'" d="'+poly(ROUTE)+'" marker-end="url(#mk)"/>'+(m==="1"&&k===3?'<circle class="org" cx="'+ROUTE[0][0]+'" cy="'+ROUTE[0][1]+'" r="2.4"/>':""):"";
+  }
   let dots="";
   B.forEach((b)=>{ const st=stOf(m,b,t); if(st==="none"||st==="smem") return; let p; const cj=A.c[b.j];
     if(st==="flight"){ const r=m==="1"?[...head,[R.regfile.x-1,A.lsuY]]:m==="2"?[...head,[gx,A.lsuY],[gx,c0[1]]]:[...head,[gx,A.tmaY]]; p=polyAt(r,(t-b.iss)/DT); }
     else if(st==="store") p=polyAt([[R.regfile.x+12,A.lsuY],[gx,A.lsuY],[gx,c0[1]]],(t-b.sts)/(b.land-b.sts));
     else { const q=R.regfile, sp=narrow?10:12; p=[q.x+(q.w-7*sp)/2+(b.j%8)*sp,q.y+17+(b.j>>3)*(narrow?5:5.5)]; }
     dots+='<circle class="dot" cx="'+f1(p[0])+'" cy="'+f1(p[1])+'" r="'+(narrow?1.8:2.6)+'"/>'; });
-  $("dots").innerHTML=dots;
+  $("dots").html=dots;
+  if(fresh){
   let fp=""; ["warp0","warp1","warp2","warp3"].forEach((id)=>{ if(u[id]==="free"){ const q=R[id]; fp+='<rect class="freeP" x="'+f1(q.x+6)+'" y="'+f1(q.y+17)+'" width="16" height="7" rx="3.5"/>'; } });
-  $("pills").innerHTML=fp;
+  $("pills").html=fp;
   // names ON the units (1:1); a dimmed unit keeps its name and says it is unused
   let sl=""; const nm=(id)=>{ const r=R[id], ks=UNAME[id]; return ks.map((kk)=>L[kk]).find((x)=>textW(x,"lab")<=r.w-10)||L[ks[ks.length-1]]; };
   const dm=(id)=>u[id]==="dim"?' data-dim=""':"";
   UIDS.forEach((id)=>{ const r=R[id]; sl+='<text class="lab" data-u="'+id+'"'+dm(id)+'>'+tsp([nm(id)],r.x+6,r.y+12,12)+'</text>';
     if(u[id]==="dim") sl+='<text class="tag"'+dm(id)+'>'+tsp(wrapLine(L["iso.unused"],r.w-8,"tag"),r.x+6,r.y+(id==="mbar0"?23:24),11)+'</text>'; });
   sl+='<text class="lab">'+tsp([L["iso.hbm.short"]],A.padX1+10,A.hbm.y+23,12)+'</text><text class="lab">'+tsp([L["iso.l2"]],A.trunkX+12,A.l2.y+16,12)+'</text>';
-  $("sl").innerHTML=sl;
+  $("sl").html=sl;
   const rk=ROUTE?"iso.rt.m"+m+".s"+(k+1):null;
-  $("rt").innerHTML=rk?'<text class="tag">'+tsp(wrapLine(L[rk],I.rtW,"tag"),I.rtX,A.bandY+10,12)+'</text>':"";
+  $("rt").html=rk?'<text class="tag">'+tsp(wrapLine(L[rk],I.rtW,"tag"),I.rtX,A.bandY+10,12)+'</text>':"";
   let st="", y=A.H+10+10; stripOf(m,k,u).forEach((l)=>{ const ls=wrapLine(l.s,I.sw,"tag"); st+='<text class="tag"'+(l.id?' id="'+l.id+'"':"")+'>'+tsp(ls,I.sx,y,12)+'</text>'; y+=12*ls.length; });
-  $("tags").innerHTML=st;
-  const lines=focusLines(m,k,W-42); $("focus").innerHTML='<text class="lab" id="callout">'+tsp(lines,12,16,13)+'</text>';
+  $("tags").html=st;
+  const lines=focusLines(m,k,W-42); $("focus").html='<text class="lab" id="callout">'+tsp(lines,12,16,13)+'</text>';
   const ld=leadPath(m,k,A,lines), lw=textW(lines[lines.length-1],"lab"), toS=(x,y)=>[(x-I.tx)/s,(y-I.oy)/s], sp=toS(12+lw+6,16+13*(lines.length-1)-4), gxs=A.W-6;
-  $("lead").innerHTML='<path class="ldr" d="M'+f1(sp[0])+" "+f1(sp[1])+"H"+gxs+"V"+f1(ld.p[0][1])+poly(ld.p).replace(/^M[^L]*/,"")+'"/><circle class="ldd" cx="'+f1(ld.e[0])+'" cy="'+f1(ld.e[1])+'" r="2.2"/>';
+  $("lead").html='<path class="ldr" d="M'+f1(sp[0])+" "+f1(sp[1])+"H"+gxs+"V"+f1(ld.p[0][1])+poly(ld.p).replace(/^M[^L]*/,"")+'"/><circle class="ldd" cx="'+f1(ld.e[0])+'" cy="'+f1(ld.e[1])+'" r="2.2"/>';
+  }
 }
 function tlDraw(m){
   const g=LAY.tl, TX=(t)=>g.TX(t,m), ry=g.rowY, h0=g.rowH; let h="";
@@ -486,14 +492,14 @@ function tlDraw(m){
 }
 function tlTags(m,k){
   const g=LAY.tl; const key=m==="1"?(k===1||k===2?"tl.m1.wait":k===3?"tl.m1.store":k===4?"tl.m1.bar":null):m==="2"?(k===3?"tl.m2.full":null):m==="3"?(k===0?"tl.m3.tick":k===2?"tl.ctr.b":k===3?"tl.sync34":null):(k===2?"tl.ctr.b":k===3?"tl.sync34":null);
-  $("tlG").innerHTML=key?'<text class="txs">'+tsp(wrapLine(L[key],g.tw,"txs"),g.narrow?10:g.TL0,g.tagY,12)+'</text>':"";
+  $("tlG").html=key?'<text class="txs">'+tsp(wrapLine(L[key],g.tw,"txs"),g.narrow?10:g.TL0,g.tagY,12)+'</text>':"";
 }
 function tlCursor(m,t){ const g=LAY.tl, x=g.TX(t,m); $("clipR").setAttribute("width",Math.max(0,x-g.TL0+1).toFixed(1)); $("cur").setAttribute("d","M"+f1(x)+" "+g.cy0+"V"+g.cy1); }
 function drawStep(m,k,t){
   $("stepT").textContent=D.TITLES[m][k];
-  $("stepK").innerHTML=D.CARDS[m][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
+  $("stepK").html=D.CARDS[m][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
   drawAlg(m,k); drawIso(m,k,t); tlTags(m,k);
-  { const g=LAY.tl; $("tlCur").innerHTML=m==="1"&&k===3?'<text class="pk" x="'+f1(g.TX(t,m)-10)+'" y="'+f1(g.rowY(4)+g.rowH/2+3.5)+'">'+stagingOf(0,t)+'</text>':""; }
+  { const g=LAY.tl; $("tlCur").html=m==="1"&&k===3?'<text class="pk" x="'+f1(g.TX(t,m)-10)+'" y="'+f1(g.rowY(4)+g.rowH/2+3.5)+'">'+stagingOf(0,t)+'</text>':""; }
 }
 let drawn={mode:null,k:-1,t:-1};
 function setMode(m){ tin.max=String(T_END[m]); }
@@ -525,5 +531,5 @@ function relayout(force){
 }
 const recal=()=>{ const r=document.querySelector("input[name=mode]:checked"); if(r) r.dispatchEvent(new Event("change",{bubbles:true})); };
 relayout(true);
-addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
+addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(!document.querySelector(".iso-plate").offsetWidth) return; if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
 </script></body></html>

@@ -186,11 +186,15 @@ function wrapLines(parent, cls, srcLines, maxW) {
 }
 const setLines = (t, ls, x, y, lh) => { t.textContent = ""; ls.forEach((ln, i) => t.appendChild(mk("tspan", { x: x, y: +(y + i * lh).toFixed(1) }, ln))); };
 // wrapped text, left edge at x (anchor start) or right edge at x (anchor end); returns the text and its lines
+const PUTM = new Map();
 function putText(g, cls, src, x, y, maxW, lh, anchor) {
   const t = mk("text", { class: cls, x: x, y: y }); if (anchor) t.setAttribute("text-anchor", anchor); g.appendChild(t);
+  const pk = [cls, x, y, maxW, lh, anchor || "", JSON.stringify(src)].join("|"), hit = PUTM.get(pk);
+  if (hit) { setLines(t, hit.ls, x, y, lh); return { t, ls: hit.ls, b: hit.b }; }
   let mw = maxW, ls;
   for (let i = 0; i < 4; i++) { ls = wrapLines(g, cls, Array.isArray(src) ? src : [src], mw); setLines(t, ls, x, y, lh); const bw = t.getBBox().width; if (bw <= maxW + 0.01) break; mw -= bw - maxW + 0.5; }
-  return { t, ls, b: t.getBBox() };
+  const b = t.getBBox(); if (b.width > 0) PUTM.set(pk, { ls, b });
+  return { t, ls, b };
 }
 const LH = 13;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -585,7 +589,8 @@ const regLead = G(sc, "regLead");
 // ---- cards, readout
 const tin = $("tIn"), stepN = $("stepN"), stepT = $("stepT"), stepK = $("stepK"), ro = document.querySelector("[data-readout]");
 const stepTitles = (mode) => D.CARDS[mode === "stream" ? 0 : 1].map((c) => c.title);
-function drawCard(mode, k) { const c = D.CARDS[mode === "stream" ? 0 : 1][k]; stepT.textContent = c.title; stepK.innerHTML = c.rows.map((r) => "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>").join(""); }
+let cardKey = "";
+function drawCard(mode, k) { if (cardKey === mode + "|" + k) return; cardKey = mode + "|" + k; const c = D.CARDS[mode === "stream" ? 0 : 1][k]; stepT.textContent = c.title; stepK.innerHTML = c.rows.map((r) => "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>").join(""); }
 
 // ---- the callout of the step and its leader to the one outlined subject
 const outline = (b, pad) => { gAct.replaceChildren(mk("rect", { class: "act", x: f2(b[0] - pad), y: f2(b[1] - pad), width: f2(b[2] + 2 * pad), height: f2(b[3] + 2 * pad), rx: 4 })); };

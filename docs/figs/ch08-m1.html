@@ -663,11 +663,11 @@ function wrapLines(parent,cls,src,maxW){
 }
 const LH=13;
 // a text block at x, first baseline y; returns {g, h, w} (h = block height). Lines never exceed maxW.
-function block(parent,cls,src,x,y,maxW,anchor){ let mw=maxW, ls, t;
+function block(parent,cls,src,x,y,maxW,anchor){ let mw=maxW, ls, t, bw;
   for(let i=0;i<4;i++){ ls=wrapLines(parent,cls,src,mw); t=mk("text",{class:cls,"text-anchor":anchor||"start",x:x,y:y}); parent.appendChild(t);
     ls.forEach((ln,j)=>t.appendChild(mk("tspan",{x:x,y:+(y+j*LH).toFixed(1)},ln)));
-    const bw=t.getBBox().width; if(bw<=maxW+0.01||i===3) break; t.remove(); mw-=bw-maxW+0.5; }
-  return {t:t,n:ls.length,h:ls.length*LH,w:t.getBBox().width}; }
+    bw=t.getBBox().width; if(bw<=maxW+0.01||i===3) break; t.remove(); mw-=bw-maxW+0.5; }
+  return {t:t,n:ls.length,h:ls.length*LH,w:bw}; }
 
 // ===== geometry of the two layouts =====
 const plate=document.querySelector(".iso-plate");
@@ -877,14 +877,14 @@ function show(){
   const mode=modeOf(), t=+tin.value, k=stepIdx(mode,t);
   if(drawn.mode!==mode||drawn.W!==W){ buildStrip(mode); document.querySelector("[data-readout]").textContent=SS["readout."+mode]; $("axisT").textContent=SS["tl.axis."+mode];
     $("lgWr").style.display=mode==="1"?"":"none"; $("lgAux").textContent=SS["lg.aux."+mode]; $("lgExp").textContent=SS["lg.exp."+mode]; drawn={mode,k:-1,W}; LY=null; }
-  if(drawn.k!==k||!LY){ drawn.k=k; layoutFlat(mode,k); $("stepT").textContent=SS["msg."+mode+"."+(k+1)]; $("stepK").innerHTML=D.CARD[mode][k].map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); drawScene(mode,k,SETTLED[mode][k]); paintStrip(mode,k); $("lgUnk").style.display=ST[mode][k].unk?"":"none"; }
+  if(drawn.k!==k||!LY){ drawn.k=k; const lk=mode==="1"?"1":"2|"+M2G2(k).join()+"|"+(k===5); if(!LY||LY.key!==lk||LY.n<2){ const n=LY&&LY.key===lk?LY.n+1:1; layoutFlat(mode,k); LY.key=lk; LY.n=n; } $("stepT").textContent=SS["msg."+mode+"."+(k+1)]; $("stepK").innerHTML=D.CARD[mode][k].map((r)=>"<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>").join(""); drawScene(mode,k,SETTLED[mode][k]); paintStrip(mode,k); $("lgUnk").style.display=ST[mode][k].unk?"":"none"; }
   $("stepN").textContent=FIG.stepLabel(); drawCursor(mode,t);
 }
 const scrollPans=()=>document.querySelectorAll(".fig-pan").forEach((p)=>{ p.scrollLeft=0; });
 document.addEventListener("change",(e)=>{ const r=e.target; if(r&&r.name==="mode"&&r.checked){ tin.max=String(ENDT[r.value]); scrollPans(); } },true);
 function recal(){ const r=document.querySelector("input[name=mode]:checked"); if(!r) return; const v=tin.value, lab=r.closest("label"); lab.scrollIntoView=()=>{}; r.dispatchEvent(new Event("change",{bubbles:true})); delete lab.scrollIntoView; tin.value=v; tin.dispatchEvent(new Event("input",{bubbles:true})); }
 function relayout(){ const nw=widthNow(), nn=narrowNow(); if(nn===NAR&&Math.abs(nw-W)<2&&drawn.W) return false; const first=!drawn.W; NAR=nn; W=nw; drawn.W=0; show(); return !first; }
-new ResizeObserver(()=>{ if(relayout()) requestAnimationFrame(recal); }).observe(plate);
+new ResizeObserver(()=>{ if(!plate.offsetParent||!plate.clientWidth) return; if(relayout()) requestAnimationFrame(recal); }).observe(plate);
 { const pl=plate, ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]'); const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; }; new ResizeObserver(fit).observe(pl); fit(); }
 FIG.timeline({ steps:()=>{ const m=modeOf(); return STARTS[m].map((t,k)=>({t,title:SS["msg."+m+"."+(k+1)]})); }, end:()=>ENDT[modeOf()], rate:2 });
 FIG.variants({ kind:"compare", aligned:false, axis:SS["variants.axis"], outcomes:[SS["outcome.1"],SS["outcome.2"]] });

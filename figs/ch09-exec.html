@@ -291,9 +291,11 @@ function wrapLines(parent,cls,srcLines,maxW){
   return out;
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
+const FWCACHE=new Map();
 function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
+  const ck=cls+"|"+src.join("¦")+"|"+maxW; ls=FWCACHE.get(ck); if(ls){ setLines(t,ls,x,y,lh); return ls; }
   for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
-  return ls; }
+  FWCACHE.set(ck,ls); return ls; }
 const LH=13.5;
 const scrolling=()=>matchMedia("(max-width:600px)").matches;
 const subTxt=(el,s)=>{ s.split(/(_\{[^}]*\})/).forEach((p)=>{ if(!p) return; const m=/^_\{([^}]*)\}$/.exec(p); if(m) el.appendChild(mk("tspan",{class:"sb",dy:2.5},m[1])); else el.appendChild(document.createTextNode(p)); }); };
@@ -401,9 +403,9 @@ function drawFocus(sc){
     grp.appendChild(mk("circle",{class:"leadd",cx:tc[0],cy:tc[1],r:2.2}));
     y+=bh+6; });
 }
-function paintScene(sc){
+function paintScene(sc,full){
   for(let i=0;i<132;i++) paintTile(i,sc.tile[i]);
-  drawFlows(sc); drawHbm(sc.k); drawFocus(sc);
+  if(full){ drawFlows(sc); drawHbm(sc.k); drawFocus(sc); }
 }
 
 // ===== cards, DAG state, timeline =====
@@ -417,24 +419,31 @@ function paintDag(sc){
   document.querySelectorAll("#dag .ed.wt").forEach((g)=>g.classList.toggle("lit",sc.pills.includes(+g.dataset.d)));
 }
 const tlX=(t)=>TL.TL0+TL.PITCH*t;
+let TLB=false;
 function drawTl(sc){
-  const g=$("tl"), out=[];
-  const lab=(x,y,lines,anc)=>lines.forEach((s,j)=>out.push(mk("text",{class:"kl",x:f1(x),y:y+j*10.5,"text-anchor":anc||"middle"},s)));
-  K.forEach((kd,i)=>{ const side=kd.stream==="side", y=side?TL.SY0:TL.BY0, a=kd.slot[0], b=Math.min(kd.slot[1],END), x0=tlX(a)+1, w=(b-a)*TL.PITCH-2, on=sc.lit.includes(kd.id);
-    out.push(mk("rect",{class:"kb"+(on?" on":""),x:f2(x0),y:y,width:f2(w),height:TL.BH,rx:3,fill:D.COL[kd.stage-1]}));
-    out.push(mk("text",{class:"kn",x:f2(x0+w/2),y:y+17},String(kd.stage)));
-    const idx=side?i-10:i; lab(tlX((a+b)/2),side?y+TL.BH+12:y+TL.BH+17,BR(T["tl.blocks."+(side?"sd":"m")+idx])); });
-  out.push(mk("path",{class:"crit",d:"M"+(TL.TL0+1)+" "+TL.CRIT+"H"+(TL.TL1-1)}));
-  const xf=tlX(4.95), xr=tlX(5.02), xj=tlX(6.95), xe=tlX(8.07);
-  const eF=mk("g",{id:"evF",class:"evt"+(sc.evF?" hot":"")}); eF.appendChild(mk("path",{d:"M"+f2(xf)+" "+(TL.BY0+TL.BH+2)+"V"+(TL.SY0-4)+"H"+f2(xr)+"V"+(TL.SY0-1),"marker-end":"url(#ae)"})); eF.appendChild(mk("text",{x:f2(xf-6),y:TL.SY0+17,"text-anchor":"end"},T["tl.events.fork"])); out.push(eF);
-  const eJ=mk("g",{id:"evJ",class:"evt"+(sc.evJ?" hot":"")}); eJ.appendChild(mk("path",{d:"M"+f2(xj)+" "+(TL.SY0+TL.BH/2)+"H"+f2(xe)+"V"+(TL.BY0+TL.BH+8),"marker-end":"url(#ae)"})); eJ.appendChild(mk("text",{x:f2(xj+6),y:TL.SY0+TL.BH+2,"text-anchor":"start"},T["tl.events.join"])); out.push(eJ);
-  g.replaceChildren(...out);
+  const g=$("tl");
+  if(!TLB){ const out=[];
+    const lab=(x,y,lines,anc)=>lines.forEach((s,j)=>out.push(mk("text",{class:"kl",x:f1(x),y:y+j*10.5,"text-anchor":anc||"middle"},s)));
+    K.forEach((kd,i)=>{ const side=kd.stream==="side", y=side?TL.SY0:TL.BY0, a=kd.slot[0], b=Math.min(kd.slot[1],END), x0=tlX(a)+1, w=(b-a)*TL.PITCH-2;
+      out.push(mk("rect",{class:"kb",x:f2(x0),y:y,width:f2(w),height:TL.BH,rx:3,fill:D.COL[kd.stage-1]}));
+      out.push(mk("text",{class:"kn",x:f2(x0+w/2),y:y+17},String(kd.stage)));
+      const idx=side?i-10:i; lab(tlX((a+b)/2),side?y+TL.BH+12:y+TL.BH+17,BR(T["tl.blocks."+(side?"sd":"m")+idx])); });
+    out.push(mk("path",{class:"crit",d:"M"+(TL.TL0+1)+" "+TL.CRIT+"H"+(TL.TL1-1)}));
+    const xf=tlX(4.95), xr=tlX(5.02), xj=tlX(6.95), xe=tlX(8.07);
+    const eF=mk("g",{id:"evF",class:"evt"}); eF.appendChild(mk("path",{d:"M"+f2(xf)+" "+(TL.BY0+TL.BH+2)+"V"+(TL.SY0-4)+"H"+f2(xr)+"V"+(TL.SY0-1),"marker-end":"url(#ae)"})); eF.appendChild(mk("text",{x:f2(xf-6),y:TL.SY0+17,"text-anchor":"end"},T["tl.events.fork"])); out.push(eF);
+    const eJ=mk("g",{id:"evJ",class:"evt"}); eJ.appendChild(mk("path",{d:"M"+f2(xj)+" "+(TL.SY0+TL.BH/2)+"H"+f2(xe)+"V"+(TL.BY0+TL.BH+8),"marker-end":"url(#ae)"})); eJ.appendChild(mk("text",{x:f2(xj+6),y:TL.SY0+TL.BH+2,"text-anchor":"start"},T["tl.events.join"])); out.push(eJ);
+    g.replaceChildren(...out); TLB=true; }
+  // the lit state is only classes: the player's ghost copy of #tl (a clone, ids removed) takes the same classes, so the player's observer is not fired
+  const on=K.map((kd)=>sc.lit.includes(kd.id));
+  [[...g.querySelectorAll(".kb")],[...document.querySelectorAll(".fig-ghost .kb")]].forEach((rs)=>rs.forEach((r,i)=>r.classList.toggle("on",on[i])));
+  [[...g.querySelectorAll(".evt")],[...document.querySelectorAll(".fig-ghost .evt")]].forEach((es)=>{ if(es[0]) es[0].classList.toggle("hot",!!sc.evF); if(es[1]) es[1].classList.toggle("hot",!!sc.evJ); });
 }
+let EVB=null;
 function drawCur(t){
   const x=tlX(Math.min(t,END));
   $("clipR").setAttribute("width",f2(x-TL.TL0));
   let d="M"+f2(x)+" "+(TL.BY0-4), yE=TL.SY0+TL.BH+4;
-  [...document.querySelectorAll("#evF text,#evJ text")].map((e)=>e.getBBox()).filter((b)=>x>b.x-2&&x<b.x+b.width+2).sort((a,b)=>a.y-b.y).forEach((b)=>{ d+="V"+f1(b.y-1); if(b.y+b.height+1<yE) d+="M"+f2(x)+" "+f1(b.y+b.height+1); else yE=0; });
+  (EVB||=[...document.querySelectorAll("#evF text,#evJ text")].map((e)=>e.getBBox())).filter((b)=>x>b.x-2&&x<b.x+b.width+2).sort((a,b)=>a.y-b.y).forEach((b)=>{ d+="V"+f1(b.y-1); if(b.y+b.height+1<yE) d+="M"+f2(x)+" "+f1(b.y+b.height+1); else yE=0; });
   $("cur").setAttribute("d",d+(yE?"V"+yE:""));
 }
 function layoutCrit(){ const t=document.querySelector("#critKey text"), b=t.getBBox(); document.querySelector("#critKey path").setAttribute("d","M"+f1(b.x-32)+" "+f1(b.y+b.height/2+0.5)+"H"+f1(b.x-6)); }
@@ -447,7 +456,7 @@ function show(){
   const t=+tin.value, sc=sceneAt(t); SC=sc;
   $("stepN").textContent=FIG.stepLabel();
   if(drawn.k!==sc.k){ drawCard(sc.k); drawTl(sc); paintDag(sc); }
-  if(drawn.sig!==sc.sig||drawn.k===-1){ paintScene(sc); }
+  if(drawn.sig!==sc.sig||drawn.k===-1){ paintScene(sc,drawn.k!==sc.k); }
   drawn.k=sc.k; drawn.sig=sc.sig;
   drawCur(t);
 }

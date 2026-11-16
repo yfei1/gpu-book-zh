@@ -189,10 +189,13 @@ const inkOn=(bg)=>cr(bg,"#ffffff")>=cr(bg,PAL.ink)?"#ffffff":PAL.ink;
 const HUE={W:PAL.W,X:PAL.X,A:PAL.A,S:PAL.S,Y:PAL.Y};
 const pale=(i)=>PAL.pale[i];
 // ---- text with wrapping inside a width: CJK runs break per character, latin runs per word
-function wrapInto(el,str,x,y,maxW,lh,anchor){ el.replaceChildren(); const probe=mk("tspan",{}); el.appendChild(probe);
-  const w=(s)=>{ probe.textContent=s; return el.getComputedTextLength(); };
-  const out=[]; str.split("\n").forEach((par)=>{ const atoms=par.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[par]; let cur="";
-    atoms.forEach((a)=>{ if(cur&&w((cur+a).trimEnd())>maxW){ out.push(cur.trimEnd()); cur=a.trimStart(); } else cur+=a; }); if(cur.trim()) out.push(cur.trimEnd()); });
+const wrapMemo=new Map();
+function wrapInto(el,str,x,y,maxW,lh,anchor){ el.replaceChildren(); const mkey=[el.id,el.getAttribute("class"),el.getAttribute("font-size"),el.style.fontSize,maxW,str].join("|"); let out=wrapMemo.get(mkey);
+  if(!out){ const probe=mk("tspan",{}); el.appendChild(probe);
+    const w=(s)=>{ probe.textContent=s; return el.getComputedTextLength(); };
+    out=[]; str.split("\n").forEach((par)=>{ const atoms=par.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f]+\s*|\s+/g)||[par]; let cur="";
+      atoms.forEach((a)=>{ if(cur&&w((cur+a).trimEnd())>maxW){ out.push(cur.trimEnd()); cur=a.trimStart(); } else cur+=a; }); if(cur.trim()) out.push(cur.trimEnd()); });
+    wrapMemo.set(mkey,out); }
   el.replaceChildren(); out.forEach((ln,i)=>{ el.appendChild(mk("tspan",{x:x,y:y+i*lh},ln)); }); if(anchor) el.setAttribute("text-anchor",anchor); return out.length; }
 const iso=$("iso"), G=GEO;
 const lab=(id,cls)=>{ const e=mk("text",{id:id,class:cls||"lab"}); $("labs").appendChild(e); return e; };
@@ -339,10 +342,11 @@ function drawTl(tt){ const x=TX(Math.min(tt,END_T)); $("clipR").setAttribute("wi
 function cardSet(kk){ const V=vars(SNAPR[kk]), C=CARDS[kk]; $("stepT").innerHTML=fill(C.s,V);
   $("cardRows").innerHTML=KEYS.map((a)=>'<dl class="cr"><dt>'+a[0]+'</dt><dd>'+fill(C[a[1]],V)+'</dd></dl>').join(""); }
 const readout=document.querySelector("[data-readout]");
-let drawnK=-1, drawnKey="";
+let drawnK=-1, drawnKey="", drawnSig="";
+const sigOf=(t)=>roundAt(t).cur+"|"+(t>=1.2)+(t>=1.1);
 function show(){ const kk=stepOf(t), key=kk+"|"+row+"|"+tid; $("stepN").textContent=FIG.stepLabel();
-  if(drawnKey!==key){ drawnKey=key; layout(); tlBuild(); document.querySelectorAll("#flat [data-rowlabel]")[2].textContent=fill(L["tl.sel"],vars()); document.querySelectorAll(".cl").forEach((e)=>e.classList.toggle("on",STEPLINES[kk].includes(+e.dataset.l))); drawIso(kk,t); updateStrip(kk,t); cardSet(kk); readout.textContent=fill(L.readout[kk],vars()); }
-  else { drawIso(kk,t); updateStrip(kk,t); }
+  if(drawnKey!==key){ drawnKey=key; layout(); tlBuild(); document.querySelectorAll("#flat [data-rowlabel]")[2].textContent=fill(L["tl.sel"],vars()); document.querySelectorAll(".cl").forEach((e)=>e.classList.toggle("on",STEPLINES[kk].includes(+e.dataset.l))); drawIso(kk,t); updateStrip(kk,t); drawnSig=sigOf(t); cardSet(kk); readout.textContent=fill(L.readout[kk],vars()); }
+  else if(drawnSig!==sigOf(t)){ drawnSig=sigOf(t); drawIso(kk,t); updateStrip(kk,t); }
   drawTl(t); }
 document.querySelectorAll(".cl").forEach((e)=>{ const i=+e.dataset.l; e.textContent=SRC_LINES[i]; e.addEventListener("click",()=>{
   document.querySelectorAll(".cl").forEach((x)=>x.classList.remove("pick")); e.classList.add("pick"); $("expl").textContent=EXPL[i]||"";

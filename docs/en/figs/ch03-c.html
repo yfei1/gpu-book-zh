@@ -767,9 +767,17 @@ function drawCard(N,k){ $("stepT").textContent=D.TITLES[N][k];
   $("stepK").innerHTML=D.CARDS[N][k].map(([dt,html])=>"<div><dt>"+esc(dt)+"</dt><dd>"+html+"</dd></div>").join(""); }
 function drawReadout(N,st){ document.querySelector("[data-readout]").textContent=L["readout"].split("<br>").map((x)=>fill(x,SV(N,st))).join("\n"); }
 let drawn={N:null,k:-1};
+// drawAlg / drawIso / drawReadout read t only through comparisons with these times, so one index in the sorted list names the whole frame
+const BOUNDS={};
+function sigOf(N,t,k){
+  if(!BOUNDS[N]){ const {Rs,end}=SIM[N], a=[end-1e-9,Rs[NCH-1].p0+0.08]; Rs.forEach((r)=>a.push(r.p0,r.f1,r.c0,r.c1,r.pw,Math.min(r.p0+0.08,r.f1))); BOUNDS[N]=a.sort((x,y)=>x-y); }
+  const b=BOUNDS[N]; let lo=0, hi=b.length; while(lo<hi){ const m=(lo+hi)>>1; if(b[m]<=t) lo=m+1; else hi=m; }
+  return N+"|"+k+"|"+lo; }
 function show(){ const N=modeNow(), t=clampT(N,+tin.value), k=idxT(N,t), st=stateAt(N,t);
   if(drawn.N!==N){ tlLayout(N); drawn={N,k:-1}; }
-  tlCursor(N,st,t); drawAlg(st,N,t); drawIso(N,t,k,st); drawReadout(N,st);
+  tlCursor(N,st,t);
+  const sig=sigOf(N,t,k);
+  if(drawn.sig!==sig){ drawn.sig=sig; drawAlg(st,N,t); drawIso(N,t,k,st); drawReadout(N,st); }
   if(drawn.k!==k){ drawn.k=k; drawCard(N,k); } }
 
 // ===================== static layout of the three panels =====================

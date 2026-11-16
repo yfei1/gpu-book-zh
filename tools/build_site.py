@@ -3,7 +3,7 @@
 Run from the repo root:  uv run --no-project --with markdown-it-py --with pyyaml python tools/build_site.py
 Math needs KaTeX once:  cd tools && npm ci
 """
-import bisect, html, json, os, re, shutil, subprocess, sys
+import bisect, html, html.parser, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 from markdown_it import MarkdownIt
 
@@ -19,15 +19,19 @@ SRC_BOOK = Path(os.environ.get("BOOK_SRC") or ZH_BOOK)
 SRC_FIGS = Path(os.environ.get("BOOK_FIGS") or ZH_BOOK / "figs")  # zh figures; the en page falls back to them
 SRC_FIGS_EN = Path(os.environ.get("BOOK_FIGS_EN") or SRC_BOOK / "figs_en")  # figs_en/<id>/<id>.html
 REPO = Path(__file__).resolve().parent.parent
-DOCS = REPO / "docs"
-OUT = DOCS / "en" if EN else DOCS
-UP = "../" if EN else ""  # path from the page to docs/
-OTHER = "../index.html" if EN else "en/index.html"
+BG_TREE = os.environ.get("BG_TREE") == "1"  # background hardware skill tree (tools/bg_tree.py)
+PREVIEW = os.environ.get("BOOK_OUT")  # preview build: one self-contained site per language in BOOK_OUT; writes nothing in REPO
+DOCS = Path(PREVIEW).resolve() if PREVIEW else REPO / "docs"
+OUT = DOCS if PREVIEW else DOCS / "en" if EN else DOCS
+UP = "" if PREVIEW else "../" if EN else ""  # path from the page to docs/
+OTHER = ("../zh/index.html" if EN else "../en/index.html") if PREVIEW else "../index.html" if EN else "en/index.html"
 ORDER = ["preface", "ch00_0", "ch00", "ch00_5", "ch01", "ch02", "ch03", "ch04", "ch05", "ch06", "ch07", "ch08", "ch09", "ch10", "appA", "appB", "appC", "appD"]
 FIG_PAT = r"<!--\s*FIG\s+([\w.-]+)\s*:\s*((?:图|Figure|Fig\.)\s*(?:导[一二三]|[A-Z\d.]+)-\d+).*?-->"
 POST_H = '<script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script>'
 PLAYER = (SRC_FIGS / "_parts" / "player.js").read_text()
-KATEX_CSS_FIG = f'<link rel="stylesheet" href="{"../" * (2 if EN else 1)}vendor/katex/katex.min.css">'
+KATEX_CSS_FIG = f'<link rel="stylesheet" href="{"../" * (2 if EN and not PREVIEW else 1)}vendor/katex/katex.min.css">'
+FIG_H_PATH = Path(os.environ.get("FIG_HEIGHTS") or REPO / "tools" / "fig_heights.json")  # {"<lang>/<fig id>": body height at 780 px}, from tools/fig_heights.mjs
+FIG_H = json.loads(FIG_H_PATH.read_text()) if FIG_H_PATH.exists() else {}
 FIG_FIX = "<style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style>"
 CSS = """
 :root{--ivory:#FAF9F5;--oat:#F0EEE6;--slate:#141413;--stone:#5E5D59;--clay:#CC785C;--clay-dk:#A9583E;--rule:#DEDCD1;
@@ -69,14 +73,17 @@ td,th{min-width:4.5em}
 td:first-child,th:first-child{min-width:0;white-space:nowrap}
 .katex{font-size:1.04em}
 .katex-display{margin:1.2em 0;padding:4px 0;overflow-x:auto;overflow-y:hidden}
-.fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fig{margin:2em calc(50% - var(--fw)/2);background:var(--oat);overflow-x:auto;-webkit-overflow-scrolling:touch;contain:layout paint}
 .fig iframe{display:block;width:100%;height:900px;border:0}
+@media(min-width:1332px){.fig iframe{height:var(--h,900px)}}
 .fig-open{display:inline-block;padding:12px 0;font-size:13px}
 .book{padding:104px 0 8px}
 .book h1{font-size:48px;line-height:1.25;margin:0 0 .5em}
 .book .sub{font-size:21px;line-height:1.7;margin:0 0 1.2em}
 .book .note{font:14px/1.7 var(--sans);color:var(--stone);margin:0}
 section{padding-top:clamp(112px,16vh,168px)}
+.sect{content-visibility:auto;contain-intrinsic-block-size:auto 3700px}
+.sect:not(.open)>:last-child{margin-bottom:0}
 .ch-head{margin:0 0 26px}
 .ch-num{font:400 14px/1.5 var(--sans);color:var(--stone);margin:0 0 14px}
 .ch-num .lv{margin-left:1.2em}
@@ -186,21 +193,33 @@ var chs=[].slice.call(d.querySelectorAll("main section[id]")),navA={},railA={},i
 [].forEach.call(rail.querySelectorAll("ol[data-ch]"),function(ol){lists[ol.dataset.ch]=ol;});
 var onCh=null,onSec=null;
 function mark(a,on){if(!a)return;a.classList.toggle("here",on);if(on)a.setAttribute("aria-current","location");else a.removeAttribute("aria-current");}
-function spy(){
-  var y=innerHeight*0.3,ch=chs[0],sec=null;
-  for(var i=1;i<chs.length;i++){if(chs[i].getBoundingClientRect().top<=y)ch=chs[i];else break;}
-  var hs=ch?ch.querySelectorAll("h2[id]"):[];
-  for(var j=0;j<hs.length;j++){if(hs[j].getBoundingClientRect().top<=y)sec=hs[j];else break;}
-  var c=ch&&ch.id,s=sec&&sec.id;
+var above=new Map(),heads={};
+function spy(force){
+  var ch=chs[0],sec=null;
+  for(var i=1;i<chs.length;i++){if(above.get(chs[i]))ch=chs[i];else break;}
+  var hs=ch?heads[ch.id]||(heads[ch.id]=ch.querySelectorAll(".sect>h2[id]")):[];
+  for(var j=0;j<hs.length;j++){if(above.get(hs[j].parentNode))sec=hs[j];else break;}
+  var c=ch&&ch.id,s=sec&&sec.id,moved=force===true||c!==onCh||s!==onSec;
   if(c!==onCh){[items,lists].forEach(function(m){if(onCh&&m[onCh])m[onCh].classList.remove("on");if(c&&m[c])m[c].classList.add("on");});onCh=c;
     cur.textContent=c&&items[c]?items[c].dataset.t:"";}
   if(s!==onSec){mark(navA[onSec],false);mark(railA[onSec],false);mark(navA[s],true);mark(railA[s],true);onSec=s;}
-  if(!b.classList.contains("toc-open")){keep(nav,navA[s]&&navA[s].offsetParent?navA[s]:navA[c]);keep(rail,railA[s]);}
+  if(!b.classList.contains("toc-open")){keep(nav,moved&&(navA[s]&&navA[s].offsetParent?navA[s]:navA[c]));keep(rail,moved&&railA[s]);}
 }
 function keep(box,a){if(!a||!a.offsetParent||box.scrollHeight<=box.clientHeight)return;var r=a.getBoundingClientRect(),n=box.getBoundingClientRect();if(r.top<n.top+60||r.bottom>n.bottom-40)reveal(box,a);}
 function reveal(box,a){box.scrollTop+=a.getBoundingClientRect().top-box.getBoundingClientRect().top-box.clientHeight/3;}
 var t=0;function req(){if(!t)t=requestAnimationFrame(function(){t=0;spy();});}
-addEventListener("scroll",req,{passive:true});addEventListener("resize",req);addEventListener("load",spy);spy();
+var line=new IntersectionObserver(function(es){es.forEach(function(e){above.set(e.target,e.isIntersecting);});req();},{rootMargin:"10000000px 0px -70% 0px"});
+chs.forEach(function(s){line.observe(s);});[].forEach.call(d.querySelectorAll(".sect>h2[id]"),function(h){line.observe(h.parentNode);});
+addEventListener("resize",function(){spy(true);});addEventListener("load",function(){spy(true);});
+var seen=new Set(),moving=false,still=0;
+function mount(f){f.src=f.dataset.src;f.removeAttribute("data-src");figs.unobserve(f);seen.delete(f);}
+var figs=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)seen.add(e.target);else seen.delete(e.target);});if(!moving)seen.forEach(mount);});
+[].forEach.call(d.querySelectorAll("iframe[data-src]"),function(f){figs.observe(f);});
+var warm=[].slice.call(d.querySelectorAll(".sect")),skipped=new Set();
+[].forEach.call(warm,function(s){s.addEventListener("contentvisibilityautostatechange",function(e){if(e.skipped)skipped.add(s);else skipped.delete(s);});});
+function warmUp(dl){while(warm.length&&!moving&&dl.timeRemaining()>0){var s=warm.shift();if(!skipped.has(s))continue;s.style.contentVisibility="visible";s.offsetHeight;s.style.contentVisibility="";}if(warm.length)requestIdleCallback(warmUp);}
+if(window.requestIdleCallback)addEventListener("load",function(){var i=0;while(i<warm.length-1&&warm[i].getBoundingClientRect().bottom<0)i++;warm=warm.slice(i).concat(warm.slice(0,i));requestIdleCallback(warmUp);});
+addEventListener("scroll",function(){moving=true;clearTimeout(still);still=setTimeout(function(){moving=false;seen.forEach(mount);},120);},{passive:true});
 function open(){b.classList.add("toc-open");btn.setAttribute("aria-expanded","true");var a=(onSec&&navA[onSec])||(onCh&&navA[onCh]);if(a)reveal(nav,a);nav.querySelector(".toc-close").focus({preventScroll:true});}
 function close(){if(!b.classList.contains("toc-open"))return;b.classList.remove("toc-open");btn.setAttribute("aria-expanded","false");btn.focus({preventScroll:true});}
 [].forEach.call(d.querySelectorAll(".lang a"),function(a){a.addEventListener("click",function(e){var id=onSec||onCh;e.preventDefault();location.href=a.dataset.base+(id?"#"+id:location.hash);});});
@@ -224,7 +243,7 @@ BOOK = UI["book"]
 BOOK_SHORT = UI["short"]
 TMPL = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{book}</title><link rel="stylesheet" href="{up}vendor/katex/katex.min.css"><style>{css}</style>
-<script>addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source)f.style.height=Math.ceil(e.data.figH)+4+"px";}});}});</script></head>
+<script>var wide=matchMedia("(min-width:1332px)");addEventListener("message",e=>{{if(!e.data||!e.data.figH)return;document.querySelectorAll("iframe").forEach(f=>{{if(f.contentWindow===e.source){{var h=Math.ceil(e.data.figH)+4+"px";if(wide.matches&&f.style.getPropertyValue("--h")===h)h="";if(f.style.height!==h)f.style.height=h;}}}});}});</script></head>
 <body>
 <header class="bar"><a class="bar-book" href="#top">{short}</a><span class="bar-cur" id="bar-cur"></span><button id="toc-btn" type="button" aria-controls="toc" aria-expanded="false">{ui_toc}</button><span class="lang">{tog}</span></header>
 <div class="frame">
@@ -466,7 +485,65 @@ def number_sections(c, body):
         num, text = (n.group(1), n.group(2)) if n else ("", m.group(1))
         out.append((sid, num, text))
         return f'<h2 id="{sid}">' + (f'<span class="sn">{num}</span>' if num else "") + f"{keep_units(text)}</h2>"
-    return re.sub(r"<h2>(.*?)</h2>", rep, body, flags=re.S), out
+    return "\ue002" + re.sub(r"<h2>(.*?)</h2>", rep, body, flags=re.S) + "\ue003", out  # wrap_sects() runs once math is rendered
+
+
+
+class _TopBlocks(html.parser.HTMLParser):
+    """Offsets and element counts of the top-level blocks in an HTML fragment."""
+    VOID = {"br", "hr", "img", "wbr", "input", "meta", "link", "col", "source"}
+
+    def __init__(self, text):
+        super().__init__(convert_charrefs=False)
+        self.starts = [0] + [m.end() for m in re.finditer("\n", text)]
+        self.depth, self.blocks = 0, []
+        self.feed(text)
+
+    def handle_starttag(self, tag, attrs):
+        if self.depth == 0:
+            line, col = self.getpos()
+            self.blocks.append([self.starts[line - 1] + col, tag, 0])
+        if self.blocks:
+            self.blocks[-1][2] += 1
+        if tag not in self.VOID:
+            self.depth += 1
+
+    def handle_startendtag(self, tag, attrs):
+        if self.depth == 0:
+            line, col = self.getpos()
+            self.blocks.append([self.starts[line - 1] + col, tag, 0])
+        self.blocks[-1][2] += 1
+
+    def handle_endtag(self, tag):
+        if tag not in self.VOID:
+            self.depth -= 1
+
+
+# A .sect is laid out in one task when it first comes into view. MEASURED at 4x CPU throttle (ux_review/perf/HOST_PERF.md):
+# 12.4 ms + 0.0157 ms per element, so 2390 elements fit in the 50 ms long-task limit. Split larger ones before a <p>
+# (margin-top 0, so the split does not change the layout).
+SECT_NODES = 2390
+
+
+def sect_chunks(part):
+    """Split one h2 part into chunks of at most SECT_NODES elements, cut only before a top-level <p>."""
+    cuts, acc = [], 0
+    for off, tag, n in _TopBlocks(part).blocks:
+        if tag == "p" and acc and acc + n > SECT_NODES:
+            cuts.append(off); acc = 0
+        acc += n
+    bounds = [0] + cuts + [len(part)]
+    return [part[a:b] for a, b in zip(bounds, bounds[1:])]
+
+
+def wrap_sects(body):
+    out = []
+    for part in re.split(r'(?=<h2 id=")', body):
+        if not part.strip():
+            continue
+        chunks = sect_chunks(part)
+        out += [f'<div class="sect{" open" if i + 1 < len(chunks) else ""}">{c}</div>' for i, c in enumerate(chunks)]
+    return "".join(out)
 
 
 def short_num(label):
@@ -525,14 +602,14 @@ def main():
     check_control_chars()
     md = MarkdownIt("commonmark", {"html": True}).enable("table")
     (OUT / "figs").mkdir(parents=True, exist_ok=True)
-    if not EN:
+    if not EN and not PREVIEW:
         (REPO / "book").mkdir(exist_ok=True); (REPO / "figs").mkdir(exist_ok=True)
     built = {}
-    for old in list((OUT / "figs").glob("*.html")) + ([] if EN else list((REPO / "figs").glob("*.html"))):
+    for old in list((OUT / "figs").glob("*.html")) + ([] if EN or PREVIEW else list((REPO / "figs").glob("*.html"))):
         old.unlink()
-    def emit(h):
+    def emit(h, zh=not EN):
         t = h.read_text()
-        if not EN:
+        if zh:
             t = t.replace('<html lang="en">', '<html lang="zh-Hans">', 1)
         (OUT / "figs" / h.name).write_text(t.replace("<head>", "<head><script>" + PLAYER + "</script>", 1).replace("</body>", FIG_FIX + KATEX_CSS_FIG + POST_H + "</body>"))
     en_figs = set()
@@ -544,14 +621,20 @@ def main():
             if EN and he.exists():
                 emit(he); en_figs.add(d.name)
             elif not EN:
-                emit(h); shutil.copy2(h, REPO / "figs" / h.name)
+                emit(h)
+                if not PREVIEW:
+                    shutil.copy2(h, REPO / "figs" / h.name)
+            elif PREVIEW:  # the en preview carries its own copy of the zh figure it falls back to
+                emit(h, zh=True); en_figs.add(d.name)
     nums = {}
     def fig_rep(m):
         nm, num = m.group(1).strip(), m.group(2)
         if nm in built:
             nums[nm] = num
             src = f"figs/{nm}.html" if nm in en_figs or not EN else f"../figs/{nm}.html"
-            return f'\n\n<figure class="fig"><iframe src="{src}" loading="lazy" title="{num}"></iframe><a class="fig-open" href="{src}" target="_blank" rel="noopener">{FIG_OPEN}</a></figure>\n\n'
+            h = FIG_H.get(f"{LANG}/{nm}")
+            style = f' style="--h:{h + 4}px"' if h else ""
+            return f'\n\n<figure class="fig"><iframe data-src="{src}" title="{num}"{style}></iframe><a class="fig-open" href="{src}" target="_blank" rel="noopener">{FIG_OPEN}</a></figure>\n\n'
         missing.append(num)
         return "\n\n"
     heads, bodies, missing, chapters, items = [], [], [], [], []
@@ -560,7 +643,7 @@ def main():
         if not p.exists():
             continue
         t = p.read_text()
-        if not EN:
+        if not EN and not PREVIEW:
             shutil.copy2(p, REPO / "book" / p.name)
         title = next((l.lstrip("# ").strip() for l in t.splitlines() if l.startswith("# ")), c)
         t = protect(t, c, items)
@@ -586,8 +669,17 @@ def main():
         sys.exit("build failed:\n" + "\n".join(errors))
     vendor_katex()
     vendor_fonts()
-    (OUT / "index.html").write_text(nowrap_code(substitute(TMPL.format(lang=UI["html"], up=UP, tog=UI["tog"].format(o=OTHER), ui_toc=UI["toc"], ui_close=UI["close"], ui_rail=UI["rail"], rail_aria=UI["rail_aria"], sub=UI["sub"], note=UI["note"], book=BOOK, book_nb=keep_units(BOOK), css=CSS + (GOOGLE_CSS.replace("@UP@", UP) if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", js=JS, short=BOOK_SHORT, toc=toc, rail=rail, secs="".join(secs)), items)))
-    if not EN:
+    css, js, tree = CSS + (GOOGLE_CSS.replace("@UP@", UP) if BOOK_FONT == "google" else "") + charts.CSS + ".nw{white-space:nowrap}", JS, ""
+    if BG_TREE:
+        import bg_tree
+        tcss, tree, js = bg_tree.build([sid for *_, sec_list in heads for sid, _, _ in sec_list], JS)
+        css += tcss
+    page = TMPL.format(lang=UI["html"], up=UP, tog=UI["tog"].format(o=OTHER), ui_toc=UI["toc"], ui_close=UI["close"], ui_rail=UI["rail"], rail_aria=UI["rail_aria"], sub=UI["sub"], note=UI["note"], book=BOOK, book_nb=keep_units(BOOK), css=css, js=js, short=BOOK_SHORT, toc=toc, rail=rail, secs="".join(secs))
+    if tree:
+        page = page.replace("<body>\n", "<body>\n" + tree, 1)
+    page = re.sub("\ue002(.*?)\ue003", lambda m: wrap_sects(m.group(1)), substitute(page, items), flags=re.S)
+    (OUT / "index.html").write_text(nowrap_code(page))
+    if not EN and not PREVIEW:
         write_readme(chapters, built, (OUT / "index.html").read_text(), nums)
     (DOCS / ".nojekyll").write_text("")
     print("figures not drawn yet (hidden):", ", ".join(missing))

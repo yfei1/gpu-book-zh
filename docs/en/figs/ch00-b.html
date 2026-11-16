@@ -983,6 +983,7 @@ buildAll(); t = +tin.value; show();
   const fit = () => { plate.style.paddingTop = Math.max(52, ti.offsetHeight + 34) + "px"; plate.style.paddingBottom = Math.max(58, ro.offsetHeight + 34) + "px"; };
   new ResizeObserver(() => { fit(); relayout(); }).observe(plate); fit(); }
 addEventListener("DOMContentLoaded", equalizeCardHeight);   // after the player has put its buttons into the card header
+eqW = fig0.clientWidth;
 new ResizeObserver(() => { if (fig0.clientWidth !== eqW) requestAnimationFrame(equalizeCardHeight); }).observe(fig0);
 document.fonts.addEventListener("loadingdone", equalizeCardHeight);
 </script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

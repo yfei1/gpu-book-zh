@@ -685,7 +685,9 @@ const TXW=(x,y,s,cls,maxW,lh)=>{ const w=wrapLine(s,maxW,cls); return {h:w.lengt
 // ===================== zone 1: tile and instruction partition strip =====================
 const PILL={A:"pk A",Ag:"pk Ag",B:"pk B",Dp:"pk Dp",Di:"pk Di",Dg:"pk Dg",Dr:"pk Dr"};
 const pillTx=(c)=>(c==="A"||c==="Ag")?"tA":c==="Dg"||c==="Di"||c==="Dp"?"tD0":"tD";
-function algDraw(m,k,W,nar){
+const ADC=new Map();
+function algDraw(m,k,W,nar){ const key=m+"|"+k+"|"+W+"|"+nar; let r=ADC.get(key); if(!r){ r=algDraw0(m,k,W,nar); ADC.set(key,r); } return r; }
+function algDraw0(m,k,W,nar){
   const o={html:"",h:0}; let y=15, h=""; const X0=nar?8:12, MW=W-(nar?32:24);
   const hd=(key)=>{ const w=wrapLine(Ls(key,nar),MW-(nar?10:0),"lab2"); h+='<text class="lab2">'+tsp(w,X0,y,13)+'</text>'; y+=13*w.length; };
   if(m==="1"){
@@ -847,9 +849,13 @@ function drawIso(m,k){
   y+=6; let kh="";
   isoKeys(m,k).forEach((it)=>{ const w=wrapLine(Ls(it.key,nar),W-(nar?72:60),"tx"); kh+=swatch(it.sw,8,y)+'<text class="tx">'+tsp(w,34,y+9,12)+'</text>'; y+=Math.max(14,12*w.length+2); });
   $("keys").innerHTML=ih+kh;
-  drawFocus(m,k);
 }
+const FC=new Map();
 function drawFocus(m,k){
+  const key=m+"|"+k+"|"+LAY.W+"|"+LAY.nar, g=$("focus"), c=FC.get(key); if(c!==undefined){ g.innerHTML=c; return; }
+  drawFocus0(m,k); FC.set(key,g.innerHTML);
+}
+function drawFocus0(m,k){
   const I=LAY.iso, P=I.P, g=$("focus"), nar=LAY.nar, lines=wrapLine(Ls("iso.focus.m"+m+".s"+(k+1),nar),I.cw,"lab"); g.replaceChildren();
   const tg=TGT[m][k], dot=P(anchor(tg)); if(DOT_UP.has(tg)) dot[1]=f1(dot[1]-11);
   const w=Math.max(...lines.map((l)=>textW(l,"lab")));
@@ -989,8 +995,10 @@ function show(){
   const m=modeNow(), t=+tin.value, k=idx(m,t);
   if(drawn.mode!==m){ drawMode(m); drawn={mode:m,k:-1}; }
   tlCursor(m,t);
-  if(drawn.k!==k){ drawn.k=k; drawStep(m,k); }
+  if(drawn.k!==k){ drawn.k=k; drawFocus(m,k); queueMicrotask(flushStep); }
 }
+let done={m:null,k:-1,L:null};
+function flushStep(){ const m=drawn.mode, k=drawn.k; if(done.m===m&&done.k===k&&done.L===LAY) return; done={m,k,L:LAY}; drawStep(m,k); }
 function drawMode(m){
   const nar=LAY.nar;
   document.querySelector("[data-readout]").textContent=D.L["readout.m"+m].replace(/<br>/g,"\n");

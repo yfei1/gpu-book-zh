@@ -505,7 +505,8 @@ const mk=(tag,attrs,text)=>{ const e=document.createElementNS(NS,tag); for(const
 const f2=(v)=>+(+v).toFixed(2);
 const setA=(e,o)=>{ for(const k in o) e.setAttribute(k,o[k]); };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const scrolling=()=>{ const p=$("alg").closest(".fig-pan")||$("alg").parentElement; return (p.clientWidth||640)<640; };
+let SCR=null;
+const scrolling=()=>{ if(SCR===null){ const p=$("alg").closest(".fig-pan")||$("alg").parentElement; SCR=(p.clientWidth||640)<640; } return SCR; };
 
 // ===================== the model: one pure function per frame; the drawing and FIG.hw read it =====================
 const HW=(function(){
@@ -674,7 +675,9 @@ const HW=(function(){
     }
     return r;
   }
-  return { FIG_ID, MODES, END, SETTLED, CFG, T, state, bars, stepOf };
+  // the only times at which paintSMs / paintPads read a different state() inside one step
+  const drawSig=(t)=>{ t=round6(t); return (t>=T.DISP-EPS?"1":"0")+(t<T.EXIT?"1":"0")+(t>=T.DISP_BND-EPS?"1":"0")+(t>=T.ACQ_LAST-EPS?"1":"0"); };
+  return { FIG_ID, MODES, END, SETTLED, CFG, T, state, bars, stepOf, drawSig };
 })();
 
 // ===================== text: wrap to a width with the text's own class (copied from ch01-pdl) =====================
@@ -696,7 +699,9 @@ function wrapLines(parent,cls,srcLines,maxW){
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
 function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
+  const ck=cls+"|"+src.join("¦")+"|"+maxW; ls=FWCACHE.get(ck); if(ls){ setLines(t,ls,x,y,lh); return ls; }
   for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
+  FWCACHE.set(ck,ls);
   return ls;
 }
 const LH=13.5;
@@ -746,8 +751,12 @@ const SC0=[53.2,4.7,406.8,220]; // package box of the base projection (design 1.
 let isoCache={}, isoMax={};
 function lead(g,tb,to,from){ const sx=from?from[0]:clamp(to[0],tb.x+3,tb.x+tb.width-3), sy=from?from[1]:(to[1]<tb.y?tb.y-1:to[1]>tb.y+tb.height?tb.y+tb.height+1:tb.y+tb.height/2);
   g.appendChild(mk("path",{class:"ldr",d:"M"+sx.toFixed(1)+" "+sy.toFixed(1)+"L"+to[0].toFixed(1)+" "+to[1].toFixed(1)})); g.appendChild(mk("circle",{class:"ldd",cx:to[0].toFixed(1),cy:to[1].toFixed(1),r:2})); }
+const BBCACHE=new Map(), FWCACHE=new Map();
+const setHTML=(e,h)=>{ if(e._h!==h){ e._h=h; e.innerHTML=h; } };
 function textBlock(g,cls,lines,x,y,anchor,maxW){
-  const t=mk("text",{class:cls,"text-anchor":anchor,x:x,y:y}); g.appendChild(t); const ls=wrapLines(g,cls,lines,maxW); setLines(t,ls,x,y,LH); return {t,ls,bb:t.getBBox(),h:ls.length*LH}; }
+  const t=mk("text",{class:cls,"text-anchor":anchor,x:x,y:y}); g.appendChild(t); const ls=wrapLines(g,cls,lines,maxW); setLines(t,ls,x,y,LH);
+  const bk=cls+"|"+lines.join("¦")+"|"+x+"|"+y+"|"+anchor+"|"+maxW; let bb=BBCACHE.get(bk); if(!bb){ bb=t.getBBox(); BBCACHE.set(bk,bb); }
+  return {t,ls,bb,h:ls.length*LH}; }
 function keyLines(g,mode,k,x,y,maxW){
   const L=D.L, items=arrowsOf(mode,k).map((a)=>({a,text:a.text})); let yy=y;
   if(k===0) items.push({a:null,text:L["slice.iso.flow."+mode+".s1"]});
@@ -818,7 +827,7 @@ function layoutAlg(mode,k){
   for(let s=0;s<S;s++){ const x=AX+(s+0.5)*cw, stag=N&&S===8&&s%2===0, lab=L["slice.alg.cols."+mode+(N&&S===8?".narrow.":".")+(s+1)];
     ch_+='<text class="mt" x="'+f2(x)+'" y="'+f2(stag?AY-17:AY-5)+'">'+lab+'</text>'+(stag?'<path class="tk" d="M'+f2(x)+' '+f2(AY-14)+'V'+f2(AY-1)+'"/>':""); }
   for(let r=0;r<16;r++) for(let s=0;s<S;s++) mat+='<rect class="mc" x="'+f2(AX+s*cw)+'" y="'+f2(AY+r*ch)+'" width="'+f2(cw)+'" height="'+f2(ch)+'" fill="'+D.HUE16[r]+'"/>';
-  $("colH").innerHTML=ch_; $("mat").innerHTML=mat; $("mat").toggleAttribute("data-dim",k===3);
+  setHTML($("colH"),ch_); setHTML($("mat"),mat); $("mat").toggleAttribute("data-dim",k===3);
   // overlay: outline of all tiles, the example tile, the l0 merge bracket, and the note of the step
   const ao=$("algO"); ao.replaceChildren(); const bot=AY+AH;
   if(k<3) ao.appendChild(mk("rect",{class:"ao-box",x:AX,y:AY,width:AW,height:AH}));
@@ -879,7 +888,7 @@ function recal(){ const r=document.querySelector("input[name=mode]:checked"); if
   lab.scrollIntoView=()=>{}; r.dispatchEvent(new Event("change",{bubbles:true})); delete lab.scrollIntoView;
   tin.value=v; tin.dispatchEvent(new Event("input",{bubbles:true})); }
 function show(){
-  const mode=modeOf(), t=+tin.value, k=HW.stepOf(t), N=scrolling(), S=HW.state(mode,t);
+  const mode=modeOf(), t=+tin.value, k=HW.stepOf(t), N=scrolling();
   $("stepN").textContent=FIG.stepLabel();
   const first=curNar===null;
   if(drawn.mode!==mode||drawn.nar!==N){
@@ -889,16 +898,19 @@ function show(){
     if(!first&&curNar!==N) requestAnimationFrame(recal);
     curNar=N;
   }
-  if(drawn.k!==k||drawn.sig!==String(S.t)){
-    drawn.k=k; drawn.sig=String(S.t); drawCard(mode,k); paintSMs(S); paintPads(mode,k,S); drawFlows(mode,k); layoutIso(mode,k); layoutAlg(mode,k);
+  const sig=HW.drawSig(t);
+  if(drawn.k!==k||drawn.sig!==sig){
+    const S=HW.state(mode,t); paintSMs(S); paintPads(mode,k,S);
+    if(drawn.k!==k){ drawn.k=k; drawCard(mode,k); drawFlows(mode,k); layoutIso(mode,k); layoutAlg(mode,k); }
+    drawn.sig=sig;
   }
   drawCursor(t);
 }
 { const pl=document.querySelector(".iso-plate"), ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]');
   const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; };
   new ResizeObserver(fit).observe(pl); fit(); }
-new ResizeObserver(()=>{ if(drawn.mode&&scrolling()!==drawn.nar) show(); }).observe($("iso").parentElement);
-matchMedia("(max-width:600px)").addEventListener("change",()=>{ if(drawn.mode) show(); });
+new ResizeObserver(()=>{ SCR=null; if(drawn.mode&&scrolling()!==drawn.nar) show(); }).observe($("iso").parentElement);
+matchMedia("(max-width:600px)").addEventListener("change",()=>{ SCR=null; if(drawn.mode) show(); });
 
 FIG.timeline({ steps:()=>{ const m=modeOf(); return [0,1,2,3].map((k)=>({t:k,title:D.L["slice.card."+m+".s"+(k+1)+".t"]})); }, end:()=>HW.END, rate:1 });
 FIG.variants({ kind:"compare", aligned:true, axis:D.L["slice.variants.axis"], outcomes:[D.L["slice.variants.l0.outcome"],D.L["slice.variants.l1.outcome"]] });

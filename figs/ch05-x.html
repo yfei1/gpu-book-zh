@@ -548,8 +548,6 @@ function isoStepData(m,kk){
 }
 const isoKey=(m,kk)=>LAYID+"|"+m+"|"+kk;
 function isoData(m,kk){ const key=isoKey(m,kk); let s=ISO_CACHE.get(key); if(!s){ s=isoStepData(m,kk); ISO_CACHE.set(key,s); } return s; }
-// warm the cache of all 24 frames after the page is up, one frame per timer tick
-function warmIso(id){ let n=0; const tick=()=>{ if(id!==LAYID||n>=MODES.length*NSTEP) return; const m=MODES[Math.floor(n/NSTEP)], kk=n%NSTEP; n++; isoData(m,kk); setTimeout(tick,0); }; setTimeout(tick,60); }
 function drawIsoStep(m,kk){
   const s=isoData(m,kk);
   for(const id of UNIT_IDS){ const e=$("u_"+id); if(!e) continue; e.classList.toggle("on-unit",s.on.includes(id)); e.classList.toggle("unk-unit",s.un.includes(id)); }
@@ -655,10 +653,10 @@ function measure(){
 function relayout(force){
   const {narrow,W}=measure();
   if(!force&&LAY&&LAY.narrow===narrow&&Math.abs(LAY.W-W)<2) return false;
-  LAY=buildLayout(W,narrow); LAYID++; ISO_CACHE.clear(); ISO_BOX=null; applyLayout(); drawn={m:null,k:-1}; show(); warmIso(LAYID); return true;
+  LAY=buildLayout(W,narrow); LAYID++; ISO_CACHE.clear(); ISO_BOX=null; applyLayout(); drawn={m:null,k:-1}; show(); return true;
 }
 // after a layout change the player re-reads the cursor positions and the marks: a change event on the checked radio does it, then the step is put back
 const recal=()=>{ const keep=tin.value, r=document.querySelector("input[name=mode]:checked"); if(!r) return; r.dispatchEvent(new Event("change",{bubbles:true})); tin.value=keep; tin.dispatchEvent(new Event("input",{bubbles:true})); };
 relayout(true);
-addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
+addEventListener("DOMContentLoaded",()=>{ if(relayout()) recal(); new ResizeObserver(()=>{ if(!document.querySelector(".iso-plate").offsetWidth) return; if(relayout()) recal(); }).observe(document.querySelector(".iso-plate")); });
 </script></body></html>

@@ -227,7 +227,8 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 
   // ================= text: measure, wrap
   const meas = mk("text", { class: "meas", visibility: "hidden", x: 2, y: 12 }, $("isoSvg"));
-  const tw = (s, size, cls = "") => { meas.setAttribute("class", "meas " + cls); meas.style.fontSize = size + "px"; meas.textContent = s; const w = meas.getComputedTextLength(); meas.textContent = ""; return w; };
+  const twMemo = new Map();
+  const tw = (s, size, cls = "") => { const key = cls + "|" + size + "|" + s; let w = twMemo.get(key); if (w === undefined) { meas.setAttribute("class", "meas " + cls); meas.style.fontSize = size + "px"; meas.textContent = s; w = meas.getComputedTextLength(); meas.textContent = ""; twMemo.set(key, w); } return w; };
   const wrap = (s, size, maxW, cls = "") => {
     const toks = s.match(/[A-Za-z0-9.=µ%&_\[\]\-–×]+|\s+|[\s\S]/gu) || [], closing = /^[)）%，。、：；,.:;!?]/, opening = /[(（\[]$/, vis = (a) => a.join("").replace(/\s/g, "").length;
     const out = []; let cur = [];
@@ -345,7 +346,9 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
   const flat = $("flat"), tl = $("tl"), notes = $("tlNotes"), cur = $("cur"), clipR = $("clipR"), tlStatic = $("tlStatic");
   let PITCH = 24;
   const RY = (i) => 36 + PITCH * i, BHT = 16, ROWS = { 1: 4, 2: 3, 3: 4, 4: 3 }, HH = { 1: 142, 2: 144, 3: 152, 4: 134 };
-  const fitText = (e, s, maxW, size0, min) => { e.textContent = s; let size = size0; e.style.fontSize = size + "px"; while (size > min && e.getComputedTextLength() > maxW) { size -= 0.25; e.style.fontSize = size + "px"; } };
+  const fitSize = new Map();
+  const fitText = (e, s, maxW, size0, min) => { e.textContent = s; const key = e.id + "|" + s + "|" + maxW + "|" + size0 + "|" + min; let size = fitSize.get(key); if (size !== undefined) { e.style.fontSize = size + "px"; return; }
+    size = size0; e.style.fontSize = size + "px"; while (size > min && e.getComputedTextLength() > maxW) { size -= 0.25; e.style.fontSize = size + "px"; } fitSize.set(key, size); };
   const bar = (r, x0, x1, cls, text, o = {}) => {
     mk("rect", { x: x0, y: RY(r), width: Math.max(0.5, x1 - x0), height: BHT, rx: 2, class: cls, ...(o.hw ? { "data-hw": o.hw } : {}) }, tl);
     if (!text) return;

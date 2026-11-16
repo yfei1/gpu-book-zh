@@ -763,11 +763,21 @@ function tlAxis(m){ const d=MD[m], a=[[TL.TL0,"start",L["f27.tl.axis.start"]],[X
 // ap d: down out of the box, along a free row if a text stands in the way, then down to the anchor.
 // ap r / l: out of the side of the box, down the margin, in to the anchor.
 const RW=332, RH=312, CELLS={};
+const CELPTS=new Map(), PTCV=document.createElement("canvas").getContext("2d");
+function cellPts(el){ let p=CELPTS.get(el); if(!p){ const f=el.querySelector(".iso-fill"), b=f.getBBox(), path=new Path2D(f.getAttribute("d")); p=[];
+  for(let y=Math.floor(b.y);y<=Math.ceil(b.y+b.height);y++) for(let x=Math.floor(b.x);x<=Math.ceil(b.x+b.width);x++) if(PTCV.isPointInPath(path,x+0.5,y+0.5)) p.push(x,y);
+  CELPTS.set(el,p); } return p; }
 function raster(m){
   const mark=(a,x0,y0,x1,y1)=>{ for(let y=Math.max(0,Math.floor(y0));y<=Math.min(RH-1,Math.ceil(y1));y++) for(let x=Math.max(0,Math.floor(x0));x<=Math.min(RW-1,Math.ceil(x1));x++) a[y*RW+x]=1; };
-  if(!CELLS[m]){ const a=CELLS[m]=new Uint8Array(RW*RH);   // cells and SMs: the same in every step of a mode, grown by 2
-    document.querySelectorAll("#iso [data-c], #iso [data-s]").forEach((el)=>{ if(!el.getClientRects().length) return; const f=el.querySelector(".iso-fill"), b=f.getBBox();
-      for(let y=Math.floor(b.y);y<=Math.ceil(b.y+b.height);y++) for(let x=Math.floor(b.x);x<=Math.ceil(b.x+b.width);x++) if(f.isPointInFill(new DOMPoint(x+0.5,y+0.5))) mark(a,x-2,y-2,x+2,y+2); }); }
+  if(!CELLS[m]){ const PW=RW+4, PH=RH+4, ins=new Uint8Array(PW*PH);   // cells and SMs: the same in every step of a mode, grown by 2
+    document.querySelectorAll("#iso [data-c], #iso [data-s]").forEach((el)=>{ if(!el.getClientRects().length) return; const p=cellPts(el);
+      for(let i=0;i<p.length;i+=2){ const x=p[i]+2, y=p[i+1]+2; if(x>=0&&x<PW&&y>=0&&y<PH) ins[y*PW+x]=1; } });
+    const grow=(src,n,len,stride,step)=>{ const dst=new Uint8Array(src.length), cs=new Int32Array(len+1);
+      for(let l=0;l<n;l++){ const o=l*step; for(let i=0;i<len;i++) cs[i+1]=cs[i]+src[o+i*stride];
+        for(let i=0;i<len;i++) dst[o+i*stride]=cs[Math.min(len,i+3)]-cs[Math.max(0,i-2)]>0?1:0; }
+      return dst; };
+    const gv=grow(grow(ins,PH,PW,1,PW),PW,PH,PW,1), a=CELLS[m]=new Uint8Array(RW*RH);
+    for(let y=0;y<RH;y++) for(let x=0;x<RW;x++) a[y*RW+x]=gv[(y+2)*PW+x+2]; }
   const occ=CELLS[m].slice();
   document.querySelectorAll("#iso text:not(#focus text):not(.smt):not(.bbt), #iso .kg, #iso .pillbox").forEach((e)=>{
     if(!e.getClientRects().length||(e.tagName==="text"&&!e.textContent.trim())) return;
@@ -801,11 +811,16 @@ function drawFocus(m,k,fx){
   const boxH=6+LH*ls.length;
   g.appendChild(mk("rect",{class:"cbox",x:16,y:20,width:292,height:boxH,rx:4}));
   const t=mk("text",{class:"fcl",x:X0,y:Y0}); t.innerHTML=tsp(ls,X0,Y0,LH); g.appendChild(t);
-  const key=m+"/"+k+"/"+ls.length, lead=LEAD[key]||(LEAD[key]=leadRoute(m,fx.anchors,20+boxH,20+boxH/2));
-  const ld=$("lead"); ld.replaceChildren();
-  ld.appendChild(mk("path",{class:"ldr",d:rp(lead.route,4)}));
-  ld.appendChild(mk("circle",{class:"ldd",cx:lead.A[0],cy:lead.A[1],r:2.2}));
+  const key=m+"/"+k+"/"+ls.length, ld=$("lead"); ld.replaceChildren();
+  if(LEAD[key]) paintLead(LEAD[key]);
+  else { pendLead={m,k,key,anchors:fx.anchors,y0:20+boxH,ym:20+boxH/2}; if(!leadRaf) leadRaf=requestAnimationFrame(solveLead); }
 }
+// the route search reads layout; it runs once, in the frame after the step settles, not once per step the player visits
+let pendLead=null, leadRaf=0;
+function paintLead(lead){ const ld=$("lead"); ld.replaceChildren();
+  ld.appendChild(mk("path",{class:"ldr",d:rp(lead.route,4)}));
+  ld.appendChild(mk("circle",{class:"ldd",cx:lead.A[0],cy:lead.A[1],r:2.2})); }
+function solveLead(){ leadRaf=0; const p=pendLead; if(!p||drawn.mode!==p.m||drawn.k!==p.k) return; paintLead(LEAD[p.key]=leadRoute(p.m,p.anchors,p.y0,p.ym)); }
 // a tag with no class is a note: the text without a key arrow
 function drawTags(tags){ let y=63, h="";
   for(const [key,cls,mkr] of tags){ const ls=wrapLine(L[key],306-38,"ftag");

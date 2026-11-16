@@ -204,9 +204,11 @@ function wrapLines(parent,cls,srcLines,maxW){
   return out;
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
+const LMET={};
+function lineMetrics(parent,cls){ if(!LMET[cls]){ const p=mk("text",{class:cls,x:0,y:100},"Hg"); p.style.visibility="hidden"; parent.appendChild(p); const b=p.getBBox(); LMET[cls]={asc:100-b.y,h:b.height}; p.remove(); } return LMET[cls]; }
 function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
-  for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
-  return ls;
+  for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); const bw=Math.max(0,...ls.map((s)=>tw(t.parentNode,cls,s))); if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
+  setLines(t,ls,x,y,lh); return ls;
 }
 
 // ===== model: the drawing and FIG.hw state() read this one table. Times are in slot periods S (1 S = 1.04 us). =====
@@ -331,7 +333,7 @@ function drawScene(M,k,t,vp){
   // callout (focus): two lines at the top
   const foc=mk("g",{id:"focus"}); const c=ST.callout, fl=Lx.foc;
   [0,1].forEach((i)=>{ const t1=mk("text",{class:i?"fc2":"fc1",x:fl.x,y:i?fl.y2:fl.y1}); t1.style.fontSize=fl.fs[i]+"px"; t1.textContent=c[i]; foc.appendChild(t1);
-    let f=fl.fs[i]; while(f>7.6&&tw(S,"fc"+(i+1),c[i])*f/parseFloat(getComputedStyle(t1).fontSize)>Lx.W-fl.x-8){ f-=.2; t1.style.fontSize=f+"px"; } });
+    let f=fl.fs[i]; while(f>7.6&&tw(S,"fc"+(i+1),c[i])>Lx.W-fl.x-8){ f-=.2; t1.style.fontSize=f+"px"; } });
   g.appendChild(foc);
   // SM frame
   const smg=mk("g",{"data-hw":"sm0"}); smg.appendChild(rect(Lx.sm,{rx:6},"smf")); g.appendChild(smg);
@@ -426,8 +428,8 @@ function drawQueue(M,k,t,vp){
     g.appendChild(gg); });
   const ty2=ty+trackH;
   const ly=ty2+11, tl=mk("text",{class:"qn",x:x0,y:ly},L.qtail), hl=mk("text",{class:"qn",x:x1,y:ly,"text-anchor":"end"},L.qhead); g.appendChild(tl); g.appendChild(hl);
-  const ST=D.ST[M.m][k], sm=mk("text",{class:"qs",x:x0,y:ly+13}); g.appendChild(sm); fitWrap(sm,"qs",ST.qs,x1-x0,x0,ly+13,11);
-  Q.setAttribute("viewBox","0 0 "+W+" "+Math.ceil(sm.getBBox().y+sm.getBBox().height+6));
+  const ST=D.ST[M.m][k], sm=mk("text",{class:"qs",x:x0,y:ly+13}); g.appendChild(sm); const sl=fitWrap(sm,"qs",ST.qs,x1-x0,x0,ly+13,11);
+  const mt=lineMetrics(Q,"qs"); Q.setAttribute("viewBox","0 0 "+W+" "+Math.ceil(ly+13-mt.asc+(sl.length-1)*11+mt.h+6));
   return items.map((i)=>i.r.id+i.st).join(",");
 }
 
@@ -632,6 +634,6 @@ window.FIG?.hw?.({ modes:MODES, frames:(m)=>settledTimes(model(m)), state:hwStat
 { const pl=document.querySelector(".iso-plate"), ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]');
   const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; };
   new ResizeObserver(fit).observe(pl); fit(); }
-new ResizeObserver(()=>{ const vp=viewport(); if(drawn.m&&vp.nar!==drawn.nar) show(); }).observe(document.querySelector(".iso-plate"));
+new ResizeObserver(()=>{ if(!document.querySelector(".iso-plate").offsetWidth) return; const vp=viewport(); if(drawn.m&&vp.nar!==drawn.nar) show(); }).observe(document.querySelector(".iso-plate"));
 show();
 </script></body></html>

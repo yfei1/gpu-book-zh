@@ -564,7 +564,7 @@ Pass final fixed weights per token: about 9.0 ÷ 4 = 2.25 GB</span></div><div cl
     return '<g class="sl-g' + (st === "unused" ? " dim" : "") + '" data-hw="out_slot_' + q + '"><rect class="' + cls + '" x="' + x + '" y="' + y + '" width="72" height="24" rx="4"/><text class="tc sx" x="' + (x + 36) + '" y="' + (y + 16) + '" text-anchor="middle">' + txt + "</text></g>";
   }
   function drawStrip(m) {
-    const ym = RY0 + (m.s - 1) * RH + 11, lines = T.hand[m.k][m.s - 1], ys = lines.length === 1 ? [476] : [460, 475, 490];
+    const lines = T.hand[m.k][m.s - 1], ys = lines.length === 1 ? [476] : [460, 475, 490];
     $("rows").innerHTML = range(1, 8).map((r) => rowSvg(m, r)).join("");
     $("preds").innerHTML = range(1, 8).map((r) => predSvg(m, r)).join("");
     // the verdict of row s compares ŷ of row s with the draft that is the input of row s + 1 (rows 1..7): frame row s up to its prediction, dash that draft, link both into the verdict
@@ -576,6 +576,9 @@ Pass final fixed weights per token: about 9.0 ÷ 4 = 2.25 GB</span></div><div cl
     $("outh").textContent = T.outHdr[m.k];
     $("slots").innerHTML = range(1, 8).map((q) => slotSvg(m, q)).join("");
     $("hand").innerHTML = lines.map((ln, i) => '<text class="ta" x="14" y="' + ys[i] + '">' + ln + "</text>").join("");
+  }
+  function drawFocus(m) {
+    const ym = RY0 + (m.s - 1) * RH + 11;
     $("focus").innerHTML = '<text class="lab" x="12" y="105">' + T.focus[m.k][m.s - 1] + '</text><path class="lead" d="M26 109H5V' + ym + 'H8"/><circle class="leadd" cx="8" cy="' + ym + '" r="2.4"/>';
   }
   const drawCard = (m) => { $("stepT").textContent = T.title[m.k][m.s - 1]; $("stepK").innerHTML = T.card[m.k][m.s - 1]; };
@@ -594,10 +597,15 @@ Pass final fixed weights per token: about 9.0 ÷ 4 = 2.25 GB</span></div><div cl
     $("tl").innerHTML = h;
   }
   let drawn = { k: -1, s: -1, tk: -1, tl: null };
+  let done = { k: -1, s: -1, tk: -1, tl: null };
+  function flush() {
+    const m = modelAt(K, +tin.value);
+    if (done.k !== K || done.s !== m.s) { drawStrip(m); drawCard(m); done.k = K; done.s = m.s; }
+    if (done.tk !== K || done.tl !== m.last) { drawTL(K, m.last); done.tk = K; done.tl = m.last; }
+  }
   function show() {
     const t = +tin.value, m = modelAt(K, t), u = Math.min(1, (t - (m.s - 1)) / 0.98);
-    if (drawn.k !== K || drawn.s !== m.s) { drawStrip(m); drawCard(m); drawn.k = K; drawn.s = m.s; }
-    if (drawn.tk !== K || drawn.tl !== m.last) { drawTL(K, m.last); drawn.tk = K; drawn.tl = m.last; }
+    if (drawn.k !== K || drawn.s !== m.s) { drawFocus(m); drawn.k = K; drawn.s = m.s; queueMicrotask(flush); }
     const x = TL0 + ((TL1 - TL0) * (m.s - 1 + u)) / m.N;
     $("clipR").setAttribute("width", (x - 77 + 1).toFixed(2));
     $("cur").setAttribute("d", "M" + x.toFixed(2) + " 20V140");

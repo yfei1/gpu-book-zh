@@ -564,7 +564,11 @@ function arrowsFor(m,un){ const o=[], ns=NSLOT[m]; (un.ar||[]).forEach((a)=>{
   else if(a==="bar"){ o.push(ARR(AP("namedbar1"),AP("empty0"),true)); }
   });
   return o.join(""); }
-function drawStep(m,k){
+const snapEls=(els)=>els.map((e)=>({e,kids:Array.from(e.childNodes),at:["viewBox","y"].map((a)=>e.getAttribute(a)),disp:e.style.display}));
+const restoreEls=(sn)=>sn.forEach(({e,kids,at,disp})=>{ e.replaceChildren(...kids); ["viewBox","y"].forEach((a,i)=>{ if(at[i]==null) e.removeAttribute(a); else e.setAttribute(a,at[i]); }); e.style.display=disp; });
+function cached(key,els,fn){ const C=LAY.cache||(LAY.cache={}), c=C[key]; if(c){ restoreEls(c); return; } fn(); C[key]=snapEls(els()); }
+function drawStep(m,k){ cached("s"+m+"|"+k,()=>[$("stepT"),$("stepK"),$("focus"),$("flowT"),$("flows")],()=>drawStepNew(m,k)); }
+function drawStepNew(m,k){
   const g=LAY.iso, S=D.STEP[m][k], un=UN[m][k], mw=g.mw;
   $("stepT").textContent=S.title;
   $("stepK").innerHTML=S.card.map(([dt,html])=>'<div><dt>'+esc(dt)+"</dt><dd>"+html+"</dd></div>").join("");
@@ -588,7 +592,8 @@ function drawState(m,f){
   drawAlg(m,f);
   const ro=document.querySelector("[data-readout]"); ro.textContent=fill(Ls("kloop.readout.m"+m),{hn:f.k>=6&&f.k<=13?f.k-5:f.k>=14?8:0,inf:f.inflight}).split("<br>").join("\n");
 }
-function drawAlg(m,f){
+function drawAlg(m,f){ cached("a"+m+"|"+f.sig,()=>[$("algB")],()=>drawAlgNew(m,f)); }
+function drawAlgNew(m,f){
   const a=LAY.alg[m]; let h="";
   if(m==="1"){
     const hh=f.k>=6&&f.k<=13?f.k-5:f.k>=14?8:0;
@@ -711,10 +716,14 @@ const RATE={"1":4.5,"2":1.1,"3":1.1};
 let drawn={m:null,k:-1,sig:""};
 function drawMode(m){ const a=LAY.alg[m];
   $("alg").setAttribute("viewBox","0 0 "+a.W+" "+a.H); $("alg").style.setProperty("--vbw",a.W+"px");
-  $("algH").innerHTML='<text class="lab2">'+tsp(a.hdr,8,14,13)+"</text>";
-  tlMode(m); drawLabels(m); $("tlzoom").style.display="none"; }
-function show(){
-  const m=modeNow(), u=+tin.value, f=frame(m,u);
+  cached("m"+m,()=>[$("algH"),$("tlRows"),$("tlSegs"),$("tlHdr"),$("tlNotesH"),$("tlsvg"),$("labs"),$("rlProd"),$("rlCons"),$("rlTc"),...rng(8).map((s)=>$("rlS"+s))],
+    ()=>{ $("algH").innerHTML='<text class="lab2">'+tsp(a.hdr,8,14,13)+"</text>"; tlMode(m); drawLabels(m); });
+  $("tlzoom").style.display="none"; }
+function show(){ render(modeNow(),+tin.value); }
+function warmOtherModes(){ const cur=modeNow(); Object.keys(U).filter((m)=>m!==cur).forEach((m)=>{ drawn={m:null,k:-1,sig:""}; U[m].forEach((_,k)=>render(m,settledU(m,k))); }); drawn={m:null,k:-1,sig:""}; show(); }
+addEventListener("load",()=>setTimeout(warmOtherModes,0));
+function render(m,u){
+  const f=frame(m,u);
   if(drawn.m!==m){ drawMode(m); drawn={m,k:-1,sig:""}; }
   tlCursor(m,f.t);
   $("tlzoom").style.display=m==="2"&&f.t>=ZOOM_T-EPS?"":"none";

@@ -763,9 +763,11 @@ function wrapLines(parent,cls,srcLines,maxW){
   return out;
 }
 const setLines=(t,ls,x,y,lh)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
-function fitWrap(t,cls,src,maxW,x,y,lh){ let mw=maxW, ls;
+const FITW=new Map();
+function fitWrap(t,cls,src,maxW,x,y,lh){ const fk=cls+"|"+maxW+"|"+src.join("\u0001"), hit=FITW.get(fk); if(hit){ setLines(t,hit,x,y,lh); return hit; }
+  let mw=maxW, ls;
   for(let i=0;i<4;i++){ ls=wrapLines(t.parentNode,cls,src,mw); setLines(t,ls,x,y,lh); const bw=t.getBBox().width; if(bw<=maxW+0.01) break; mw-=bw-maxW+0.5; }
-  return ls; }
+  FITW.set(fk,ls); return ls; }
 const LH=13.5, NLH=11.8;
 
 // ===== scene drawing: the left band holds the callout, the inset and the notes; leaders run to the package =====

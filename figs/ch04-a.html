@@ -345,6 +345,7 @@ function buildLayout(W,narrow){ return {W,narrow,iso:isoGeo(W,narrow),alg:{"1":a
 // ===================== drawing =====================
 const BLUE=D.BLUE, GREEN="var(--anatomy-green)", SOFT="color-mix(in srgb, var(--anatomy-green) 38%, var(--anatomy-card))";
 function applyLayout(){
+  rimMemo.clear(); focMemo.clear();
   const L=LAY, I=L.iso, sc=I.sc, tf="translate("+I.ox+" "+I.oy+") scale("+I.s+")";
   const sv=$("iso"); sv.setAttribute("viewBox","0 0 "+L.W+" "+I.H); sv.style.setProperty("--vbw",L.W+"px");
   $("scene").setAttribute("transform",tf); $("ov").setAttribute("transform",tf); $("lk").setAttribute("transform",tf); $("scene").innerHTML=sc.svg;
@@ -389,6 +390,7 @@ function drawIso(m,FM){
   let at="";
   if(FM.p>=0){ const q=P(sc.slotC[FM.p]), str=Ls("f41.iso.units.sched0.active_tag").replace("{p}",FM.p), w=textW(str,"ann"), x=Math.max(8+w/2,Math.min(LAY.W-24-w/2,q[0]));
     at='<text class="ann" x="'+f1(x)+'" y="'+tagY+'" text-anchor="middle">'+esc(str)+'</text>'; }
+  tgKey=(narrow?"n":"w")+"|"+tg+"|"+at;
   $("tags").innerHTML=narrow?'':tg; $("tagsN").innerHTML=narrow?tg:""; $("tagsN").setAttribute("transform","translate("+I.ox+" "+I.oy+") scale("+I.s+")"); $("atag").innerHTML=at;
   // active units: the scheduler when a warp is selected; the unit that serves the selected warp's instruction
   const on={sched:FM.p>=0,lsu:FM.p>=0&&(FM.pv===1||!!(FM.batch&&FM.batch.at==="reg0")),arith:FM.p>=0&&FM.pv===4,reg:FM.p>=0&&FM.pv===4};
@@ -405,7 +407,11 @@ function drawIso(m,FM){
   drawFocus(m,FM);
 }
 // a point on the top face of a unit that no label or tag covers (4 px clear), nearest to the face centre
+const focMemo=new Map(), rimMemo=new Map(); let tgKey="";
 function rimPoint(tgt,key){
+  const mk_=tgKey+"|"+tgt+"|"+key; let hit=rimMemo.get(mk_); if(!hit){ hit=rimPoint0(tgt,key); rimMemo.set(mk_,hit); } return hit;
+}
+function rimPoint0(tgt,key){
   const I=LAY.iso, sc=I.sc, P=I.P, boxes=[...document.querySelectorAll("#lbl text,#tags text,#tagsN text,#atag text")].map((e)=>{ const r=e.getBBox(), tf=e.closest("#tagsN")?{x:I.ox,y:I.oy,s:I.s}:{x:0,y:0,s:1}; return [tf.x+tf.s*r.x-4,tf.y+tf.s*r.y-4,tf.x+tf.s*(r.x+r.width)+4,tf.y+tf.s*(r.y+r.height)+4]; });
   const ctr=P(sc.ctr[tgt]); let best=null;
   for(const c of sc.cand[key]){ const p=P(c);
@@ -417,7 +423,7 @@ function drawFocus(m,FM){
   const I=LAY.iso, sc=I.sc, P=I.P, g=$("focus"), k=FM.k, ln=wrapAll(callText(m,k),I.cw,"lab"); g.replaceChildren(); $("ldrG").replaceChildren();
   const t=mk("text",{class:"lab foc"}); t.innerHTML=tsp(ln,12,I.cy,13); g.appendChild(t);
   const tgt=k===0?(FM.p>=0&&FM.pv===1?"lsu":"sched"):k===1?"sched":k===2?"arith":null; if(!tgt) return;
-  const dot=rimPoint(tgt,tgt), b=t.getBBox(), y0=b.y+b.height+3; let cx=Math.max(b.x+6,Math.min(b.x+b.width-6,dot[0]));
+  const dot=rimPoint(tgt,tgt), fk=m+"|"+k+"|"+I.cw; let b=focMemo.get(fk); if(!b){ const r=t.getBBox(); b={x:r.x,y:r.y,width:r.width,height:r.height}; focMemo.set(fk,b); } const y0=b.y+b.height+3; let cx=Math.max(b.x+6,Math.min(b.x+b.width-6,dot[0]));
   $("ldrG").appendChild(mk("path",{class:"ldr",d:"M"+f1(cx)+" "+f1(y0)+"L"+dot[0]+" "+dot[1]}));
   g.appendChild(mk("circle",{class:"ldd",cx:dot[0],cy:dot[1],r:2.4}));
 }
@@ -428,7 +434,7 @@ function barSvg(x,y,wd,ht,v){ return v===3?'<rect class="wt2" fill="url(#hF)" x=
   :v===2?'<rect class="rdy" x="'+f1(x)+'" y="'+f1(y)+'" width="'+f1(wd)+'" height="'+ht+'"/>'
   :'<rect fill="'+(v===1?BLUE:D.INK)+'" x="'+f1(x)+'" y="'+f1(y)+'" width="'+f1(wd)+'" height="'+ht+'"/>'; }
 function drawFlat(m){
-  const g=LAY.flat[m], S=SIMS[m], R=g.R, sv=$("flat"); sv.setAttribute("viewBox","0 0 "+g.W+" "+g.H); sv.style.setProperty("--vbw",g.W+"px");
+  flatDyn.nk=null; const g=LAY.flat[m], S=SIMS[m], R=g.R, sv=$("flat"); sv.setAttribute("viewBox","0 0 "+g.W+" "+g.H); sv.style.setProperty("--vbw",g.W+"px");
   let st='<text class="lab2">'+tsp(g.zh,10,14,13)+'</text><text class="lab2">'+tsp(g.fh,10,g.fhy,13)+'</text>', zs="", ts="";
   for(let w=0;w<g.res;w++){ const zy=g.zy0+w*g.ZP, ty=g.fy0+w*g.TP;
     st+='<rect class="row" x="'+g.TL0+'" y="'+zy+'" width="'+(g.TL1-g.TL0)+'" height="'+(g.ZP-1)+'"/><rect class="row" x="'+g.TL0+'" y="'+ty+'" width="'+(g.TL1-g.TL0)+'" height="'+(g.TP-1)+'"/>';
@@ -450,7 +456,7 @@ function flatDyn(m,FM){
   const zc=FM.isEnd?32:Math.min(32,c+1); $("zClipR").setAttribute("width",f1(g.ZX(zc)-g.TL0)); const zin=!FM.isEnd&&c<32;
   $("zCur").setAttribute("d",zin?"M"+f1(g.ZX(c+0.5))+" "+(g.zy0-3)+"V"+(g.zy1+1):"");
   $("zoomG").classList.toggle("fig-zghost",true); $("zoomS").parentNode.classList.toggle("dim",FM.k>=1);
-  $("tlN").innerHTML=FM.k===3?tsp(g.note,10,g.ny,13):"";
+  const nk=FM.k===3?m:""; if(flatDyn.nk!==nk){ flatDyn.nk=nk; $("tlN").innerHTML=nk?tsp(g.note,10,g.ny,13):""; }
 }
 
 // ===================== the page =====================
@@ -465,7 +471,10 @@ function show(){
   const m=modeNow(), t=+tin.value, FM=frameModel(m,t);
   if(drawn.mode!==m){ drawn={mode:m,k:-1}; document.querySelector("[data-readout]").textContent=readoutText(m); drawFlat(m); }
   if(drawn.k!==FM.k) { drawn.k=FM.k; drawStep(m,FM.k); }
-  flatDyn(m,FM); drawAlg(m,FM.k,FM); drawIso(m,FM);
+  flatDyn(m,FM);
+  const asig=m+"|"+FM.k+"|"+FM.p+"|"+FM.loads.length, sig=m+"|"+FM.k+"|"+FM.p+"|"+FM.pv+"|"+(FM.batch?FM.batch.at:"")+"|"+FM.warps.map((w)=>w.state[0]).join("");
+  if(drawn.asig!==asig){ drawn.asig=asig; drawAlg(m,FM.k,FM); }
+  if(drawn.sig!==sig){ drawn.sig=sig; drawIso(m,FM); }
 }
 // ===================== player wiring =====================
 const STEPS=(m)=>STARTS[m].map((t,k)=>({t,title:D.TITLES[m][k]}));

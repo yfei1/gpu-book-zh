@@ -244,7 +244,8 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 
   // ================= text: measure, shrink, wrap
   const meas = mk("text", { visibility: "hidden", x: 2, y: 12 }, $("isoSvg"));
-  const tw = (s, size, cls) => { meas.setAttribute("class", cls || "dn"); meas.style.fontSize = size + "px"; meas.textContent = s; const w = meas.getComputedTextLength(); meas.textContent = ""; return w; };
+  const twMemo = new Map(), rlSize = new Map();
+  const tw = (s, size, cls) => { const key = (cls || "dn") + "|" + size + "|" + s; let w = twMemo.get(key); if (w === undefined) { meas.setAttribute("class", cls || "dn"); meas.style.fontSize = size + "px"; meas.textContent = s; w = meas.getComputedTextLength(); meas.textContent = ""; twMemo.set(key, w); } return w; };
   const wrap = (s, size, maxW, cls) => {
     const toks = s.match(/[A-Za-z0-9.=µ%&_\[\]\-–×<>#/:+*,\u00a0]+|\s+|[\s\S]/gu) || [], closing = /^[)）%，。、：；,.:;!?！？]/, opening = /[(（\[]$/, out = []; let cur = [];
     for (const t of toks) {
@@ -495,7 +496,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
       const hd = mk("text", { class: "hd halo", "data-rowlabel": "head", "data-mode": m, x: TL0, y: 12 }, flat);
       wrap(S("tl.hd." + m), 9, 294, "hd").forEach((l, i) => mk("tspan", { x: TL0, dy: i ? 11 : 0 }, hd, l));
       flat.insertBefore(hd, first);
-      rng(m === 4 ? 6 : 4).forEach((i) => { const y = m === 4 ? PB[i >> 1] + (i & 1) * RP - 5 : RY(i) - 4, e = mk("text", { class: "rl halo", "data-rowlabel": "", "data-mode": m, x: TL0, y }, flat); let size = 8.5; e.textContent = S(`tl.rl.${m}.${i}`); e.style.fontSize = size + "px"; while (size > 6 && e.getComputedTextLength() > 290) { size -= 0.25; e.style.fontSize = size + "px"; } flat.insertBefore(e, first); });
+      rng(m === 4 ? 6 : 4).forEach((i) => { const y = m === 4 ? PB[i >> 1] + (i & 1) * RP - 5 : RY(i) - 4, e = mk("text", { class: "rl halo", "data-rowlabel": "", "data-mode": m, x: TL0, y }, flat); let size = 8.5; const txt = S(`tl.rl.${m}.${i}`); e.textContent = txt; e.style.fontSize = size + "px"; if (rlSize.has(txt)) { size = rlSize.get(txt); e.style.fontSize = size + "px"; } else { while (size > 6 && e.getComputedTextLength() > 290) { size -= 0.25; e.style.fontSize = size + "px"; } rlSize.set(txt, size); } flat.insertBefore(e, first); });
     });
   }
 
