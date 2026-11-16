@@ -401,7 +401,7 @@ function drawAlg(m,kk){
       const fill=isEsc?D.TOK.esc:"var(--anatomy-face)", ink=isEsc?PIL_ESC:"var(--anatomy-strong)", stroke=isEsc?D.HUE.esc:"var(--anatomy-lo)";
       let c='<g data-chip="'+id+'" class="'+(active?"on":"dim")+'" data-st="'+st.s+'">';
       if(st.s===1) c+='<text class="tn" x="'+f1(x+cw/2)+'" y="'+(y-3)+'" text-anchor="middle">'+id+'</text>';
-      const cell=(x0,w0,txt,dashed,b)=>'<rect x="'+f1(x0)+'" y="'+y+'" width="'+f1(w0)+'" height="'+CELL+'" fill="'+(dashed?"none":fill)+'" stroke="'+stroke+'" stroke-width=".8"'+(dashed?' stroke-dasharray="3 2"':'')+'/>'+(txt?'<text class="cc'+(b?" b":"")+'" x="'+f1(x0+w0/2)+'" y="'+(y+CELL/2+3.5)+'" text-anchor="middle" fill="'+ink+'">'+esc_(txt)+'</text>':'');
+      const cell=(x0,w0,txt,dashed,b)=>'<rect x="'+f1(x0)+'" y="'+y+'" width="'+f1(w0)+'" height="'+CELL+'" fill="'+(dashed?"none":fill)+'" stroke="'+stroke+'" stroke-width=".8"'+(dashed?' stroke-opacity=".4"':'')+'/>'+(txt?'<text class="cc'+(b?" b":"")+'" x="'+f1(x0+w0/2)+'" y="'+(y+CELL/2+3.5)+'" text-anchor="middle" fill="'+ink+'">'+esc_(txt)+'</text>':'');
       const halves=(dashed)=>cell(x,cw/2,Ls("alg.hi"),dashed)+cell(x+cw/2,cw/2,Ls("alg.lo"),dashed);
       if(m==="1"){ if(st.s===1) c+=halves(kk<1); else c+=cell(x,cw,"FP32",kk<2,false); }
       else if(st.s===1) c+=halves(false);

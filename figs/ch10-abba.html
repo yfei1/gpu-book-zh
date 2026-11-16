@@ -133,14 +133,14 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .fg .axl{stroke:var(--anatomy-faint);stroke-width:.8;fill:none}
 .fg .drift{stroke:var(--anatomy-red)}.fg circle.drift{fill:var(--anatomy-red);stroke:none}.fg text.drift{fill:#c62a2f;stroke:none}
 .fg .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
-.fg .bl{stroke:#475569;stroke-width:1;stroke-dasharray:4 3;fill:none}
+.fg .bl{stroke:#475569;stroke-width:1;fill:none}
 .fg .tk{stroke:var(--anatomy-strong);stroke-width:.8;fill:none}.fg .capbg{fill:var(--anatomy-card);stroke:none}
-.fg .lv{stroke-width:1.2;fill:none}.fg .lv.tt{stroke-width:1.5}.fg .lv.tt2{stroke-dasharray:5 5}
+.fg .lv{stroke-width:1.2;fill:none}.fg .lv.tt{stroke-width:3.4}.fg .lv.tt2{stroke-width:1.3}
 .fg .act{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
-.fg .ar{stroke:#777;stroke-width:1.2;fill:none}.fg .brk{stroke:#475569;stroke-width:1;stroke-dasharray:4 3;fill:none}
+.fg .ar{stroke:#777;stroke-width:1.2;fill:none}.fg .brk{stroke:#475569;stroke-width:1;fill:none}
 .fg .sb{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
 .fg [data-chip="flush"] .sb{fill:#f2f1ed;stroke:#5e5d59;stroke-width:1.5}
-.fg [data-chip="ev0"] .sb,.fg [data-chip="ev1"] .sb{stroke:#475569;stroke-dasharray:4 3}
+.fg [data-chip="ev0"] .sb,.fg [data-chip="ev1"] .sb{stroke:#475569}
 .fg [data-chip].kA .sb{fill:hsl(226 56% 84%);stroke:#3e63dd}.fg [data-chip].kB .sb{fill:hsl(36 80% 84%);stroke:#d98200}
 .fg [data-chip] .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.5;opacity:0}.fg [data-chip].lit .ao{opacity:1}
 .fg #smAll.on{--anatomy-face:#ffffff;--anatomy-top:#ffffff;--anatomy-shade-0:#e2e2df;--anatomy-shade-1:#e8e8e5;--anatomy-shade-2:#eeeeeb;--anatomy-shade-3:#f4f4f2;--anatomy-hi:var(--anatomy-strong);--anatomy-mid:var(--anatomy-strong);--anatomy-weight:1.5px;--anatomy-weight:1px}
@@ -164,7 +164,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .kard dd .katex{font-size:1em}
 .fig-atend #cur{opacity:0}
 .iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
-</style><figure class="iso-figure" aria-label="图 10-2 A B B A：让两侧的线性漂移互相抵消（交互式示意图）。上方四格流程带展示一次计时迭代：先在计时事件外只读 512 MiB 把 60 MiB L2 换成干净行（冲刷 kernel 的 CTA 数未记录），随后依次为起点事件、132 个 SM 跑同驻版本 A 或 B 的 gemv、终点事件，单次读数 r_p = t_终点 − t_起点。中部 H200 示意图展示 6 组 HBM（同驻 A、B 与 512 MiB 缓冲，HBM 到 L2 通路顺序未知）、60 MiB L2 与全部 132 个 SM，右侧刻度条示意连续运行时温度、时钟等引起的缓慢漂移（各因素占比没有测）。下方同步顺序时间线（横轴只表示先后，柱高与漂移刻度均为示意而非微秒，虚线标出本身耗时相同 t_A = t_B）在同一条每步 +1 份的漂移斜率下对比两种运行顺序：模式 1 先 A 后 B（AAAA BBBB 共 8 次）使 A 的平均时刻在 2.5、B 在 6.5，红斜线括号标出 B 的平均读数比 A 多混入 +4 份漂移；模式 2 对称配对（A B B A 每组 4 次）使 A（时刻 1、4）与 B（时刻 2、3）的平均时刻同为 2.5、平均读数同高，线性漂移在差值里相减归 0（突然降频等非线性突变无法抵消，没有测）。"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 10-2</span><span class="iso-plate-corner" data-corner="title">A B B A：让两侧的线性漂移互相抵消</span><span class="iso-plate-corner" data-corner="readout" data-readout>模式 1：先 A 后 B（共 8 次）
+</style><figure class="iso-figure" aria-label="图 10-2 A B B A：让两侧的线性漂移互相抵消（交互式示意图）。上方四格流程带展示一次计时迭代：先在计时事件外只读 512 MiB 把 60 MiB L2 换成干净行（冲刷 kernel 的 CTA 数未记录），随后依次为起点事件、132 个 SM 跑同驻版本 A 或 B 的 gemv、终点事件，单次读数 r_p = t_终点 − t_起点。中部 H200 示意图展示 6 组 HBM（同驻 A、B 与 512 MiB 缓冲，HBM 到 L2 通路顺序未知）、60 MiB L2 与全部 132 个 SM，右侧刻度条示意连续运行时温度、时钟等引起的缓慢漂移（各因素占比没有测）。下方同步顺序时间线（横轴只表示先后，柱高与漂移刻度均为示意而非微秒，A 色粗线上叠一条 B 色细线，标出本身耗时相同 t_A = t_B）在同一条每步 +1 份的漂移斜率下对比两种运行顺序：模式 1 先 A 后 B（AAAA BBBB 共 8 次）使 A 的平均时刻在 2.5、B 在 6.5，红斜线括号标出 B 的平均读数比 A 多混入 +4 份漂移；模式 2 对称配对（A B B A 每组 4 次）使 A（时刻 1、4）与 B（时刻 2、3）的平均时刻同为 2.5、平均读数同高，线性漂移在差值里相减归 0（突然降频等非线性突变无法抵消，没有测）。"><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">图 10-2</span><span class="iso-plate-corner" data-corner="title">A B B A：让两侧的线性漂移互相抵消</span><span class="iso-plate-corner" data-corner="readout" data-readout>模式 1：先 A 后 B（共 8 次）
 跑完第 1 / 8 次（本次含 +1 份漂移）</span></div><div class="fg"><svg id="alg" class="flat" viewBox="0 0 640 120" role="img" aria-label="单次计时迭代四格流程图：① 事件外只读 512 MiB 把 L2 换成干净行，随后依次是记录 t_起点的起点事件、② 132 个 SM 跑版本 A 或 B 的 gemv、记录 t_终点的终点事件，事件夹住的区间给出单次读数 r_p。">
 <defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
 <g id="algS"></g></svg><svg id="iso" class="isov" viewBox="0 0 640 266" role="img" aria-label="H200 硬件与漂移示意图：左侧封装含全部 6 组 HBM（同驻 A、B 与 512 MiB 缓冲，HBM 到 L2 通路顺序未知）、60 MiB L2 与全部 132 个 SM，两条箭头分别标出 ① 事件外 512 MiB 只读冲刷（CTA 数未记录）与 ② 事件内跑 A 或 B 的 gemv；右侧示意刻度条随运行次数抬升，表示温度、时钟等引起的缓慢漂移（各因素占比没有测）。">
@@ -319,7 +319,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
       g.algT = { x: 8, y: 113, w: W - 16 };
       return g;
     }
-    // 2 x 2 grid: start flush -> start event on the first row, an elbow, kernel -> end event on the second row; the dashed bracket hugs the three boxes inside the timed span
+    // 2 x 2 grid: start flush -> start event on the first row, an elbow, kernel -> end event on the second row; the bracket hugs the three boxes inside the timed span
     const bw = Math.floor((W - 16 - 18) / 2), inW = bw - 16, xs = [8, W - 8 - bw, 8, W - 8 - bw];
     g.hdr = wrapLine(S.algHdr, W - 16, "lab2");
     const kernN = Math.max(...["A", "B", "sum"].map((a) => wrapLine(S.kern[a], inW, "tx").length));

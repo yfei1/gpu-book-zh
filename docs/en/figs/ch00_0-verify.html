@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -453,16 +453,16 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .f0 .cs{fill:#d9d0be;stroke:#8f846f;stroke-width:.6}.f0 .cs.on{fill:#c2b7a1;stroke:var(--anatomy-strong);stroke-width:1.1}
 .f0 .cz{fill:#c8c8c4}
 .f0 .pb{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:.8}
-.f0 .vb{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.8;stroke-dasharray:3 2}
+.f0 .vb{fill:var(--anatomy-card);stroke:var(--anatomy-faint);stroke-width:.8}
 .f0 .vb.ok{fill:color-mix(in srgb,var(--ok) 30%,var(--anatomy-card));stroke:var(--ok);stroke-dasharray:none}
 .f0 .vb.no{fill:color-mix(in srgb,var(--anatomy-red) 28%,var(--anatomy-card));stroke:var(--anatomy-red);stroke-width:2;stroke-dasharray:none}
 .f0 .vb.own{fill:color-mix(in srgb,#3e63dd 30%,var(--anatomy-card));stroke:#3e63dd;stroke-dasharray:none}
-.f0 .vb.void{stroke-dasharray:none}
-.f0 .sl{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6;stroke-dasharray:3 2}
+.f0 .vb.void{fill:var(--anatomy-face)}
+.f0 .sl{fill:var(--anatomy-card);stroke:var(--anatomy-faint);stroke-width:.6}
 .f0 .sl.ok{fill:color-mix(in srgb,var(--ok) 35%,var(--anatomy-card));stroke:var(--ok);stroke-dasharray:none}
 .f0 .sl.own{fill:color-mix(in srgb,#3e63dd 35%,var(--anatomy-card));stroke:#3e63dd;stroke-dasharray:none}
 .f0 .cur-row{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
-.f0 .cmp-draft{fill:none;stroke:var(--anatomy-strong);stroke-width:1.3;stroke-dasharray:4 2}.f0 .cmp-link{fill:none;stroke:var(--anatomy-strong);stroke-width:1.15}.f0 .cmp-ah{fill:var(--anatomy-strong)}
+.f0 .cmp-draft{fill:none;stroke:var(--anatomy-strong);stroke-opacity:.5;stroke-width:1.3}.f0 .cmp-link{fill:none;stroke:var(--anatomy-strong);stroke-width:1.15}.f0 .cmp-ah{fill:var(--anatomy-strong)}
 .f0 .lead{fill:none;stroke:var(--anatomy-strong);stroke-width:1.2}.f0 .leadd{fill:var(--anatomy-strong)}
 .f0 .tl-ax{font-size:10px;fill:var(--anatomy-text)}
 .f0 .rl{fill:var(--anatomy-text);text-anchor:end}

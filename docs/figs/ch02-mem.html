@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -465,7 +465,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate .fl{fill:none;stroke-linecap:round;stroke-linejoin:round}
 .iso-plate .pad{stroke:var(--anatomy-card);stroke-width:1.2}
 .iso-plate .flh{fill:none;stroke:var(--anatomy-card);stroke-linecap:round;stroke-linejoin:round;opacity:.85}
-.iso-plate .drop{fill:none;stroke:var(--anatomy-strong);stroke-width:1;stroke-dasharray:3 2}
+.iso-plate .drop{fill:none;stroke:var(--anatomy-strong);stroke-width:.8}
 .iso-plate .u .env{display:none;fill:none;stroke:var(--anatomy-lo);stroke-width:1.4;stroke-dasharray:4 2}
 .iso-plate .u.unk>.env{display:inline}
 .iso-plate .u.on{--anatomy-face:#ffffff;--anatomy-top:#ffffff;--anatomy-shade-0:#e2e2df;--anatomy-shade-1:#e8e8e5;--anatomy-shade-2:#eeeeeb;--anatomy-shade-3:#f4f4f2;--anatomy-hi:var(--anatomy-strong);--anatomy-mid:var(--anatomy-strong);--anatomy-weight:1.5px}
@@ -711,7 +711,7 @@ const padDot=(p,col)=>'<circle class="pad" cx="'+f1(p[0])+'" cy="'+f1(p[1])+'" r
 function flowsFor(k){
   const C=D.COL, M=MODEL;
   if(k===0){ const ret=route(M.w_demo.via,0);
-    return arrow(null,route(["sm0:l1","xbar","l2","fbpa"],7),"req",C.w,1.5,"mw","","4 3")+arrow(M.w_demo.tr,ret,"ret",C.w,2.8,"mw","")+padDot(ret[0],C.w); }
+    return arrow(null,route(["sm0:l1","xbar","l2","fbpa"],7),"req",C.w,1.5,"mw","")+arrow(M.w_demo.tr,ret,"ret",C.w,2.8,"mw","")+padDot(ret[0],C.w); }
   if(k===1){ const cold=route(["hbm","fbpa","l2"],0);
     return arrow(M.x_cold.tr,cold,"cold",D.AMB.line,SWS.cold.w,"mxp","dim")+'<g class="dim">'+padDot(cold[0],D.AMB.line)+"</g>"+arrow(M.x_l2.tr,route(M.x_l2.via,0),"l2",C.xa,SWS.l2.w,"mxa","dim")+'<g class="dim">'+padDot(LAY.iso.P(D.ANCH.xbar),C.xa).replace("r=\"3.2\"","r=\"2.6\"")+"</g>"+arrow(M.x_l1.tr,route(M.x_l1.via,2),"l1",C.xf,SWS.l1.w,"mxf",""); }
   const [r0,f0]=route(["sm0:smsp0:regfile","sm0:smsp0:fma"],0), at=(a,b,u)=>[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u], nx=(f0[1]-r0[1]),ny=-(f0[0]-r0[0]), nl=Math.hypot(nx,ny)||1, sh=(p,o)=>[p[0]+nx/nl*o,p[1]+ny/nl*o];
@@ -719,7 +719,7 @@ function flowsFor(k){
 }
 // tags: [id, key, wide position (svg units), arrow style, dim]. Each tag starts with a sample of the line style of its arrow, so that two arrows on one route stay told apart.
 // The wide layout puts them at the lower left of the scene, the narrow layout stacks them in a key under the scene.
-const SWS={req:{c:"w",w:1.5,d:"4 3"},ret:{c:"w",w:2.8},cold:{c:"xl",w:1.4,o:0.45,dot:1},l2:{c:"xa",w:2.2,o:0.45},l1:{c:"xf",w:3.4},fma:{c:"acc",w:2.8}};
+const SWS={req:{c:"w",w:1.5},ret:{c:"w",w:2.8},cold:{c:"xl",w:1.4,o:0.45,dot:1},l2:{c:"xa",w:2.2,o:0.45},l1:{c:"xf",w:3.4},fma:{c:"acc",w:2.8}};
 const TAGS={0:[["tag_s1_miss","mem.flows.0.miss",[8,258],SWS.req],["tag_s1_ret","mem.flows.0.ret",[8,296],SWS.ret]],
   1:[["tag_s2_cold","mem.flows.1.cold",[8,238],SWS.cold,true],["tag_s2_l2","mem.flows.1.l2",[8,264],SWS.l2,true],["tag_s2_l1","mem.flows.1.l1",[8,302],SWS.l1]],
   2:[["tag_s3_fma","mem.flows.2.fma",[8,262],SWS.fma]]};

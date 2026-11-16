@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -451,7 +451,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate .cur{stroke:var(--anatomy-strong);stroke-width:1.3;fill:none}
 .iso-plate .ar{fill:none;stroke:var(--anatomy-lo);stroke-width:1.2}
 .iso-plate [data-chip].on rect:first-of-type{stroke:var(--anatomy-strong);stroke-width:2}
-.iso-plate .fl{fill:none;stroke-width:1.8}.iso-plate .fl.bold{stroke-width:2.2}.iso-plate .ldr{fill:none;stroke:var(--anatomy-lo);stroke-width:.9}.iso-plate .ldd{fill:var(--anatomy-lo)}.iso-plate .wbg{font-size:14px;font-weight:800;fill:#334155;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
+.iso-plate .fl{fill:none;stroke-width:1.8}.iso-plate .fl.bold{stroke-width:2.2}.iso-plate .fl.thin{stroke-width:1}.iso-plate .ldr{fill:none;stroke:var(--anatomy-lo);stroke-width:.9}.iso-plate .ldd{fill:var(--anatomy-lo)}.iso-plate .wbg{font-size:14px;font-weight:800;fill:#334155;paint-order:stroke;stroke:var(--anatomy-card);stroke-width:3px}
 .iso-plate [data-hw="cvt_pipe_B"]{display:none}.iso-plate [data-hw="cvt_pipe_B"].on{display:inline}.iso-plate [data-hw="cvt_pipe_B"] path{fill:#efe6f8;fill-opacity:.9;stroke:#8e4ec6;stroke-width:1.4;stroke-dasharray:4 2}.iso-plate [data-hw].wt path{stroke:#334155;stroke-width:1.8}
 .iso-plate .fl.h0{stroke:#3e63dd}.iso-plate .fl.h1{stroke:#0b9f8c}.iso-plate .fl.h2{stroke:#8e4ec6}.iso-plate .fl.h3{stroke:#d98200}.iso-plate .fl.h4{stroke:#d6409f}.iso-plate .fl.h5{stroke:#0284c7}.iso-plate .fl.h6{stroke:#8a6d3b}.iso-plate .fl.h7{stroke:#5b6b7f}.iso-plate .fl.hg{stroke:var(--anatomy-muted)}.iso-plate .fl.dash{stroke-dasharray:4 2}
 .iso-plate .src rect{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
@@ -766,7 +766,7 @@ const STEPS={
   {side:0,chips:["w","h_op"],lit:["aluH0","fmaH0","regH0"],arrows:[ar("H","rega0","alu0",2,0),ar("H","rega0","fma0",2,0),ar("H","alu0","reg0",2,0),ar("H","fma0","reg0",2,0)],pills:[pl("H","alu0","flow.m3.s2.ops",-1,0,14),pl("H","reg0","flow.m3.s2.bf16",2,0,-4)],focus:"focus.m3.s2"},
   {side:0,chips:["h_bf"],lit:["fmaH0","regH0","tcH0"],arrows:[ar("H","regx0","fma0",2,0),ar("H","fma0","reg0",2,0),ar("H","reg0","tc0",2,0,{bold:1})],pills:[pl("H","reg0","flow.m3.s3.scaled",2,0,-4),pl("H","tc0","flow.m3.s3.rs_cue",-1,0,14)],focus:"focus.m3.s3"},
   {side:1,chips:["w","b_cvt"],lit:[...pre("regB"),"cvt_pipe_B","tmemB","mbar_stage_B"],arrows:T4.map((q)=>ar("B","reg"+q,"tqs"+q,2,0,{via:"cv"+q})),pills:[pl("B","reg0","flow.m3.s4.per_thr",2,0,-4),pl("B","tmem","flow.m3.s4.st",2,0,18)],tags:[pl("B","alu0","sm.cvt_pipe.b",-1,0,30,{unk:1})],mbar:[{s:"B",id:"mbar_stage_B",k:"flow.m3.s4.mbar"}],focus:"focus.m3.s4"},
-  {side:1,chips:["w","b_bs"],lit:["smemB","tmemB",...pre("tcB"),"src_mem"],ovDrop:[/^accD_bs/],dimu:["tmaB","mbar_w_B","mbar_act_B","mbar_scale_B"],arrows:[ar("B","src","tma",2,0,{dim:1,via:"tmv"}),ar("B","tma","smem",2,0,{dim:1}),ar("B","reg0","smem",5,0,{dim:1}),ar("B","smem","tcg",5,1),ar("B","tcg","tmem",1,1),ar("B","smscA","tmscA",2,0),ar("B","smscB","tmscB",5,0),ar("B","tmscA","tcsA",2,1),ar("B","tmscB","tcsB",5,1)],pills:[pl("B","tma","flow.m3.s5.w_a",2,0,-4),pl("B","reg0","flow.m3.s5.act_pre",5,0,-4,{dim:1}),pl("B","smem","flow.m3.s5.act_b",5,0,16),pl("B","tmem","flow.m3.s5.scales",2,0,18),pl("B","tmem","flow.m3.s5.scale_b",5,0,18),pl("B","tmem","flow.m3.s5.cp",2,0,18)],focus:"focus.m3.s5"},
+  {side:1,chips:["w","b_bs"],lit:["smemB","tmemB",...pre("tcB"),"src_mem"],ovDrop:[/^accD_bs/],dimu:["tmaB","mbar_w_B","mbar_act_B","mbar_scale_B"],arrows:[ar("B","src","tma",2,0,{dim:1,via:"tmv"}),ar("B","tma","smem",2,0,{dim:1}),ar("B","reg0","smem",5,0,{dim:1}),ar("B","smem","tcg",5,1),ar("B","tcg","tmem",1,1),ar("B","smscA","tmscA",2,0),ar("B","smscB","tmscB",5,0),ar("B","tmscA","tcsA",2,0),ar("B","tmscB","tcsB",5,0)],pills:[pl("B","tma","flow.m3.s5.w_a",2,0,-4),pl("B","reg0","flow.m3.s5.act_pre",5,0,-4,{dim:1}),pl("B","smem","flow.m3.s5.act_b",5,0,16),pl("B","tmem","flow.m3.s5.scales",2,0,18),pl("B","tmem","flow.m3.s5.scale_b",5,0,18),pl("B","tmem","flow.m3.s5.cp",2,0,18)],focus:"focus.m3.s5"},
   {side:2,chips:["w","h_op","h_bf","b_cvt","b_bs"],lit:["aluH0","fmaH0","regH0","tcH0","smemB","tmemB",...pre("tcB")],ovDrop:[/^accD_bs/],arrows:[],pills:[pl("H","reg0","flow.m3.s6.h_pill",2,0,0),pl("B","reg0","flow.m3.s6.b_rA_pill",2,0,0,{dim:1}),pl("B","tmem","flow.m3.s6.b_rB_pill",5,0,0)],focus:"focus.m3.s6",focusH:"focus.m3.s6.h",focusB:"focus.m3.s6.b"},
  ],
  "4":[
@@ -901,7 +901,7 @@ function drawScene(m,k){
     const srcX=(q)=>{ const c=[]; for(let x=pl.x+14;x<=pl.x+SMW*pl.s-14;x+=4) c.push(x); c.sort((a,b)=>Math.abs(a-q[0])-Math.abs(b-q[0])); return c.find((x)=>clear(x,sy0,q[0],q[1]))||c[0]; };
     const pt=(key,o,via)=>key==="src"?[via?pl.x+pl.s*16:srcX(o),sy0]:anchor(g,st,X,key);
     (st.arrows||[]).filter((a)=>a.s===X).forEach((a)=>{ const q=pt(a.b), p=pt(a.a,q,a.via), v=a.via?pt(a.via):null; fl+='<path class="fl h'+(a.h<0?"g":a.h)+(a.d?" dash":"")+(a.bold?" bold":"")+'" '+(a.dim?'data-dim ':'')+'d="M'+f1(p[0])+" "+f1(p[1])+(v?"L"+f1(v[0])+" "+f1(v[1]):"")+"L"+f1(q[0])+" "+f1(q[1])+'" marker-end="url(#mk)"/>'; });
-    if(st.waitLn&&show) T4.forEach((q)=>{ const p=pt("sch"+q), c=pt("tc"+q); fl+='<path class="fl hg dash" d="M'+f1(p[0])+" "+f1(p[1])+"L"+f1(c[0])+" "+f1(c[1])+'"/>'; lab+='<text class="wbg" text-anchor="middle" x="'+f1(p[0])+'" y="'+f1(p[1]-5)+'">\u2016</text>'; });
+    if(st.waitLn&&show) T4.forEach((q)=>{ const p=pt("sch"+q), c=pt("tc"+q); fl+='<path class="fl hg thin" d="M'+f1(p[0])+" "+f1(p[1])+"L"+f1(c[0])+" "+f1(c[1])+'"/>'; lab+='<text class="wbg" text-anchor="middle" x="'+f1(p[0])+'" y="'+f1(p[1]-5)+'">\u2016</text>'; });
     fl+='<g transform="translate('+f1(pl.lx)+' '+f1(ly)+')">'+lane.svg+'</g>';
   });
   $("hdr").innerHTML=hd; $("units").innerHTML=ld+lab; $("flows").innerHTML=fl; $("focus").innerHTML=foc;

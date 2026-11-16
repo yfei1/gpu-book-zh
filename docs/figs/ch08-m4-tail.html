@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -449,13 +449,13 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .fe .fbox{fill:var(--anatomy-card);stroke:var(--anatomy-lo);stroke-width:.8}.fe .fl1{fill:var(--anatomy-strong);font-weight:600}.fe .fl2{fill:var(--anatomy-text)}
 .fe .al{fill:var(--anatomy-strong);font-weight:600}.fe .lab{fill:var(--anatomy-strong)}
 .fe .pill{fill:var(--anatomy-card);stroke:var(--anatomy-strong);stroke-width:1}.fe .pill.amber{stroke:hsl(36 100% 43%);stroke-width:1.4}.fe .pt{fill:var(--anatomy-strong);font-weight:600}
-.fe .arr{fill:none;stroke-width:1.4}.fe .seam{fill:none;stroke:var(--anatomy-strong);stroke-width:1;stroke-dasharray:3 2}.fe .lead{stroke:var(--anatomy-strong);stroke-width:.7}.fe .leadd{fill:var(--anatomy-strong)}.fe .rk{stroke:var(--anatomy-card);stroke-width:1}
+.fe .arr{fill:none;stroke-width:1.4}.fe .seam{fill:none;stroke:var(--anatomy-strong);stroke-width:.8;stroke-opacity:.6}.fe .lead{stroke:var(--anatomy-strong);stroke-width:.7}.fe .leadd{fill:var(--anatomy-strong)}.fe .rk{stroke:var(--anatomy-card);stroke-width:1}
 .fe .wait{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.6}.fe .fwait{fill:#c7cad4;stroke:#8d91a0;stroke-width:.6}
 .fe .tw{fill:var(--anatomy-strong)}.fe .bt{font-weight:600}
 .fe .seg{stroke:var(--anatomy-card);stroke-width:.8}.fe .trk{fill:var(--anatomy-faint);opacity:.35}.fe .tick{stroke:hsl(36 100% 43%);stroke-width:1.2}
-.fe .guide{stroke:var(--anatomy-text);stroke-width:.8;stroke-dasharray:3 2}.fe .guide.ref{stroke:var(--anatomy-lo)}.fe .brk{fill:none;stroke:var(--anatomy-strong);stroke-width:.9}
+.fe .guide{stroke:var(--anatomy-text);stroke-width:.8}.fe .guide.ref{stroke:var(--anatomy-lo);stroke-width:.6}.fe .brk{fill:none;stroke:var(--anatomy-strong);stroke-width:.9}
 .fe .gh{font-size:8.5px;font-weight:600;fill:var(--anatomy-strong)}.fe .rl{font-size:8.5px;fill:var(--anatomy-text);text-anchor:end}
-.fe .divl{stroke:var(--anatomy-lo);stroke-width:.8;stroke-dasharray:2 2}.fe .cur{fill:none;stroke:var(--anatomy-strong);stroke-width:1.3}
+.fe .divl{stroke:var(--anatomy-lo);stroke-width:.6;stroke-opacity:.6}.fe .cur{fill:none;stroke:var(--anatomy-strong);stroke-width:1.3}
 .fe [data-sm].act{--anatomy-face:#ffffff;--anatomy-top:#ffffff;--anatomy-shade-0:#e2e2df;--anatomy-shade-1:#e8e8e5;--anatomy-shade-2:#eeeeeb;--anatomy-shade-3:#f4f4f2;--anatomy-hi:var(--anatomy-strong);--anatomy-mid:var(--anatomy-strong);--anatomy-weight:1.5px}.fe [data-sm].wt{--anatomy-face:#c7cad4;--anatomy-top:#dcdfe8;--anatomy-shade-0:#a9adba;--anatomy-shade-1:#b1b5c2;--anatomy-shade-2:#babdc9;--anatomy-shade-3:#c2c5d0;--anatomy-hi:#8d91a0;--anatomy-mid:#8d91a0}
 .fe .nar{margin:14px 8px 6px;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.fe .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.fe .nh b{white-space:nowrap;flex:none;display:inline-block;min-width:4.2em;padding:1px 8px;border-radius:10px;background:var(--anatomy-blue);color:#fff;font-weight:600;font-size:12px;text-align:center}
 .fe .kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
@@ -648,9 +648,9 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
     // arrows (labels stack under the callout)
     const A = ARROWS[m][k];
     if (A) {
-      const col = A.col === "A" ? D.C.bA : "var(--anatomy-strong)", dash = A.dash ? { "stroke-dasharray": "3 2", opacity: 0.75 } : {}, ln = (a, b, dx = 0, trim = 6) => { const dxs = b[0] - a[0], dys = b[1] - a[1], d = Math.hypot(dxs, dys) || 1, s = trim / d; mk("line", { x1: a[0] + dxs * s + dx, y1: a[1] + dys * s, x2: b[0] - dxs * s + dx, y2: b[1] - dys * s, class: "arr", style: `stroke:${col}`, "marker-end": A.col === "A" ? "url(#ahA)" : "url(#ahI)", ...(A.both ? { "marker-start": "url(#ahAs)" } : {}), ...dash }, fx); };
+      const col = A.col === "A" ? D.C.bA : "var(--anatomy-strong)", ln = (a, b, dx = 0, trim = 6) => { const dxs = b[0] - a[0], dys = b[1] - a[1], d = Math.hypot(dxs, dys) || 1, s = trim / d; mk("line", { x1: a[0] + dxs * s + dx, y1: a[1] + dys * s, x2: b[0] - dxs * s + dx, y2: b[1] - dys * s, class: "arr", style: `stroke:${col}`, "marker-end": A.col === "A" ? "url(#ahA)" : "url(#ahI)", ...(A.both ? { "marker-start": "url(#ahAs)" } : {}) }, fx); };
       if (A.local) A.local.forEach((s) => { const [px, py] = TL_[s]; mk("path", { d: `M${px - 6} ${py + 3}C${px - 6} ${py + 13} ${px + 6} ${py + 13} ${px + 6} ${py + 3}`, class: "arr", style: `stroke:${col}`, "marker-end": "url(#ahI)" }, fx); });
-      else if (A.arc) { const [a, b] = A.arc.map((s) => TL_[s]), top = Math.min(a[1], b[1]) - 24; mk("path", { d: `M${a[0]} ${a[1] - 20}Q${(a[0] + b[0]) / 2} ${top - 14} ${b[0]} ${b[1] - 20}`, class: "arr", style: `stroke:${col}`, "stroke-dasharray": "3 2", "marker-end": "url(#ahI)", "marker-start": "url(#ahIs)" }, fx); }
+      else if (A.arc) { const [a, b] = A.arc.map((s) => TL_[s]), top = Math.min(a[1], b[1]) - 24; mk("path", { d: `M${a[0]} ${a[1] - 20}Q${(a[0] + b[0]) / 2} ${top - 14} ${b[0]} ${b[1] - 20}`, class: "arr", style: `stroke:${col}`, "marker-end": "url(#ahI)", "marker-start": "url(#ahIs)" }, fx); }
       else if (A.pairs) A.pairs.forEach(([at, s]) => ln(at, TL_[s], 0, 2.5));
       else if (A.from) A.from.forEach((s) => ln(TL_[s], L2C)); else A.to.forEach((s, i, all) => { const same = all.filter((v) => v === s), dx = same.length > 1 ? (all.slice(0, i).filter((v) => v === s).length - (same.length - 1) / 2) * 5 : 0; ln(A.at || L2C, TL_[s], dx, A.at ? 2.5 : 6); });
       const r = put(fx, L[`iso.fx.m${m}.s${k + 1}`], 8, y + 8, { size: 8.5, maxW: 296, cls: "al", min: 7 }); y += r.h + 3;

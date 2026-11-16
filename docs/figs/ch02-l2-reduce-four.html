@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -485,7 +485,6 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .f27 .bar.l2{fill:url(#hatchFix);stroke:#7d7b74;stroke-width:.95}
 .f27 .bar.unk{fill:url(#hatchFix);stroke:var(--anatomy-strong);stroke-width:1.6;stroke-dasharray:4.5 2.5}
 .f27 .bar.wt{fill:#c7cad4;stroke:#767b8c;stroke-width:1}
-.f27 .fig-ghost .bar.wt{fill:#9ea4b8;stroke:#4e5366;stroke-width:1.1}.f27 .fig-ghost .bar.l2{fill:url(#hatchGhost)}
 .f27 .bar.yb{fill:url(#yRamp);stroke:var(--anatomy-strong);stroke-width:1.2}
 .f27 .bar.cs{fill:url(#hatch);stroke:var(--anatomy-red);stroke-width:.8}
 .f27 .bt{font-size:8.5px;font-weight:600;fill:#fff;text-anchor:middle;pointer-events:none}
@@ -495,7 +494,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .f27 .an.t2,.f27 .bt.t2{fill:#ffffff}
 .f27 .an.t3,.f27 .bt.t3{fill:#141413}
 .f27 .tk{fill:none;stroke:var(--anatomy-strong);stroke-width:1.3}.f27 .tk.dot{stroke-width:1.7;stroke-linecap:round}.f27 .tk.gate{stroke-width:1.1}
-.f27 .bnd{fill:none;stroke:var(--anatomy-strong);stroke-width:.9;stroke-dasharray:3 2}
+.f27 .bnd{fill:none;stroke:var(--anatomy-strong);stroke-width:.7;opacity:.6}
 .f27 .r4t{font-size:8.5px;font-weight:600;fill:var(--anatomy-strong);paint-order:stroke;stroke:var(--anatomy-card);stroke-width:2.5px}
 .f27 .axt{font-size:8.5px;fill:var(--anatomy-text)}.f27 .axt.blab{font-size:8px;font-weight:500}.f27 .axk{stroke:var(--anatomy-mid);stroke-width:.8}
 .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
@@ -535,7 +534,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 <text id="t2" class="lab" x="8" y="13"></text>
 <text id="t1" class="lab" x="306" y="282" text-anchor="end"></text>
 <text id="smband" class="lab" x="8" y="298">4 个 SM（全卡 132 个中的 4 个，各驻 1 个 CTA）</text>
-<g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="flat" viewBox="0 0 332 154" role="img" aria-label="五行的步骤先后时间线（横轴只表示先后，条宽是示意）：前四行为 CTA A 至 CTA D，第五行为 L2 计数器（模式 1–2）或 L2 输出 y（模式 3–4）。"><defs><pattern id="hatchFix" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--anatomy-face)"/><path d="M0 0V5" stroke="var(--anatomy-lo)" stroke-width="1" opacity="0.8"/></pattern><pattern id="hatchGhost" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#ffffff"/><path d="M0 0V4" stroke="var(--anatomy-strong)" stroke-width="1.3"/></pattern><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" stroke="var(--anatomy-red)" stroke-width="1" opacity="0.6"/></pattern><linearGradient id="yRamp" x1="0" x2="1" y1="0" y2="0"><stop offset="0%" stop-color="hsl(226 70% 55%)"/><stop offset="25%" stop-color="hsl(226 70% 55%)"/><stop offset="25%" stop-color="hsl(172 87% 33%)"/><stop offset="50%" stop-color="hsl(172 87% 33%)"/><stop offset="50%" stop-color="hsl(272 51% 54%)"/><stop offset="75%" stop-color="hsl(272 51% 54%)"/><stop offset="75%" stop-color="hsl(36 100% 43%)"/><stop offset="100%" stop-color="hsl(36 100% 43%)"/></linearGradient><clipPath id="clipT"><rect id="clipR" x="66" y="18" width="0" height="126"/></clipPath></defs>
+<g id="focus"></g></svg><div class="nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="flat" viewBox="0 0 332 154" role="img" aria-label="五行的步骤先后时间线（横轴只表示先后，条宽是示意）：前四行为 CTA A 至 CTA D，第五行为 L2 计数器（模式 1–2）或 L2 输出 y（模式 3–4）。"><defs><pattern id="hatchFix" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--anatomy-face)"/><path d="M0 0V5" stroke="var(--anatomy-lo)" stroke-width="1" opacity="0.8"/></pattern><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" stroke="var(--anatomy-red)" stroke-width="1" opacity="0.6"/></pattern><linearGradient id="yRamp" x1="0" x2="1" y1="0" y2="0"><stop offset="0%" stop-color="hsl(226 70% 55%)"/><stop offset="25%" stop-color="hsl(226 70% 55%)"/><stop offset="25%" stop-color="hsl(172 87% 33%)"/><stop offset="50%" stop-color="hsl(172 87% 33%)"/><stop offset="50%" stop-color="hsl(272 51% 54%)"/><stop offset="75%" stop-color="hsl(272 51% 54%)"/><stop offset="75%" stop-color="hsl(36 100% 43%)"/><stop offset="100%" stop-color="hsl(36 100% 43%)"/></linearGradient><clipPath id="clipT"><rect id="clipR" x="66" y="18" width="0" height="126"/></clipPath></defs>
 <text class="ax" data-rowlabel="head" x="66" y="13">横轴只表示先后，条宽是示意（未标具体时长）</text>
 <rect class="lane" x="66" y="26" width="242" height="20"/><rect class="lane" x="66" y="48" width="242" height="20"/><rect class="lane" x="66" y="70" width="242" height="20"/><rect class="lane" x="66" y="92" width="242" height="20"/><rect class="lane" x="66" y="116" width="242" height="20"/>
 <text class="rl" data-rowlabel x="62" y="39" text-anchor="end">CTA A</text><text class="rl" data-rowlabel x="62" y="61" text-anchor="end">CTA B</text><text class="rl" data-rowlabel x="62" y="83" text-anchor="end">CTA C</text><text class="rl" data-rowlabel x="62" y="105" text-anchor="end">CTA D</text><text id="r4lab" class="rl" data-rowlabel x="62" y="129" text-anchor="end">L2 计数器</text>

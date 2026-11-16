@@ -34,7 +34,7 @@ const CSS=`
 .fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
 .fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
-.fig-ghost{opacity:.3;pointer-events:none}.fig-atend .fig-ghost{display:none}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
 .fig-variants,.fig-param{margin:0 0 12px}
 .fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
 .fig-cards{display:flex;gap:8px}
@@ -200,7 +200,7 @@ function mount(){
   const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
   function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id;
     const build=()=>{ obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
-      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); g.before(c); });
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ const f=getComputedStyle(o).fill; if(f!=="none"&&sc[i].tagName!=="text"&&sc[i].tagName!=="tspan") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
       obs.observe(tlSvg,{childList:true,subtree:true}); };
     const obs=new MutationObserver(build); build(); }
 
@@ -460,14 +460,14 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .fg .axl{stroke:var(--anatomy-faint);stroke-width:.8;fill:none}
 .fg .drift{stroke:var(--anatomy-red)}.fg circle.drift{fill:var(--anatomy-red);stroke:none}.fg text.drift{fill:#c62a2f;stroke:none}
 .fg .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
-.fg .bl{stroke:#475569;stroke-width:1;stroke-dasharray:4 3;fill:none}
+.fg .bl{stroke:#475569;stroke-width:1;fill:none}
 .fg .tk{stroke:var(--anatomy-strong);stroke-width:.8;fill:none}.fg .capbg{fill:var(--anatomy-card);stroke:none}
-.fg .lv{stroke-width:1.2;fill:none}.fg .lv.tt{stroke-width:1.5}.fg .lv.tt2{stroke-dasharray:5 5}
+.fg .lv{stroke-width:1.2;fill:none}.fg .lv.tt{stroke-width:3.4}.fg .lv.tt2{stroke-width:1.3}
 .fg .act{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
-.fg .ar{stroke:#777;stroke-width:1.2;fill:none}.fg .brk{stroke:#475569;stroke-width:1;stroke-dasharray:4 3;fill:none}
+.fg .ar{stroke:#777;stroke-width:1.2;fill:none}.fg .brk{stroke:#475569;stroke-width:1;fill:none}
 .fg .sb{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
 .fg [data-chip="flush"] .sb{fill:#f2f1ed;stroke:#5e5d59;stroke-width:1.5}
-.fg [data-chip="ev0"] .sb,.fg [data-chip="ev1"] .sb{stroke:#475569;stroke-dasharray:4 3}
+.fg [data-chip="ev0"] .sb,.fg [data-chip="ev1"] .sb{stroke:#475569}
 .fg [data-chip].kA .sb{fill:hsl(226 56% 84%);stroke:#3e63dd}.fg [data-chip].kB .sb{fill:hsl(36 80% 84%);stroke:#d98200}
 .fg [data-chip] .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.5;opacity:0}.fg [data-chip].lit .ao{opacity:1}
 .fg #smAll.on{--anatomy-face:#ffffff;--anatomy-top:#ffffff;--anatomy-shade-0:#e2e2df;--anatomy-shade-1:#e8e8e5;--anatomy-shade-2:#eeeeeb;--anatomy-shade-3:#f4f4f2;--anatomy-hi:var(--anatomy-strong);--anatomy-mid:var(--anatomy-strong);--anatomy-weight:1.5px;--anatomy-weight:1px}
@@ -491,7 +491,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .kard dd .katex{font-size:1em}
 .fig-atend #cur{opacity:0}
 .iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
-</style><figure class="iso-figure" aria-label="Figure 10-2 A B B A: Canceling Linear Drift Between Both Sides (interactive schematic). The top four-box strip shows one timed iteration: an untimed 512 MiB read outside the events leaves the 60 MiB L2 with clean lines (flush CTA count not recorded), followed by the start event, all 132 SMs running co-resident version A or B gemv, and the end event, giving reading r_p = t_end − t_start. The middle H200 diagram shows 6 HBM stacks (holding co-resident A, B, and the 512 MiB buffer; HBM-to-L2 path order unknown), the 60 MiB L2, and all 132 SMs, while a gauge on the right represents slow schematic drift from temperature, clocks, and other factors (individual shares not measured). The bottom order-only timeline (horizontal axis shows sequence only; bar height and drift are schematic rather than microseconds, with a dashed line marking equal runtime t_A = t_B) compares two orders under the same +1-unit-per-run drift slope: Mode 1 all A then all B (8 runs, AAAA BBBB) puts A at mean timestamp 2.5 and B at 6.5, where a red bracket shows +4 drift units mixed into Mean(B) − Mean(A); Mode 2 paired order (4 runs per group, A B B A) places A (timestamps 1, 4) and B (timestamps 2, 3) both at mean timestamp 2.5 with equal mean readings so linear drift cancels to 0 in the difference (sudden non-linear jumps such as clock drops cannot be canceled and were not measured)."><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure 10-2</span><span class="iso-plate-corner" data-corner="title">A B B A: Canceling Linear Drift Between Both Sides</span><span class="iso-plate-corner" data-corner="readout" data-readout>Mode 1: all A then B (8 runs)
+</style><figure class="iso-figure" aria-label="Figure 10-2 A B B A: Canceling Linear Drift Between Both Sides (interactive schematic). The top four-box strip shows one timed iteration: an untimed 512 MiB read outside the events leaves the 60 MiB L2 with clean lines (flush CTA count not recorded), followed by the start event, all 132 SMs running co-resident version A or B gemv, and the end event, giving reading r_p = t_end − t_start. The middle H200 diagram shows 6 HBM stacks (holding co-resident A, B, and the 512 MiB buffer; HBM-to-L2 path order unknown), the 60 MiB L2, and all 132 SMs, while a gauge on the right represents slow schematic drift from temperature, clocks, and other factors (individual shares not measured). The bottom order-only timeline (horizontal axis shows sequence only; bar height and drift are schematic rather than microseconds, with a thin B-colored line over a thick A-colored line marking equal runtime t_A = t_B) compares two orders under the same +1-unit-per-run drift slope: Mode 1 all A then all B (8 runs, AAAA BBBB) puts A at mean timestamp 2.5 and B at 6.5, where a red bracket shows +4 drift units mixed into Mean(B) − Mean(A); Mode 2 paired order (4 runs per group, A B B A) places A (timestamps 1, 4) and B (timestamps 2, 3) both at mean timestamp 2.5 with equal mean readings so linear drift cancels to 0 in the difference (sudden non-linear jumps such as clock drops cannot be canceled and were not measured)."><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure 10-2</span><span class="iso-plate-corner" data-corner="title">A B B A: Canceling Linear Drift Between Both Sides</span><span class="iso-plate-corner" data-corner="readout" data-readout>Mode 1: all A then B (8 runs)
 Finished run 1 of 8 (+1 drift unit on run 1)</span></div><div class="fg"><svg id="alg" class="flat" viewBox="0 0 640 120" role="img" aria-label="Four-box flow of one timed iteration: ① an untimed 512 MiB read flush leaves L2 clean outside the events, followed by the start event logging t_start, ② 132 SMs running version A or B gemv, and the end event logging t_end, bracketing single-run reading r_p.">
 <defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#777"/></marker></defs>
 <g id="algS"></g></svg><svg id="iso" class="isov" viewBox="0 0 640 266" role="img" aria-label="H200 hardware and drift schematic: on the left, the package shows all 6 HBM stacks (co-resident A, B, and 512 MiB buffer; HBM-to-L2 path order unknown), 60 MiB L2, and all 132 SMs with two arrows for ① the untimed 512 MiB read flush (flush CTA count not recorded) and ② timed A or B gemv; on the right, a schematic gauge rises per run to show slow drift from temperature, clocks, etc. (individual shares not measured).">
@@ -646,7 +646,7 @@ Finished run 1 of 8 (+1 drift unit on run 1)</span></div><div class="fg"><svg id
       g.algT = { x: 8, y: 113, w: W - 16 };
       return g;
     }
-    // 2 x 2 grid: start flush -> start event on the first row, an elbow, kernel -> end event on the second row; the dashed bracket hugs the three boxes inside the timed span
+    // 2 x 2 grid: start flush -> start event on the first row, an elbow, kernel -> end event on the second row; the bracket hugs the three boxes inside the timed span
     const bw = Math.floor((W - 16 - 18) / 2), inW = bw - 16, xs = [8, W - 8 - bw, 8, W - 8 - bw];
     g.hdr = wrapLine(S.algHdr, W - 16, "lab2");
     const kernN = Math.max(...["A", "B", "sum"].map((a) => wrapLine(S.kern[a], inW, "tx").length));

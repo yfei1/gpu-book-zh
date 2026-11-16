@@ -124,10 +124,10 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate .bt1{font-size:8px;font-family:var(--anatomy-mono,monospace)}
 .iso-plate .onr{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
 .iso-plate .ccell{stroke:var(--anatomy-card);stroke-width:.8;fill:var(--anatomy-face)}
-.iso-plate .unrev{fill:none;stroke:var(--anatomy-lo);stroke-width:.8;stroke-dasharray:2 2}
+.iso-plate .unrev{fill:none;stroke:var(--anatomy-lo);stroke-width:.8;stroke-opacity:.5}
 .iso-plate .zero{fill:#f3f2ed;stroke:#8d8b82;stroke-width:.8}
 .iso-plate .drop{fill:url(#hatchRed);stroke:var(--anatomy-red);stroke-width:.5}
-.iso-plate .lnk{stroke:var(--anatomy-mid);stroke-width:.8;stroke-dasharray:3 2;fill:none}
+.iso-plate .lnk{stroke:var(--anatomy-mid);stroke-width:.6;fill:none}
 .iso-plate .brk{fill:none;stroke:var(--anatomy-strong);stroke-width:1}
 .iso-plate .cbox{fill:var(--anatomy-card);stroke:var(--anatomy-lo);stroke-width:.8}
 .iso-plate .unkb{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1.2;stroke-dasharray:4 2}
@@ -138,7 +138,7 @@ body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px
 .iso-plate .cur{stroke:var(--anatomy-strong);stroke-width:1.3;fill:none}
 .iso-plate .fl{fill:none;stroke:var(--anatomy-strong);stroke-width:2}.iso-plate .fl.dim{opacity:.45}
 .iso-plate .arhd{fill:var(--anatomy-strong)}.iso-plate .arhp{fill:#d6409f}
-.iso-plate .zl{fill:none;stroke:var(--anatomy-strong);stroke-width:.8;stroke-dasharray:3 2;opacity:.7}
+.iso-plate .zl{fill:none;stroke:var(--anatomy-strong);stroke-width:.8;opacity:.7}
 .iso-plate .rz .iso-top{fill:url(#hatchRed)}
 .iso-plate .ldr{fill:none;stroke:var(--anatomy-strong);stroke-width:.8;opacity:.75}.iso-plate .ldr.q{opacity:.3}.iso-plate .ldd{fill:var(--anatomy-strong)}
 .iso-plate .ldr2{fill:none;stroke:var(--anatomy-strong);stroke-width:1.2}.iso-plate .ldd2{fill:var(--anatomy-strong)}
@@ -340,9 +340,9 @@ function drawAlg(m,kk){
   else if(m==="2") rng(4).forEach((i)=>R(2*i,2,"R"+i,"R"+i,act.r.includes(i),i===0?SLOTC(0,"pale"):SLOTC(7,"pale"),SLOTI(i===0?0:7,"pale"),false));
   else { const half=(AW+GP)*4-GP, laOn=kk>=1, cdOn=kk>=3;
     const act3=(n)=>act.r.includes(n);
-    regs+='<g'+(act3("la")?'':' data-dim')+(laOn?' data-hw="reg_la"':'')+'><rect x="'+f1(x(0))+'" y="'+g.yr+'" width="'+f1(half)+'" height="22" fill="'+(laOn?SLOTC(1,kk===1?"fill":"pale"):"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(laOn?'':' stroke-dasharray="3 2"')+'/><text class="cc" x="'+f1(x(0)+half/2)+'" y="'+(g.yr+15)+'" text-anchor="middle" fill="'+(laOn?SLOTI(1,kk===1?"fill":"pale"):"var(--anatomy-strong)")+'">'+esc(Ls("alg.box.la"))+'</text></g>';
-    regs+='<g'+(act3("lb")?'':' data-dim')+(kk>=5?' data-hw="reg_lb"':'')+'><rect x="'+f1(x(4))+'" y="'+g.yr+'" width="'+f1(half)+'" height="22" fill="'+(kk>=5?SLOTC(1,"fill"):"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(kk>=5?'':' stroke-dasharray="3 2"')+'/><text class="cc" x="'+f1(x(4)+half/2)+'" y="'+(g.yr+15)+'" text-anchor="middle" fill="'+(kk>=5?SLOTI(1,"fill"):"var(--anatomy-strong)")+'">'+esc(Ls("alg.box.lb"))+'</text></g>';
-    regs+='<g'+(act3("cd")?'':' data-dim')+(cdOn?' data-hw="reg_cd"':'')+'>'+rng(8).map((j)=>{ const sl=!cdOn?null:j===5&&kk>=4?[4,"fill"]:kk===3?(j===0?[3,"fill"]:null):kk===4?[3,"pale"]:(j<4?[3,"fill"]:[3,"alt"]), f=sl&&SLOTC(sl[0],sl[1]); return '<rect x="'+f1(x(j))+'" y="'+g.cdY+'" width="'+f1(AW)+'" height="22" fill="'+(f||"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(cdOn?'':' stroke-dasharray="3 2"')+'/><text class="cc" x="'+f1(x(j)+AW/2)+'" y="'+(g.cdY+15)+'" text-anchor="middle" fill="'+(sl?SLOTI(sl[0],sl[1]):"var(--anatomy-strong)")+'">w'+j+'</text>'; }).join("")+'</g>';
+    regs+='<g'+(act3("la")?'':' data-dim')+(laOn?' data-hw="reg_la"':'')+'><rect x="'+f1(x(0))+'" y="'+g.yr+'" width="'+f1(half)+'" height="22" fill="'+(laOn?SLOTC(1,kk===1?"fill":"pale"):"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(laOn?'':' stroke-opacity=".5"')+'/><text class="cc" x="'+f1(x(0)+half/2)+'" y="'+(g.yr+15)+'" text-anchor="middle" fill="'+(laOn?SLOTI(1,kk===1?"fill":"pale"):"var(--anatomy-strong)")+'">'+esc(Ls("alg.box.la"))+'</text></g>';
+    regs+='<g'+(act3("lb")?'':' data-dim')+(kk>=5?' data-hw="reg_lb"':'')+'><rect x="'+f1(x(4))+'" y="'+g.yr+'" width="'+f1(half)+'" height="22" fill="'+(kk>=5?SLOTC(1,"fill"):"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(kk>=5?'':' stroke-opacity=".5"')+'/><text class="cc" x="'+f1(x(4)+half/2)+'" y="'+(g.yr+15)+'" text-anchor="middle" fill="'+(kk>=5?SLOTI(1,"fill"):"var(--anatomy-strong)")+'">'+esc(Ls("alg.box.lb"))+'</text></g>';
+    regs+='<g'+(act3("cd")?'':' data-dim')+(cdOn?' data-hw="reg_cd"':'')+'>'+rng(8).map((j)=>{ const sl=!cdOn?null:j===5&&kk>=4?[4,"fill"]:kk===3?(j===0?[3,"fill"]:null):kk===4?[3,"pale"]:(j<4?[3,"fill"]:[3,"alt"]), f=sl&&SLOTC(sl[0],sl[1]); return '<rect x="'+f1(x(j))+'" y="'+g.cdY+'" width="'+f1(AW)+'" height="22" fill="'+(f||"var(--anatomy-face)")+'" stroke="var(--anatomy-lo)" stroke-width=".8"'+(cdOn?'':' stroke-opacity=".5"')+'/><text class="cc" x="'+f1(x(j)+AW/2)+'" y="'+(g.cdY+15)+'" text-anchor="middle" fill="'+(sl?SLOTI(sl[0],sl[1]):"var(--anatomy-strong)")+'">w'+j+'</text>'; }).join("")+'</g>';
     if(act3("la")) o+='<rect class="onr" x="'+f1(x(0)-1)+'" y="'+(g.yr-1)+'" width="'+f1(half+2)+'" height="24"/>';
     if(act3("lb")) o+='<rect class="onr" x="'+f1(x(4)-1)+'" y="'+(g.yr-1)+'" width="'+f1(half+2)+'" height="24"/>';
     if(act3("cd")) o+='<rect class="onr" x="'+f1(x(0)-1)+'" y="'+(g.cdY-1)+'" width="'+f1(x(7)+AW-x(0)+2)+'" height="24"/>';
@@ -440,7 +440,7 @@ function body3(g,kk){
   FLD.forEach(([a,b],i)=>{ const ls=fl3[i], wd=Math.max(...ls.map((l)=>textW(l,"tn"))), xl=Math.max(a===0?X0:ctr(a,b)-wd/2,prevR+8); prevR=xl+wd; svg+='<text class="tn">'+ls.map((l,j)=>'<tspan x="'+f1(xl)+'" y="'+f1(by+j*10)+'">'+esc(l)+'</tspan>').join("")+'</text>'; });
   by+=10*Math.max(...fl3.map((a)=>a.length))+2;
   const dv=wrapLine(Ls("flat.m3.r1.div"),2*(R-4-(X0+8*CW)),"tn"); svg+='<text class="tn" style="font-weight:600">'+dv.map((l,i)=>'<tspan x="'+f1(X0+8*CW)+'" y="'+f1(by+i*11)+'" text-anchor="middle">'+esc(l)+'</tspan>').join("")+'</text>'; by+=11*dv.length;
-  svg+='<path class="brk" d="M'+f1(X0+8*CW)+" "+(y1-2)+"V"+(y1+CH+3)+'" style="stroke-dasharray:2 2"/>';
+  svg+='<path class="brk" d="M'+f1(X0+8*CW)+" "+(y1-2)+"V"+(y1+CH+3)+'" style="stroke-width:.7"/>';
   let y2=by+14; let l2=[]; if(kk>=1){ l2=wrapLine(Ls("flat.m3.r2"),R-PL0-4,"lab2"); labels.r2={lines:l2,y:y2+10}; y2=y2+11*l2.length+8; }
   if(kk>=1){ for(let c=8;c<16;c++) under+='<path class="lnk" d="M'+f1(X0+c*CW+CW/2)+" "+(y1+CH)+"V"+y2+'"/>';
     rng(16).forEach((c)=>{ let s; if(c>=8) s={f:SLOTC(1,kk===1?"fill":"pale"),c:SLOTI(1,kk===1?"fill":"pale"),ink:kk===1,t:bits[c],cls:"ccell"};

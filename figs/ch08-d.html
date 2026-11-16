@@ -331,7 +331,7 @@ function geom1(W){
 const tauRow=(g,tau,y,dim,sc)=>{ const px=g.px, iv=[[-18,tau-18,"url(#hatchZero)"],[tau-18,tau-17,"url(#hatchHalf)"],[tau-17,tau-14,C.pale3],[tau-14,tau,C.pale1],[tau,tau+HR,"url(#hatchHead)"],[tau+HR,10,C.orange]];
   let s=""; iv.forEach(([a,b,f])=>{ a=Math.max(a,-18); b=Math.min(b,10); if(b<=a) return; s+=R_(px(a),y,px(b)-px(a),22,{fill:f,"fill-opacity":f===C.orange?0.28:1,stroke:f===C.orange?C.orange:"none","stroke-width":.7}); });
   s+=R_(g.X0,y,g.X1-g.X0,22,{fill:"none",class:"band"});
-  s+=LN(px(tau),y-1,px(tau),y+23,{stroke:C.ink,"stroke-width":1.8})+LN(px(tau+HR),y-1,px(tau+HR),y+23,{stroke:C.clayInk,"stroke-width":1.5,"stroke-dasharray":"4 2"});
+  s+=LN(px(tau),y-1,px(tau),y+23,{stroke:C.ink,"stroke-width":1.8})+LN(px(tau+HR),y-1,px(tau+HR),y+23,{stroke:C.clayInk,"stroke-width":1.2});
   s+=TX(px(tau)-2,y+9,L["f79.m1.bands.mark_a"],"sm halo",{"text-anchor":"end"})+TX(px(tau+HR)+2,y+9,L["f79.m1.bands.mark_b"],"sm halo")+TX(g.X0+3,y+17,sc,"sm2 halo");
   return mk("g",{class:dim?"dim":""},s); };
 function drawM1(k,W){
@@ -346,7 +346,7 @@ function drawM1(k,W){
   z+=R_(4,g.zf-3,W-12,g.r6-3-(g.zf-3),{rx:6,fill:C.zoomZone,stroke:C.zoomEdge,"stroke-width":1})+mk("path",{d:"M"+f1(px(3))+" "+f1(g.r4+22)+"L"+f1(g.X0)+" "+f1(zt)+"M"+f1(px(6))+" "+f1(g.r4+22)+"L"+f1(g.X1)+" "+f1(zt),stroke:C.zoomEdge,"stroke-width":1,fill:"none"});
   z+=tb("tx halo",g.zh,8,g.zf+11,LH);
   z+=R_(g.X0,zt,ZA-g.X0,zh,{fill:C.pale1})+R_(ZA,zt,ZB-ZA,zh,{fill:"url(#hatchHead)"})+R_(ZB,zt,g.X1-ZB,zh,{fill:C.orange,"fill-opacity":.28,stroke:C.orange,"stroke-width":.7})+R_(g.X0,zt,g.X1-g.X0,zh,{fill:"none",class:"band"});
-  z+=LN(ZA,zt-1,ZA,zt+zh+1,{stroke:C.ink,"stroke-width":1.8})+LN(ZB,zt-1,ZB,zt+zh+1,{stroke:C.clayInk,"stroke-width":1.5,"stroke-dasharray":"4 2"});
+  z+=LN(ZA,zt-1,ZA,zt+zh+1,{stroke:C.ink,"stroke-width":1.8})+LN(ZB,zt-1,ZB,zt+zh+1,{stroke:C.clayInk,"stroke-width":1.2});
   z+=TX(g.X1-3,zt+14,L["f79.m1.bands.zoom.sat"],"sm2 halo",{"text-anchor":"end"});
   const pX=pz(4.5), pY=zt+zh/2; z+=mk("path",{d:"M"+f1(pX)+" "+f1(pY-6)+"L"+f1(pX+6)+" "+f1(pY)+"L"+f1(pX)+" "+f1(pY+6)+"L"+f1(pX-6)+" "+f1(pY)+"Z",fill:C.pal[4],stroke:k===3?C.ink:"#ffffff","stroke-width":k===3?2:1,"data-hw":k===3?"probe:x4_5":null});
   const ty=zt+zh+11; z+=tb("sm halo",NL(L["f79.m1.bands.zoom.a"]),ZA-3,ty,10.5,{"text-anchor":"end"})+tb("sm halo",NL(L["f79.m1.bands.zoom.b"]),ZB+5,ty,10.5)+tb("sm halo",NL(L["f79.m1.bands.zoom.probe"]),pX,ty+23,10.5,{"text-anchor":"middle"});
@@ -354,7 +354,7 @@ function drawM1(k,W){
   let t=tb("tx",g.tilesT,8,g.tilesY+9,LH);
   TILEX.forEach((x,i)=>{ const y=g.laneY+i*22+11, em=(k===4&&(i===2))||(k===5&&i===5); t+=RL(g.LBX,y-3,L["f79.m1.bands.tile."+(i+1)])+LN(g.X0,y,g.X1,y,{stroke:"var(--anatomy-faint)","stroke-width":.8})+
     mk("circle",{cx:f1(px(x)),cy:f1(y),r:em?6:4.5,fill:C.pal[TILEC[i]],stroke:em?C.ink:"#ffffff","stroke-width":em?2:1,"data-hw":"tile:"+(i+1)}); });
-  if(k===4) t+=LN(px(5),g.laneY+2*22+11,px(7),g.laneY+5*22+11,{stroke:C.ink,"stroke-width":1.2,"stroke-dasharray":"3 2"});
+  if(k===4) t+=LN(px(5),g.laneY+2*22+11,px(7),g.laneY+5*22+11,{stroke:C.ink,"stroke-width":1,"stroke-opacity":.6});
   s+=mk("g",{class:dimC(on.tiles)},t);
   const vb=g.vb[k], cwid=(g.X1-g.X0)/32, lit=k>=3&&k<=5?20:-1; let v=tb("tx",g.voteF,8,g.voteY+9,LH)+RL(g.LBX,g.stripY+10,L["f79.m1.bands.rl.vote"]);
   for(let i=0;i<32;i++) v+=R_(g.X0+i*cwid+.5,g.stripY,cwid-1,14,{fill:i===lit?C.ink:"var(--anatomy-face)",stroke:"var(--anatomy-lo)","stroke-width":.7});
@@ -468,10 +468,10 @@ function drawFlat(m,W){
     const rs={fill:"var(--anatomy-face)",stroke:"var(--anatomy-faint)","stroke-width":.7}, po={rx:3,fill:"none",stroke:"var(--anatomy-lo)","stroke-width":1};
     rows.forEach((r,i)=>{ setRL($("rl"+i),LBX,ry(i)+10,L["f79.m2.tl.rl."+r]); st+=R_(TL0,ry(i),tx(36)-TL0,RH,rs)+R_(tx(40),ry(i),TL1-tx(40),RH,rs); });
     st+=R_(TL0-1,y0-2,tx(36)-TL0+2,y1-y0+4,po)+R_(tx(40)-1,y0-2,TL1-tx(40)+2,y1-y0+4,po);
-    KN.forEach((t)=>{ st+=LN(tx(t),y0,tx(t),y1,{stroke:"var(--anatomy-faint)","stroke-width":.8,"stroke-dasharray":"2 2"}); });
+    KN.forEach((t)=>{ st+=LN(tx(t),y0,tx(t),y1,{stroke:"var(--anatomy-faint)","stroke-width":.5}); });
     st+=R_(tx(36),y0-3,tx(40)-tx(36),y1-y0+6,{fill:"url(#hatchBrk)",opacity:.45,stroke:"var(--anatomy-faint)","stroke-width":.8});
     const wend=(Hk.match(/[(（]([^；;）)]+)/)||[0,""])[1].trim();
-    st+=LN(tx(40),y0-4,tx(40),y1+10,{stroke:C.ink,"stroke-width":1.6,"stroke-dasharray":"3 2"})+TX(tx(40),y1+21,wend,"sm halo",{"text-anchor":"middle"});
+    st+=LN(tx(40),y0-4,tx(40),y1+10,{stroke:C.ink,"stroke-width":1.1})+TX(tx(40),y1+21,wend,"sm halo",{"text-anchor":"middle"});
     const rowOf={sfu:0,fma:1,alu:2};
     tl+=R_(tx(36),y0-3,tx(40)-tx(36),y1-y0+6,{class:"brk",fill:"url(#hatchBrk)",stroke:"var(--anatomy-lo)","stroke-width":.8})+mk("path",{d:"M"+f1(tx(36)-3)+" "+f1(y0-1)+"l6 -5M"+f1(tx(40)-3)+" "+f1(y0-1)+"l6 -5M"+f1(tx(36)-3)+" "+f1(y1+7)+"l6 -5M"+f1(tx(40)-3)+" "+f1(y1+7)+"l6 -5",stroke:C.ink,"stroke-width":1.4,fill:"none"});
     GAPS.forEach(([a,b],i)=>{ tl+=mk("rect",{x:f1(tx(a)),y:f1(ry(3)),width:f1(tx(b)-tx(a)),height:RH,class:"gap"},mk("title",{},esc(L["f79.m2.tl.gap"+(i+1)]))); });
