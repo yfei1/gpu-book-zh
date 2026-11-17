@@ -92,6 +92,7 @@ mtext[mathvariant=monospace]{font-family:var(--mono);font-size:.77em}
 .book .note{font:14px/1.7 var(--sans);color:var(--stone);margin:0}
 section{padding-top:clamp(112px,16vh,168px)}
 .sect{content-visibility:auto;contain-intrinsic-block-size:auto var(--hm,@SECT_1100@px)}
+.sect{margin-inline:min(0px,calc(50% - var(--fw)/2));padding-inline:max(0px,calc(var(--fw)/2 - 50%))}
 .sect:not(.open)>:last-child{margin-bottom:0}
 .ch-head{margin:0 0 26px}
 .ch-num{font:400 14px/1.5 var(--sans);color:var(--stone);margin:0 0 14px}
