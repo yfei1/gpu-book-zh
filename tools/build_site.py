@@ -21,7 +21,7 @@ SRC_BOOK = Path(os.environ.get("BOOK_SRC") or ZH_BOOK)
 SRC_FIGS = Path(os.environ.get("BOOK_FIGS") or ZH_BOOK / "figs")  # zh figures; the en page falls back to them
 SRC_FIGS_EN = Path(os.environ.get("BOOK_FIGS_EN") or SRC_BOOK / "figs_en")  # figs_en/<id>/<id>.html
 REPO = Path(__file__).resolve().parent.parent
-BG_TREE = os.environ.get("BG_TREE") == "1"  # background hardware skill tree (tools/bg_tree.py)
+BG_TREE = os.environ.get("BG_TREE", "1") == "1"  # background hardware skill tree (tools/bg_tree.py)
 PREVIEW = os.environ.get("BOOK_OUT")  # preview build: one self-contained site per language in BOOK_OUT; writes nothing in REPO
 ALT_DOCS = os.environ.get("BOOK_DOCS")  # docs/ layout (zh at the root, en/ below) in another folder; writes nothing else in REPO
 DOCS = Path(PREVIEW).resolve() if PREVIEW else Path(ALT_DOCS).resolve() if ALT_DOCS else REPO / "docs"
