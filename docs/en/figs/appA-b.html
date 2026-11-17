@@ -1,0 +1,816 @@
+<!doctype html><html lang="en"><head><script>(()=>{
+// Shared figure component. One file for both editions: strings follow <html lang>. Spec: UX_REDESIGN_SPEC_v2.md.
+// Figures that declare FIG.timeline(...) get the step track, variant cards, ghost timeline and 1:1 plate panels.
+// Figures that do not declare it keep the previous controls (legacy path at the end of this file).
+const ZH=/^zh/i.test(document.documentElement.lang||""), LANG=ZH?"zh":"en";
+const STR={"en": {"track.counter": "Step {k} of {M}", "track.counter_group": "Step {k} of {M} · {group}", "track.label": "Figure steps", "track.valuetext": "Step {k} of {M}: {title}", "track.preview": "Step {k}: {title}", "step.prev": "Previous step", "step.next": "Next step", "play.play": "Play", "play.pause": "Pause", "play.replay": "Replay", "hint.track": "Use ‹ › or Play, or drag the track or timeline; use ← → on the track.", "hint.track_reduced": "Use ‹ ›, or drag the track or timeline; use ← → on the track.", "end.note": "Reached the final step.", "pan.hint": "Swipe the diagram sideways to see all of it.", "strip.label": "Result across {param} (current value marked)", "strip.not_measured": "Not measured separately", "param.value": "{value} {unit}", "legacy.prev": "◀ Previous", "legacy.next": "Next ▶", "legacy.speed": "Speed"}, "zh": {"track.counter": "第 {k} / {M} 步", "track.counter_group": "第 {k} / {M} 步 · {group}", "track.label": "本图步骤", "track.valuetext": "第 {k} / {M} 步：{title}", "track.preview": "第 {k} 步：{title}", "step.prev": "上一步", "step.next": "下一步", "play.play": "播放", "play.pause": "暂停", "play.replay": "重播", "hint.track": "点 ‹ › 或播放，也可拖步骤条或时间线；选中步骤条按 ← →。", "hint.track_reduced": "点 ‹ ›，也可拖步骤条或时间线；选中步骤条按 ← →。", "end.note": "已到最后一步。", "pan.hint": "左右滑动图形，查看完整画面。", "strip.label": "随 {param} 变化的结果（已标出当前值）", "strip.not_measured": "未单测", "param.value": "{value} {unit}", "legacy.prev": "◀ 上一步", "legacy.next": "下一步 ▶", "legacy.speed": "速度"}};
+const t=(id,v)=>{ const s=STR[LANG][id]; return s==null?"":(v?s.replace(/\{(\w+)\}/g,(m,k)=>v[k]!=null?v[k]:m):s); };
+const $=id=>document.getElementById(id);
+const R=window.requestAnimationFrame.bind(window), CAF=window.cancelAnimationFrame.bind(window);
+const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const D={};
+const steps=()=>D.tl.steps(), endT=()=>D.tl.end(), rate=()=>typeof D.tl.rate==="function"?D.tl.rate():D.tl.rate;
+const idx=v=>{ const S=steps(); let k=0; for(let i=0;i<S.length;i++){ if(S[i].t<=v+1e-9) k=i; else break; } return k; };
+const grp=k=>{ const S=steps(), g=S[k].group; if(g==null) return null; let a=k,b=k; while(a>0&&S[a-1].group===g) a--; while(b<S.length-1&&S[b+1].group===g) b++; return b-a+1>=3?{g,a,b}:null; };
+const fmt=n=>(+n).toLocaleString("en-US");
+window.FIG={ timeline:o=>{D.tl=o;}, variants:o=>{D.variants=o;}, param:o=>{D.param=o;}, t,
+  stepLabel(){ if(!D.tl||!$("tIn")) return ""; const k=idx(+$("tIn").value), M=steps().length, g=grp(k);
+    return g?t("track.counter_group",{k:k+1,M,group:steps()[k].group}):t("track.counter",{k:k+1,M}); } };
+
+const CSS=`
+.fig-prev,.fig-next,.fig-play{font:inherit;color:var(--anatomy-strong);background:var(--anatomy-card);border:1px solid var(--anatomy-lo);border-radius:8px;cursor:pointer;min-width:44px;height:44px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center}
+.fig-prev,.fig-next{font-size:22px;line-height:1;flex:none}
+.fig-prev:disabled,.fig-next:disabled{opacity:.35;cursor:default}
+.fig-play{font-size:14px;font-weight:600;flex:none}
+.fig-prev:focus-visible,.fig-next:focus-visible,.fig-play:focus-visible,.fig-track:focus-visible,.fig-card:has(input:focus-visible),.fig-seg label:has(input:focus-visible){outline:2px solid var(--anatomy-blue);outline-offset:2px}
+.nar .nh{align-items:center;flex-wrap:wrap}.nar .nh>span{flex:1 1 12em;min-width:0}
+.fig-ctl{display:flex;gap:8px;align-items:center;margin:0 8px;position:relative}
+.fig-track{flex:1;min-width:0;height:44px;display:flex;align-items:center;touch-action:pan-y;cursor:pointer}
+.fig-segs{display:flex;gap:2px;width:100%}
+.fig-segs i{flex:1;height:8px;border-radius:2px;background:var(--anatomy-faint);transition:background .15s}
+.fig-segs i.past{background:color-mix(in srgb,var(--anatomy-blue) 38%,var(--anatomy-faint))}
+.fig-segs i.cur{background:var(--anatomy-blue)}
+.fig-segs i.hot{outline:2px solid var(--anatomy-blue);outline-offset:1px}
+.fig-hint{margin:2px 10px 10px;font-size:12px;font-weight:500;line-height:1.5;color:var(--anatomy-muted)}
+.fig-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.fig-tip{position:fixed;z-index:20;pointer-events:none;max-width:min(320px,90vw);padding:6px 10px;border-radius:6px;background:var(--anatomy-strong);color:var(--anatomy-card);font-size:12px;line-height:1.4}
+.fig-ghost{pointer-events:none}.fig-ghost *{stroke:none!important;stroke-dasharray:none!important;filter:none!important;opacity:1!important}.fig-ghost text,.fig-ghost tspan{fill:#b9bcc6!important}.fig-atend .fig-ghost{display:none}
+.fig-variants,.fig-param{margin:0 0 12px}
+.fig-axis{font-size:12px;font-weight:500;color:var(--anatomy-muted);margin:0 2px 6px}
+.fig-cards{display:flex;gap:8px}
+.fig-card,.fig-seg label{position:relative;cursor:pointer;border:1px solid var(--anatomy-lo);border-radius:8px;background:var(--anatomy-card);color:var(--anatomy-strong);font-size:14px;line-height:1.4}
+.fig-card{flex:1 1 0;min-width:0;min-height:56px;padding:8px 12px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.fig-card input,.fig-seg label input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.fig-card .fig-n{font-weight:600}.fig-card .fig-o{font-size:12px;font-weight:500;color:var(--anatomy-text)}
+.fig-card.is-on,.fig-seg label.is-on{box-shadow:var(--anatomy-lift);border-color:var(--anatomy-blue);border-left-width:3px}
+.fig-seg{display:flex;flex-wrap:wrap;gap:8px}
+.fig-seg label{min-width:44px;min-height:44px;padding:0 12px;display:flex;align-items:center;justify-content:center;text-align:center}
+.fig-seg label.fig-base{margin-right:8px}
+.fig-strip{display:block;width:100%;height:90px;margin-top:4px}
+.fig-strip .dot{fill:var(--anatomy-card);stroke:var(--anatomy-text);stroke-width:1.5}.fig-strip .dot.on{fill:var(--anatomy-blue);stroke:var(--anatomy-blue)}
+.fig-strip .base{stroke:var(--anatomy-lo);stroke-width:1}
+.fig-strip .hit{fill:transparent;cursor:pointer}.fig-strip .nm,.fig-strip .vv{text-anchor:middle}.fig-strip .nm{font-size:12px;fill:var(--anatomy-muted)}.fig-strip .vv{font-size:10.5px;fill:var(--anatomy-text)}.fig-strip .vv.on{fill:var(--anatomy-strong);font-weight:600}.fig-strip .vy,.fig-strip .vz{text-anchor:start;fill:var(--anatomy-muted)}.fig-strip .vz.on{fill:var(--anatomy-strong)}
+.fig-sval{font-size:12px;font-weight:500;color:var(--anatomy-text);margin:0 2px}
+@media(max-width:600px){
+.fig-cards{overflow-x:auto;scroll-snap-type:x mandatory}.fig-card{flex:0 0 78%;scroll-snap-align:start}
+}
+.fig-boot *{transition:none!important}
+@media(prefers-reduced-motion:reduce){.fig-segs i{transition:none}}
+`;
+
+
+// Every figure page, migrated or not: plate panels at 1:1 on a phone, and plate corners that flow instead of overlapping.
+const PANCSS=`
+.fig-pan-hint{margin:6px 2px;font-size:12px;font-weight:500;color:var(--anatomy-muted)}
+@media(max-width:600px){
+.fig-pan{overflow-x:auto}.fig-pan>svg{min-width:var(--vbw)}
+.iso-plate{display:flex;flex-direction:column;padding-top:16px!important;padding-bottom:16px!important}
+.iso-plate>*{min-width:0}
+.iso-plate-corners{display:contents}
+.iso-plate-corner,.iso-plate-corner[data-corner]{position:static!important;max-width:none!important;white-space:normal!important;text-align:left!important}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line!important}
+.iso-plate-corner:empty{display:none}
+.iso-plate-corner[data-corner="title"]{margin:4px 0 8px;line-height:1.4}
+.iso-plate-corner[data-corner="readout"],.iso-plate-corner[data-corner="hint"]{order:1;margin-top:8px;font-size:12px;line-height:1.5}
+}
+.fig-rlbg{fill:var(--anatomy-card)}
+`;
+// Row labels. A <text data-rowlabel> that is a direct child of a panel svg keeps its left edge inside the pan box while the pan scrolls (<= 600 px).
+// It sits on a plate-coloured chip, and follow() keeps the cursor clear of the chips (scroll-padding-left). data-rowlabel="head" marks a heading with nothing under it: no chip, no clearance.
+function pin(w,s){
+  const L=[...s.querySelectorAll(":scope>[data-rowlabel]")]; if(!L.length) return;
+  const chips=L.map(e=>{ if(e.dataset.rowlabel==="head") return null; const r=document.createElementNS("http://www.w3.org/2000/svg","rect"); r.setAttribute("class","fig-rlbg"); return r; });
+  let raised=false;
+  const raise=()=>{ raised=true; const top=s.querySelector(":scope>#cur"); L.forEach((e,i)=>{ if(chips[i]) s.insertBefore(chips[i],top); s.insertBefore(e,top); }); };
+  const upd=()=>{ const sr=s.getBoundingClientRect(), k=s.viewBox.baseVal.width/sr.width, left=(w.getBoundingClientRect().left-sr.left)*k; let clear=0;
+    L.forEach((e,i)=>{ const b=e.getBBox(), d=Math.max(0,left-b.x), r=chips[i], tr=d?"translateX("+d.toFixed(2)+"px)":"";
+      if(d&&!raised) raise(); e.style.transform=tr; if(!r) return;
+      r.style.transform=tr; r.style.display=d?"":"none"; r.setAttribute("x",b.x-2); r.setAttribute("y",b.y-2); r.setAttribute("width",b.width+4); r.setAttribute("height",b.height+4); clear=Math.max(clear,(b.width+2)/k); });
+    w.style.scrollPaddingLeft=clear+"px"; };
+  w.addEventListener("scroll",upd,{passive:true}); new ResizeObserver(upd).observe(w); upd();
+}
+function pan(){
+  const st=document.createElement("style"); st.textContent=PANCSS; document.head.appendChild(st);
+  document.querySelectorAll(".iso-plate").forEach(plate=>{
+    const panels=[...plate.querySelectorAll("svg[viewBox]")].filter(s=>!s.parentElement.closest("svg")).map(s=>{ const w=document.createElement("div"); w.className="fig-pan"; s.before(w); w.append(s); s.style.setProperty("--vbw",s.viewBox.baseVal.width+"px"); pin(w,s); return w; });
+    if(!panels.length) return;
+    const hint=document.createElement("p"); hint.className="fig-pan-hint"; hint.textContent=t("pan.hint"); hint.hidden=true; panels[0].before(hint);
+    const update=()=>{ const over=panels.find(w=>w.scrollWidth>w.clientWidth); hint.hidden=!over; if(over) over.before(hint); };
+    const ro=new ResizeObserver(()=>{ panels.forEach(w=>{ w._sc=null; }); update(); }); panels.forEach(w=>ro.observe(w));
+  });
+}
+
+function mount(){
+  const tin=$("tIn"), stepN=$("stepN"), card=stepN.closest(".nar"), plate=stepN.closest(".iso-plate"), figure=plate.closest(".iso-figure")||plate;
+  const stepQ=+tin.step||0.01, lo=+tin.min||0, hi=()=>+tin.max;
+  window.requestAnimationFrame=R;
+  const st=document.createElement("style"); st.textContent=CSS; document.head.appendChild(st);
+  const el=(tag,cls,html)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.textContent=html; return e; };
+  const hide=e=>{ e.style.display="none"; const c=e.closest(".ctl"); if(c&&[...c.children].every(x=>x.style.display==="none"||x.hidden)) c.style.display="none"; };
+  const clampK=k=>Math.max(0,Math.min(steps().length-1,k));
+  const setA=(e,n,v)=>{ if(e.getAttribute(n)!==v) e.setAttribute(n,v); };
+  let ghostTick=()=>{};
+  let prepWait=false, quiet=false, raf=0, anim=null, lastK=0, cal=[], marks=[], uid=0;
+
+  // ---- clock: the only owner of time
+  const setT=v=>{ tin.value=String(v); tin.dispatchEvent(new Event("input",{bubbles:true})); };
+  const curK=()=>idx(+tin.value);
+  const settled=k=>{ const S=steps(); if(k>=S.length-1) return endT(); let v=S[k+1].t-1e-6; v=lo+Math.floor((v-lo)/stepQ+1e-9)*stepQ; return +Math.max(v,S[k].t).toFixed(6); };
+  let onScreen=true, parked=null;
+  const awake=()=>onScreen&&!document.hidden;
+  const wake=()=>{ if(parked&&awake()){ const f=parked; parked=null; raf=R(f); } };
+  new IntersectionObserver(es=>{ onScreen=es[es.length-1].isIntersecting; wake(); }).observe(figure);
+  document.addEventListener("visibilitychange",wake);
+  const halt=()=>{ parked=null; if(raf){ CAF(raf); raf=0; } if(anim){ anim=null; tin.step=String(stepQ); setT(+tin.value); } };
+  function run(target,perSec,kind,onEnd,k){ halt(); anim={kind,k}; tin.step="any"; let cur=+tin.value, last=0;
+    const tick=now=>{ if(!awake()){ raf=0; last=0; parked=tick; return; } const dt=last?Math.min((now-last)/1000,0.1):0; last=now; cur=Math.min(target,cur+perSec*dt);
+      if(cur>=target-1e-9){ anim=null; raf=0; tin.step=String(stepQ); setT(target); onEnd&&onEnd(); return; }
+      setT(cur); raf=R(tick); };
+    raf=R(tick); sync(); }
+  const jump=k=>{ halt(); setT(settled(clampK(k))); };
+  const baseK=()=>anim&&anim.kind==="step"?anim.k:curK();
+  const go=(k,animate)=>{ k=clampK(k); if(animate&&!RM&&!anim&&k===curK()+1) run(settled(k),rate(),"step",()=>follow(curK()),k); else jump(k); };
+  const atEnd=()=>+tin.value>=endT()-1e-9;
+  function play(){ if(anim&&anim.kind==="play"){ halt(); sync(); return; }
+    if(atEnd()) jump(0); live.textContent=""; run(endT(),rate()*0.25,"play",()=>{ live.textContent=t("end.note"); sync(); }); }
+
+  // ---- step track: buttons in the card header, control row after the card
+  const prev=el("button","fig-prev","‹"), next=el("button","fig-next","›");
+  prev.type=next.type="button"; prev.setAttribute("aria-label",t("step.prev")); next.setAttribute("aria-label",t("step.next"));
+  stepN.before(prev); stepN.after(next);
+  const ctl=el("div","fig-ctl"), playB=el("button","fig-play"), track=el("div","fig-track"), segs=el("div","fig-segs"), live=el("div","fig-live"), tip=el("div","fig-tip");
+  playB.type="button"; tip.hidden=true; live.setAttribute("aria-live","polite");
+  track.setAttribute("role","slider"); track.tabIndex=0; track.setAttribute("aria-label",t("track.label")); track.setAttribute("aria-valuemin","1");
+  track.append(segs); if(!RM) ctl.append(playB); ctl.append(track,live);
+  const hint=el("p","fig-hint",RM?t("hint.track_reduced"):t("hint.track"));
+  card.after(ctl); ctl.after(hint); document.body.append(tip);
+  const showTip=(text,x,y)=>{ tip.textContent=text; tip.hidden=false; tip.style.left=Math.max(4,Math.min(x+12,innerWidth-tip.offsetWidth-4))+"px"; tip.style.top=(y+16)+"px"; };
+  const stepTitle=k=>steps()[k].title||"";
+  const preview=(k,x,y)=>{ segs.querySelectorAll("i").forEach((s,i)=>s.classList.toggle("hot",i===k)); if(k==null||k<0){ tip.hidden=true; return; } showTip(t("track.preview",{k:k+1,title:stepTitle(k)}),x,y); };
+
+  // A pan box scrolls only where a media rule gives it overflow-x:auto; the value is cached until the box resizes, so wide pages read no layout here.
+  // Cursor-only calls (one per animation frame) run at the start of the next frame, where layout is already clean.
+  const pans=[...document.querySelectorAll(".fig-pan")], scrolls=w=>!!w&&(w._sc??(w._sc=getComputedStyle(w).overflowX!=="visible"));
+  let fq=0;
+  const followNow=(k,curOnly)=>{ const into=(w,r)=>{ if(!scrolls(w)||w.scrollWidth<=w.clientWidth) return; const b=w.getBoundingClientRect(), L=b.left+24+(parseFloat(w.style.scrollPaddingLeft)||0), R=b.right-24;
+      const d=(r.right-r.left>R-L||r.left<L)?r.left-L:r.right>R?r.right-R:0;
+      if(d) w.scrollTo({left:w.scrollLeft+d,behavior:RM||curOnly?"instant":"smooth"}); };
+    if($("cur")) into($("cur").closest(".fig-pan"),$("cur").getBoundingClientRect());
+    if(!curOnly){ ensureMarks(); marks.filter(m=>m.k===k).forEach(m=>{ const e=m.n||m.g; into(e.closest(".fig-pan"),e.getBoundingClientRect()); }); } };
+  const follow=(k,curOnly)=>{ if(!pans.some(scrolls)) return;
+    if(!curOnly){ if(fq){ CAF(fq); fq=0; } followNow(k,false); }
+    else if(!fq) fq=R(()=>{ fq=0; followNow(k,true); }); };
+  function sync(){ if(quiet) return; const S=steps(), M=S.length, k=curK(), moved=k!==lastK; lastK=k;
+    if(segs.children.length!==M){ segs.replaceChildren(...S.map(()=>document.createElement("i"))); }
+    [...segs.children].forEach((s,i)=>{ s.classList.toggle("cur",i===k); s.classList.toggle("past",i<k); });
+    setA(track,"aria-valuemax",String(M)); setA(track,"aria-valuenow",String(k+1)); setA(track,"aria-valuetext",t("track.valuetext",{k:k+1,M,title:stepTitle(k)}));
+    prev.disabled=k===0; next.disabled=k===M-1;
+    const lab=FIG.stepLabel(); if(stepN.textContent!==lab) stepN.textContent=lab;
+    const pl=anim&&anim.kind==="play"?t("play.pause"):atEnd()?t("play.replay"):t("play.play"); if(playB.textContent!==pl) playB.textContent=pl;
+    ghostTick();
+    document.documentElement.classList.toggle("fig-atend",atEnd());
+    if(!(sk&&sk.drag)){ if(moved) follow(k); else if(anim) follow(k,true); } resume(); }
+  const segAt=x=>{ const r=track.getBoundingClientRect(), M=steps().length; return Math.max(0,Math.min(M-1,Math.floor((x-r.left)/r.width*M))); };
+  prev.addEventListener("click",()=>go(baseK()-1,false)); next.addEventListener("click",()=>go(baseK()+1,true)); playB.addEventListener("click",play);
+  let drag=false;
+  track.addEventListener("pointerdown",e=>{ if(e.button!==0) return; drag=true; track.setPointerCapture(e.pointerId); const j=segAt(e.clientX); jump(j); });
+  track.addEventListener("pointermove",e=>{ if(drag){ const j=segAt(e.clientX); if(j!==curK()) jump(j); } else if(e.pointerType==="mouse") preview(segAt(e.clientX),e.clientX,e.clientY); });
+  track.addEventListener("pointerup",()=>{ drag=false; }); track.addEventListener("pointercancel",()=>{ drag=false; });
+  track.addEventListener("pointerleave",()=>{ if(!drag) preview(null); });
+  track.addEventListener("keydown",e=>{ const k=baseK(), M=steps().length, g=grp(k); let h=true;
+    if(e.key==="ArrowRight"){ if(k<M-1) go(k+1,true); } else if(e.key==="ArrowLeft"){ if(k>0) go(k-1,false); }
+    else if(e.key==="Home") jump(0); else if(e.key==="End") jump(M-1);
+    else if(e.key==="PageDown"&&steps().some((s,i)=>grp(i))){ const a=g?g.b+1:k+1; if(a<M) go(a,false); }
+    else if(e.key==="PageUp"&&steps().some((s,i)=>grp(i))){ const a=g?g.a-1:k-1; if(a>=0){ const h2=grp(a); go(h2?h2.a:a,false); } }
+    else h=false;
+    if(h) e.preventDefault(); });
+
+  // ---- time calibration for the figure's own timeline, and marks that link to steps
+  const tlSvg=$("cur")?$("cur").ownerSVGElement:null;
+  const visit=(fn)=>{ const keep=+tin.value; quiet=true; try{ fn(); } finally { quiet=false; setT(keep); } };
+  // Calibration (cursor x at each step time) and the step marks need a visit of every step of a mode. prep() does at most one visit per frame:
+  // it skips the frame that renders the current change, then runs a visit only in an idle period that has more time left than the costliest visit so far.
+  // A user of a result that is not ready finishes it at once. Calibration is cached per mode; marks are redone after each mode switch.
+  const modeKey=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tin.max+"|"+steps().map(s=>s.t).join(","); };
+  const MARK_SEL="#focus > *, #algO > *";
+  const calC=new Map(); let markKey=null, job=null, prepQ=false;
+  const jobFor=key=>{ if(!job||job.key!==key) job={key,cal:[],ts:tlSvg?[...new Set([lo,...steps().map(s=>s.t).filter(v=>v>=lo),endT()])].sort((a,b)=>a-b):[],mk:[],k:0,M:steps().length}; return job; };
+  const calAt=(j)=>{ const v=j.ts[j.cal.length]; setT(v); const sr=tlSvg.getBoundingClientRect(), r=$("cur").getBoundingClientRect(); j.cal.push([v,(r.left+r.width/2-sr.left)/sr.width]); };
+  const marksAt=(j)=>{ const k=j.k++; setT(settled(k));
+    document.querySelectorAll(MARK_SEL).forEach(m=>{ const g=m.parentNode; try{ const b=m.getBBox(); j.mk.push({g,b,k}); }catch(_){} });
+    document.querySelectorAll(".nd.on").forEach(n=>j.mk.push({n,k})); };
+  const calDone=j=>!tlSvg||j.cal.length>=j.ts.length;
+  const ensureCal=()=>{ const key=modeKey(), c=calC.get(key); if(c){ cal=c; return; } const j=jobFor(key); if(!calDone(j)) visit(()=>{ while(!calDone(j)) calAt(j); }); calC.set(key,cal=j.cal); };
+  const ensureMarks=()=>{ const key=modeKey(); if(markKey===key) return; const j=jobFor(key); if(j.k<j.M) visit(()=>{ while(j.k<j.M) marksAt(j); }); marks=j.mk; markKey=key; };
+  const idle=window.requestIdleCallback||(f=>setTimeout(()=>f({timeRemaining:()=>Infinity})));
+  let cost=0, measured=false;
+  const prep=()=>{ if(!prepQ){ prepQ=true; R(()=>R(()=>idle(prepStep))); } };
+  // While the clock animates or the timeline is held, prep waits; sync() and the pointer release resume it.
+  const resume=()=>{ if(prepWait&&!anim&&!sk){ prepWait=false; prep(); } };
+  function prepStep(dl){ prepQ=false; if(anim||sk){ prepWait=true; return; } const key=modeKey(), j=jobFor(key);
+    const step=!calC.has(key)&&!calDone(j)?()=>calAt(j):markKey!==key&&j.k<j.M?()=>marksAt(j):null;
+    if(!step){ ensureCal(); ensureMarks(); return; }
+    if(dl.timeRemaining()<=cost){ prepQ=true; idle(prepStep); return; }
+    const t0=performance.now(); visit(step); void document.documentElement.offsetHeight;
+    const c=performance.now()-t0; cost=measured?Math.max(cost,c):c; measured=true;
+    prep(); }
+  const dropMarks=()=>{ markKey=null; job=null; };
+  if(tlSvg){ let w0=null; new ResizeObserver(([e])=>{ const w=e.contentRect.width; if(w0!==null&&w!==w0){ calC.clear(); dropMarks(); prep(); } w0=w; }).observe(tlSvg); }
+  const timeAt=fx=>{ if(cal.length<2) return lo; if(fx<=cal[0][1]) return cal[0][0]; for(let i=1;i<cal.length;i++){ if(fx<=cal[i][1]||i===cal.length-1){ const [t0,x0]=cal[i-1],[t1,x1]=cal[i]; return x1>x0?t0+Math.max(0,Math.min(1,(fx-x0)/(x1-x0)))*(t1-t0):t1; } } return cal[cal.length-1][0]; };
+  function stepsAt(e){ ensureMarks(); const ks=new Set(), nd=e.target.closest&&e.target.closest(".nd");
+    marks.forEach(m=>{ if(m.n){ if(nd===m.n) ks.add(m.k); return; } const ctm=m.g.getScreenCTM(); if(!ctm) return; const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(ctm.inverse()), pad=22/Math.max(ctm.a,0.01);
+      if(p.x>=m.b.x-pad&&p.x<=m.b.x+m.b.width+pad&&p.y>=m.b.y-pad&&p.y<=m.b.y+m.b.height+pad) ks.add(m.k); });
+    return [...ks].sort((a,b)=>a-b); }
+  const inBand=e=>{ if(!tlSvg||!$("cur")) return false; const r=$("cur").getBoundingClientRect(); return e.target.closest("svg")===tlSvg&&e.clientY>=r.top-12&&e.clientY<=r.bottom+12; };
+  const seek=x=>{ ensureCal(); const r=tlSvg.getBoundingClientRect(); let v=timeAt((x-r.left)/r.width); v=lo+Math.round((v-lo)/stepQ)*stepQ; setT(Math.max(lo,Math.min(hi(),+v.toFixed(6)))); };
+  let sk=null;
+  plate.addEventListener("pointerdown",e=>{ if(!inBand(e)) return; if(e.pointerType==="touch"){ sk={x:e.clientX,y:e.clientY}; return; } e.preventDefault(); halt(); seek(e.clientX); sk={drag:true}; tlSvg.setPointerCapture(e.pointerId); });
+  plate.addEventListener("pointermove",e=>{ if(sk&&sk.drag){ seek(e.clientX); return; } if(e.pointerType!=="mouse"||sk) return;
+    const c=inBand(e)?[]:stepsAt(e); if(c.length) preview(c[0],e.clientX,e.clientY); else preview(null); });
+  plate.addEventListener("pointerup",e=>{ if(sk&&sk.drag){ sk=null; resume(); return; } if(sk&&Math.hypot(e.clientX-sk.x,e.clientY-sk.y)<8){ halt(); seek(e.clientX); } sk=null; resume(); });
+  plate.addEventListener("pointerleave",()=>preview(null)); plate.addEventListener("pointercancel",()=>{ sk=null; resume(); });
+  plate.addEventListener("click",e=>{ if(inBand(e)||e.target.closest("button,input,label,a")) return; const c=stepsAt(e); if(!c.length) return;
+    const k=curK(), i=c.indexOf(k); jump(i<0?c[0]:c[(i+1)%c.length]); });
+
+  // ---- ghost: the part of the timeline after the cursor, drawn at the ghost tier
+  const clipRect=document.querySelector('clipPath > rect[id^="clipR"]');
+  // The ghost is rebuilt when the timeline DOM changes, at most once per step while the clock animates.
+  function ghost(){ if(!clipRect||!tlSvg||!clipRect.parentNode.id) return; const cid=clipRect.parentNode.id; let gk=-1, dirty=false;
+    const build=()=>{ dirty=false; gk=curK(); obs.disconnect(); tlSvg.querySelectorAll(".fig-ghost").forEach(e=>e.remove());
+      tlSvg.querySelectorAll('[clip-path="url(#'+cid+')"]').forEach(g=>{ const c=g.cloneNode(true); c.removeAttribute("clip-path"); c.removeAttribute("id"); c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")); c.classList.add("fig-ghost"); const so=[g,...g.querySelectorAll("*")], sc=[c,...c.querySelectorAll("*")]; so.forEach((o,i)=>{ if(sc[i].tagName!=="text"&&sc[i].tagName!=="tspan"&&getComputedStyle(o).fill!=="none") sc[i].style.setProperty("fill","#e6e7ec","important"); }); g.before(c); });
+      obs.observe(tlSvg,{childList:true,subtree:true}); };
+    const obs=new MutationObserver(()=>{ if(anim&&curK()===gk) dirty=true; else build(); }); ghostTick=()=>{ if(dirty&&(!anim||curK()!==gk)) build(); }; build(); }
+
+  // ---- variants (radio group "mode"), drawn as cards (compare) or tabs (topics)
+  const modeRadios=[...document.querySelectorAll("input[name=mode]")];
+  const claimed=D.param&&D.param.group==="mode";
+  const modesBox=modeRadios.length?modeRadios[0].closest(".modes")||modeRadios[0].parentNode:null;
+  const switched=aligned=>{ const kp=lastK; halt(); dropMarks(); setT(settled(aligned?clampK(kp):0)); follow(curK()); prep(); };
+  const markOn=(radios)=>radios.forEach(r=>r.closest("label").classList.toggle("is-on",r.checked));
+  if(modeRadios.length>=2&&!claimed){
+    const v=D.variants||{kind:"topics",aligned:false}, id="fig-ax"+(++uid), box=el("div","fig-variants"), cards=el("div","fig-cards");
+    box.setAttribute("role","radiogroup"); cards.setAttribute("role","presentation");
+    if(v.axis){ const ax=el("div","fig-axis",v.axis); ax.id=id; box.append(ax); box.setAttribute("aria-labelledby",id); }
+    modeRadios.forEach((r,i)=>{ const l=r.closest("label"), name=l.textContent.trim().replace(/^\d+\.\s*/,""); l.className="fig-card"; l.replaceChildren(r,el("span","fig-n",name));
+      if(v.kind==="compare"&&v.outcomes) l.append(el("span","fig-o",v.outcomes[i])); cards.append(l); });
+    box.append(cards); figure.before(box); if(modesBox) hide(modesBox); markOn(modeRadios);
+    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); switched(!!v.aligned); R(()=>r.closest("label").scrollIntoView({block:"nearest",inline:"nearest"})); }));
+  } else if(modeRadios.length&&!claimed&&modesBox) hide(modesBox);
+
+  // ---- measured parameter: one radio per measured point, dots strip at true x, baseline as a reference line
+  if(claimed&&D.param.kind==="measured"){
+    const p=D.param, id="fig-ax"+(++uid), box=el("div","fig-param"), ax=el("div","fig-axis",p.name), seg=el("div","fig-seg"), sval=el("div","fig-sval");
+    ax.id=id; seg.setAttribute("role","radiogroup"); seg.setAttribute("aria-labelledby",id); sval.setAttribute("aria-live","polite");
+    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg"); svg.setAttribute("class","fig-strip"); svg.setAttribute("role","img"); svg.setAttribute("aria-label",t("strip.label",{param:p.name}));
+    const byVal=Object.fromEntries(modeRadios.map(r=>[r.value,r])), text=pt=>t("param.value",{value:fmt(pt.x),unit:p.unit});
+    const base=byVal[p.baseline.value], bl=base.closest("label"); bl.className="fig-base"; bl.replaceChildren(base,el("span",null,p.baseline.label)); base.setAttribute("aria-label",p.baseline.label); seg.append(bl);
+    p.points.forEach(pt=>{ const r=byVal[pt.value], l=r.closest("label"); l.className=""; l.replaceChildren(r,el("span",null,text(pt))); r.setAttribute("aria-label",text(pt)); seg.append(l); });
+    box.append(ax,seg,svg,sval); figure.before(box);
+    if(modesBox) hide(modesBox);
+    const draw=()=>{ const W=svg.clientWidth||300, H=90, pad=30, xs=p.points.map(q=>q.x), x0=Math.min(...xs), x1=Math.max(...xs), ys=p.points.map(q=>q.y).filter(v=>v!=null), ym=Math.max(...ys,1e-9), yb=58, yt=34;
+      const X=x=>pad+(x1>x0?(x-x0)/(x1-x0):0.5)*(W-2*pad), Y=y=>yb-(y/ym)*(yb-yt), on=base.checked;
+      const lab=(cx,y,cls,s)=>{ const hw=s.length*3.4, c=Math.max(hw,Math.min(W-hw,+cx)); return '<text class="'+cls+'" x="'+c.toFixed(1)+'" y="'+y+'">'+s+'</text>'; };
+      svg.setAttribute("viewBox","0 0 "+W+" "+H);
+      svg.innerHTML='<text class="vv vy" x="2" y="11">'+p.cap+'</text><line class="base" x1="0" x2="'+W+'" y1="'+yb+'" y2="'+yb+'"/><text class="vv vz'+(on?" on":"")+'" x="2" y="'+(yb+11)+'">'+p.zero+'</text>'+p.points.map(q=>{ const sel=byVal[q.value].checked, cx=X(q.x).toFixed(1), lb=lab(cx,H-4,"nm",text(q));
+        return q.y==null?'<circle class="dot" cx="'+cx+'" cy="'+yb+'" r="4"/>'+lab(cx,yb-9,"nm",t("strip.not_measured"))+lb+'<circle class="hit" data-v="'+q.value+'" cx="'+cx+'" cy="'+yb+'" r="22"/>'
+          :'<circle class="dot'+(sel?" on":"")+'" cx="'+cx+'" cy="'+Y(q.y).toFixed(1)+'" r="'+(sel?5:4)+'"/>'+lab(cx,(Y(q.y)-9).toFixed(1),"vv"+(sel?" on":""),p.vv.replace("{y}",q.y.toFixed(3)))+lb+'<circle class="hit" data-v="'+q.value+'" cx="'+cx+'" cy="'+Y(q.y).toFixed(1)+'" r="22"/>'; }).join("");
+      const cur=p.points.find(q=>byVal[q.value].checked); sval.textContent=p.y.replace("{value}",on||!cur||cur.y==null?"0":cur.y.toFixed(3)); };
+    svg.addEventListener("click",e=>{ const h=e.target.closest(".hit"); if(h){ const r=byVal[h.dataset.v]; r.checked=true; r.dispatchEvent(new Event("change",{bubbles:true})); } });
+    new ResizeObserver(draw).observe(svg);
+    modeRadios.forEach(r=>r.addEventListener("change",()=>{ markOn(modeRadios); draw(); switched(!!p.aligned); })); markOn(modeRadios); draw();
+  }
+
+  tin.addEventListener("input",sync);
+  document.documentElement.classList.add("fig-boot");
+  ghost(); const t0=performance.now(); setT(settled(0)); sync(); void document.documentElement.offsetHeight; cost=performance.now()-t0; follow(curK()); prep();
+  R(()=>R(()=>document.documentElement.classList.remove("fig-boot")));
+}
+
+addEventListener("DOMContentLoaded",()=>{ pan(); if(D.tl) mount(); else legacy(); });
+// ---- legacy path: figures without FIG.timeline keep the previous controls (step buttons, speed, key handler)
+const LEG={prev:t("legacy.prev"),next:t("legacy.next"),speed:t("legacy.speed")};
+// A sandboxed frame (opaque origin) has no localStorage; the speed then lasts for the page only.
+const store=(()=>{ try{ return window.localStorage; }catch(_){ return null; } })();
+let speed=+(store&&store.getItem("figSpeed2")||0.25), baseN=null, baseV=0, lastN=0;
+const virt=n=>{ if(baseN===null){ baseN=n; baseV=n; } lastN=n; return baseV+(n-baseN)*speed; };
+window.requestAnimationFrame=cb=>R(n=>cb(virt(n)));
+const SPEEDS=[0.1,0.25,0.5,1];
+const setSpeed=s=>{ if(baseN!==null){ baseV=baseV+(lastN-baseN)*speed; baseN=lastN; } speed=s; if(store) store.setItem("figSpeed2",String(s));
+  document.querySelectorAll(".spd button[data-s]").forEach(b=>b.classList.toggle("on",+b.dataset.s===s)); };
+function legacyShell(){
+  const play=document.getElementById("play"), tIn=document.getElementById("tIn"), cur=document.getElementById("cur"), stepN=document.getElementById("stepN");
+  if(!play||!tIn) return;
+  const st=document.createElement("style");
+  st.textContent=".spd{display:inline-flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:8px;font-size:12px;color:#555}.spd button{font:inherit;padding:1px 6px;border:1px solid #bbb;background:#fff;border-radius:3px;cursor:pointer}.spd button.on{background:#333;color:#fff;border-color:#333}.spd .sep{width:6px}svg.seekable{cursor:pointer}";
+  document.head.appendChild(st);
+  const box=document.createElement("span"); box.className="spd";
+  box.innerHTML='<button type="button" class="fig-prev" data-k="-1" title="'+t("step.prev")+'">'+LEG.prev+'</button><button type="button" class="fig-next" data-k="1" title="'+t("step.next")+'">'+LEG.next+'</button><span class="sep"></span>'+LEG.speed+' '+SPEEDS.map(s=>'<button type="button" data-s="'+s+'">'+s+'×</button>').join("");
+  play.after(box); setSpeed(SPEEDS.includes(speed)?speed:0.25);
+  const isPlaying=()=>/^(Pause|暂停)$/.test(play.textContent.trim());
+  const pause=()=>{ if(isPlaying()) play.click(); };
+  const setT=v=>{ tIn.value=String(v); tIn.dispatchEvent(new Event("input")); };
+  const lo=()=>+(tIn.min||0), hi=()=>+(tIn.max||100);
+  const stepOf=()=>{ const m=(stepN&&stepN.textContent||"").match(/(\d+)/); return m?+m[1]:0; };
+  const RING=".fr, #focus circle", MARK2="#algO *, .ao, .cur"; let useRing=null;
+  let map=null, mapKey="";
+  const keyNow=()=>{ const r=document.querySelector("input[name=mode]:checked"); return (r?r.value:"")+"|"+tIn.max; };
+  const centers=()=>{ const out=[]; document.querySelectorAll(useRing===false?MARK2:RING).forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width||r.height) out.push([r.left+r.width/2, r.top+r.height/2]); }); return out; };
+  const stripBoxes=()=>{ const out=[]; document.querySelectorAll("#algO *, .ao, .sb.on, text.st.on").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.width&&r.height) out.push([r.left,r.top,r.right,r.bottom]); }); return out; };
+  const build=()=>{ const keep=+tIn.value, a=lo(), b=hi(), N=400, steps=new Map(); let prevK=-1, prevT=a;
+    const probe=t=>{ setT(t); return stepOf(); };
+    for(let i=0;i<=N;i++){ const t=a+(b-a)*i/N, k=probe(t);
+      if(k!==prevK){ let x=prevT, y=t; for(let j=0;j<12;j++){ const m=(x+y)/2; if(probe(m)===k) y=m; else x=m; }
+        if(k>0 && !steps.has(k)){ probe(y); steps.set(k,{t:y,c:centers(),a:stripBoxes()}); } prevK=k; }
+      prevT=t; }
+    if(useRing===null){ const any=[...steps.values()].some(v=>v.c.length); if(!any){ useRing=false; map=null; return build(); } useRing=true; }
+    setT(keep); map=[...steps.entries()].sort((p,q)=>p[1].t-q[1].t); mapKey=keyNow(); };
+  const ensure=()=>{ if(!map||mapKey!==keyNow()) build(); return map; };
+  const goStep=k=>{ const m=ensure(); const i=m.findIndex(x=>x[0]===k); if(i<0) return; const t0=m[i][1].t, t1=i+1<m.length?m[i+1][1].t:hi();
+    for(const f of [0.3,0.5,0.7,0.9,1]){ setT(Math.min(hi(), t0+Math.max(1e-6,(t1-t0)*f))); if(stepOf()===k) return; } setT(Math.min(hi(), t0+(t1-t0)*0.3)); };
+  box.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.s) return setSpeed(+b.dataset.s);
+    pause(); const m=ensure(); if(!m.length) return; const k=stepOf(), d=+b.dataset.k;
+    const idx=m.findIndex(x=>x[0]===k); const nx=m[Math.max(0,Math.min(m.length-1,(idx<0?(d>0?-1:0):idx)+d))]; goStep(nx[0]); });
+  addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,select")) return; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ e.preventDefault(); box.querySelector('button[data-k="'+(e.key==="ArrowRight"?1:-1)+'"]').click(); } else if(e.key===" "){ e.preventDefault(); play.click(); } });
+  const curX=()=>{ const r=cur.getBoundingClientRect(); return r.left+r.width/2; };
+  const seek=clientX=>{ const a=lo(), b=hi(); setT(a); const x0=curX(); setT(b); const x1=curX();
+    const step=+(tIn.step)||0; let v=a+(clientX-x0)/(x1-x0)*(b-a); v=Math.max(a,Math.min(b,v)); if(step>0) v=a+Math.round((v-a)/step)*step; setT(v); };
+  const jumpToBox=e=>{ const m=ensure(); if(!m.length) return false; const X=e.clientX, Y=e.clientY;
+    let cand=[...new Set(m.filter(([k,v])=>(v.a||[]).some(b=>X>=b[0]&&X<=b[2]&&Y>=b[1]&&Y<=b[3])).map(x=>x[0]))];
+    if(!cand.length){ let bd=Infinity; const near=[];
+      m.forEach(([k,v])=>v.c.forEach(([x,y])=>{ const d=Math.hypot(x-X,y-Y); if(d<bd-4){ bd=d; near.length=0; near.push(k); } else if(Math.abs(d-bd)<=4 && !near.includes(k)) near.push(k); }));
+      cand=[...new Set(near)]; }
+    cand.sort((a,b)=>a-b); if(!cand.length) return false;
+    const k0=stepOf(), i0=cand.indexOf(k0); const k= i0<0 ? cand[0] : cand[(i0+1)%cand.length]; goStep(k); return true; };
+  const tl=cur?cur.ownerSVGElement:null;
+  document.querySelectorAll("svg").forEach(svg=>{ svg.classList.add("seekable");
+    svg.addEventListener("click",e=>{ if(e.target.closest("a")) return;
+      if(svg===tl&&cur){ const r=cur.getBoundingClientRect(); if(e.clientY>=r.top-12&&e.clientY<=r.bottom+12){ pause(); seek(e.clientX); return; } }
+      pause(); jumpToBox(e); }); });
+  window.__player={seek,setSpeed,goStep,build:()=>{map=null;return ensure();},get speed(){return speed;}};
+}
+// Timeline reveal rule: the clip rect cuts at the cursor, so a label stays hidden until the cursor has passed its right edge.
+function legacyReveal(){
+  const st=document.createElement("style"); st.textContent='[data-rv="0"]{visibility:hidden!important}'; document.head.appendChild(st);
+  const apply=()=>{ const clipR=document.querySelector('clipPath > rect[id^="clipR"]'), cur=document.getElementById("cur"), tIn=document.getElementById("tIn");
+    if(!clipR||!cur||!tIn||!clipR.parentNode.id) return;
+    const c=cur.getBoundingClientRect(), cx=c.left+c.width/2, done=+tIn.value>=+tIn.max;
+    const T=[...document.querySelectorAll('[clip-path="url(#'+clipR.parentNode.id+')"] text')], R=T.map(e=>e.getBoundingClientRect());
+    T.forEach((e,i)=>{ const r=R[i]; if(!r.width) return;
+      const inBand=r.top>=c.top-2&&r.bottom<=c.bottom+2;
+      if(inBand&&!done&&r.right-0.5>cx) e.setAttribute("data-rv","0"); else e.removeAttribute("data-rv"); }); };
+  new MutationObserver(apply).observe(document.body,{attributes:true,attributeFilter:["width","d"],subtree:true});
+  apply();
+}
+function legacy(){ legacyShell(); legacyReveal(); }
+})();
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Figure A-2 Three Tile-Dispatch Schemes for Prefill Down-Projection gemm2</title><style>
+.iso{
+  --anatomy-page:#0b0b0b;--anatomy-card:#131313;--anatomy-text:#a3a3a3;--anatomy-strong:#e6e6e6;--anatomy-muted:#6e6e6e;
+  --anatomy-paper:#131313;--anatomy-face:#1b1b1b;--anatomy-top:#1c1c1c;
+  --anatomy-shade-0:#0f0f0f;--anatomy-shade-1:#121212;--anatomy-shade-2:#151515;--anatomy-shade-3:#181818;
+  --anatomy-lit-top:#262626;--anatomy-lit-shade:#1d1d1d;
+  --anatomy-hi:#d4d4d4;--anatomy-mid:#6a6a6a;--anatomy-lo:#3e3e3e;--anatomy-faint:#2a2a2a;--anatomy-lit:#ffffff;
+  --anatomy-halo:#050505;--anatomy-halo-opacity:.9;--anatomy-dot:#e6e6e6;
+  --anatomy-red:#ff6b6b;--anatomy-green:#6be0a0;--anatomy-blue:#6b9bff;
+  --anatomy-weight:.6px;--anatomy-ease:cubic-bezier(.32,.72,0,1);
+  --anatomy-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff0a,inset 0 0 0 1px #ffffff06,0 0 0 1px #00000026,0 1px 1px -.5px #00000014,0 3px 3px -1.5px #00000014,0 6px 6px -3px #00000014,0 12px 12px -6px #00000014;
+}
+.iso[data-theme="light"]{
+  --anatomy-page:#f2f2ef;--anatomy-card:#fbfbfa;--anatomy-text:#57575a;--anatomy-strong:#18181a;--anatomy-muted:#8c8c90;
+  --anatomy-paper:#fbfbfa;--anatomy-face:#ffffff;--anatomy-top:#ffffff;
+  --anatomy-shade-0:#dcdcd9;--anatomy-shade-1:#e5e5e2;--anatomy-shade-2:#ededea;--anatomy-shade-3:#f4f4f1;
+  --anatomy-lit-top:#ffffff;--anatomy-lit-shade:#eeeeeb;
+  --anatomy-hi:#26262a;--anatomy-mid:#8a8a8f;--anatomy-lo:#b4b4b8;--anatomy-faint:#d4d4d6;--anatomy-lit:#000000;
+  --anatomy-halo:#8a8a80;--anatomy-halo-opacity:.32;--anatomy-dot:#3a3a3e;
+  --anatomy-red:#e5484d;--anatomy-green:#30a46c;--anatomy-blue:#3e63dd;
+  --anatomy-lift:inset 0 1px 0 0 #ffffff,0 0 0 1px #0000000f,0 1px 1px -.5px #0000000a,0 3px 3px -1.5px #0000000a,0 6px 6px -3px #0000000a,0 12px 12px -6px #0000000a;
+}
+.iso-svg{display:block;width:100%;height:auto;overflow:visible}
+.iso-svg path,.iso-svg circle{vector-effect:non-scaling-stroke}
+.iso-fill{fill:var(--anatomy-paper);stroke:none}
+.iso-solid[data-lit]>.iso-fill{fill:var(--anatomy-face)}
+.iso-shade,.iso-top{stroke:none}
+.iso-shade[data-shade="0"]{fill:var(--anatomy-shade-0)}
+.iso-shade[data-shade="1"]{fill:var(--anatomy-shade-1)}
+.iso-shade[data-shade="2"]{fill:var(--anatomy-shade-2)}
+.iso-shade[data-shade="3"]{fill:var(--anatomy-shade-3)}
+.iso-top{fill:var(--anatomy-top)}
+.iso-solid[data-lit]>.iso-top{fill:var(--anatomy-lit-top)}
+.iso-solid[data-lit]>.iso-shade{fill:var(--anatomy-lit-shade)}
+.iso-solid[data-seamless]>.iso-shade,.iso-solid[data-seamless]>.iso-top{stroke-width:.4;stroke-linejoin:round}
+.iso-solid[data-seamless]>.iso-shade[data-shade="0"]{stroke:var(--anatomy-shade-0)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="1"]{stroke:var(--anatomy-shade-1)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="2"]{stroke:var(--anatomy-shade-2)}
+.iso-solid[data-seamless]>.iso-shade[data-shade="3"]{stroke:var(--anatomy-shade-3)}
+.iso-solid[data-seamless]>.iso-top{stroke:var(--anatomy-top)}
+.iso-solid[data-seamless][data-lit]>.iso-top{stroke:var(--anatomy-lit-top)}
+.iso-solid[data-seamless][data-lit]>.iso-shade{stroke:var(--anatomy-lit-shade)}
+.iso-solid[data-lit]>.iso-edge{stroke:var(--anatomy-lit)}
+.iso-halo{fill:var(--anatomy-halo);stroke:none;filter:blur(9px);opacity:var(--anatomy-halo-opacity);transform:translateY(3px)}
+.iso-line{fill:none;stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight);stroke-linecap:round;stroke-linejoin:round}
+.iso-line[data-tone="hi"]{stroke:var(--anatomy-hi)}
+.iso-line[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.iso-line[data-tone="lo"]{stroke:var(--anatomy-lo)}
+.iso-line[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.iso-line[data-tone="lit"]{stroke:var(--anatomy-lit)}
+.iso-line[data-tone="red"]{stroke:var(--anatomy-red)}
+.iso-line[data-tone="green"]{stroke:var(--anatomy-green)}
+.iso-line[data-tone="blue"]{stroke:var(--anatomy-blue)}
+.iso-line[data-dotted]{stroke-dasharray:.01 3.5;stroke-width:1}
+.iso-line[data-dashed]{stroke-dasharray:3 3}
+.iso-line[data-flow]{stroke-dasharray:2 6}
+.iso-wire-end{fill:var(--anatomy-paper);stroke:var(--anatomy-lo);stroke-width:var(--anatomy-weight)}
+.iso-wire[data-tone="hi"] .iso-wire-end{stroke:var(--anatomy-hi)}
+.iso-wire[data-tone="mid"] .iso-wire-end{stroke:var(--anatomy-mid)}
+.iso-wire[data-tone="faint"] .iso-wire-end{stroke:var(--anatomy-faint)}
+.iso-wire[data-tone="lit"] .iso-wire-end{stroke:var(--anatomy-lit)}
+.iso-dots circle{fill:var(--anatomy-dot);stroke:none;opacity:.32}
+.iso-dots[data-tone="hi"] circle{opacity:.85}
+.iso-dots[data-tone="mid"] circle{opacity:.45}
+.iso-dots[data-tone="lo"] circle{opacity:.22}
+.iso-dots[data-tone="faint"] circle{opacity:.12}
+.iso-face-text{fill:var(--anatomy-mid);font-family:var(--anatomy-mono);letter-spacing:.04em}
+.iso-face-text[data-tone="hi"]{fill:var(--anatomy-hi)}
+.iso-face-text[data-tone="lo"]{fill:var(--anatomy-lo)}
+.iso-face-text[data-tone="faint"]{fill:var(--anatomy-faint)}
+.tb-body{fill:var(--anatomy-shade-2);stroke:none}
+.tb-shine{fill:var(--anatomy-top);stroke:none}
+.tb-shade{fill:var(--anatomy-shade-0);stroke:none}
+.tb-ring{fill:none;stroke:var(--anatomy-lo);stroke-width:.45;stroke-linecap:butt;stroke-linejoin:round}
+.tb-ring[data-tone="mid"]{stroke:var(--anatomy-mid)}
+.tb-ring[data-tone="faint"]{stroke:var(--anatomy-faint)}
+.tb-ring[data-tone="hi"]{stroke:var(--anatomy-hi)}
+@keyframes iso-flow{to{stroke-dashoffset:-32}}
+@keyframes iso-pulse{0%,100%{opacity:.18}12%{opacity:1}40%{opacity:.18}}
+.iso-line[data-flow]{animation:iso-flow 1600ms linear infinite}
+.iso-dots circle[data-pulse]{animation:iso-pulse 1600ms steps(1,end) infinite;animation-delay:var(--pulse-at,0ms)}
+.iso-figure{margin:32px 0 36px}
+.iso-plate{position:relative;padding:52px 24px;border-radius:0;background:var(--anatomy-card);box-shadow:0 0 0 1px var(--anatomy-mid);--anatomy-paper:var(--anatomy-card)}
+.iso-plate-corners{position:absolute;inset:18px 20px;pointer-events:none}
+.iso-plate-corner{position:absolute;color:var(--anatomy-muted);font-family:var(--anatomy-mono);font-size:10.5px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+.iso-plate-corner[data-corner="fig"]{top:0;left:0;color:var(--anatomy-text)}
+.iso-plate-corner[data-corner="title"]{top:0;right:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="hint"]{bottom:0;left:0;text-transform:uppercase;letter-spacing:.1em}
+.iso-plate-corner[data-corner="readout"]{right:0;bottom:0;color:var(--anatomy-text);font-variant-numeric:tabular-nums}
+.iso-plate .iso-svg{margin:0 auto}
+.iso-legend{display:grid;gap:8px;margin-top:12px;color:var(--anatomy-muted);font-size:13px;line-height:1.55}
+.iso-keys{display:flex;flex-wrap:wrap;gap:6px 18px}
+.iso-key{display:inline-flex;align-items:center;gap:7px}
+.iso-swatch{width:16px;height:10px;flex:none;overflow:visible}
+.iso-swatch path{fill:none;stroke:var(--anatomy-hi);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.iso-swatch[data-mark="raised"] path,.iso-swatch[data-mark="flat"] path{stroke:var(--anatomy-mid)}
+.iso-swatch[data-mark="lit"] path{stroke:var(--anatomy-lit)}
+.iso-swatch[data-mark="dim"] path{stroke:var(--anatomy-lo)}
+.iso-swatch[data-mark="dotted"] path{stroke-dasharray:.01 3;stroke-width:1.4}
+.iso-swatch[data-mark="dashed"] path{stroke-dasharray:3 2.5}
+.iso-swatch[data-mark="red"] path{stroke:var(--anatomy-red)}
+.iso-swatch[data-mark="green"] path{stroke:var(--anatomy-green)}
+.iso-swatch[data-mark="blue"] path{stroke:var(--anatomy-blue)}
+.iso-swatch-crease{stroke:var(--anatomy-lo)!important}
+@media (max-width:560px){.iso-plate{padding:48px 12px 70px}.iso-plate-corner[data-corner="hint"]{bottom:18px}}
+@media (prefers-reduced-motion:reduce){.iso-line[data-flow],.iso-dots circle[data-pulse]{animation:none}}
+
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body[data-theme="light"]{color-scheme:light}
+body{margin:0;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.iso-page{width:min(700px,100% - 32px);margin:64px auto 96px}
+</style></head><body class="iso" data-theme="light"><main class="iso-page"><!-- class="katex" --><style>
+.ff svg{display:block;width:100%;height:auto;font-family:inherit}
+.ff .lab2{font-size:10.5px;fill:var(--anatomy-text)}
+.ff .bx{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
+.ff .bx0.wt .bx{fill:#c7cad4;stroke:#8d91a0}
+.ff .bx0.unk2 .bx,.ff .unk{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1.2px;stroke-dasharray:4 2}
+.ff .bx0.unk2 .bx{fill:var(--anatomy-face)}
+.ff .unk{fill:none}
+.ff .kern{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
+.ff .cbx{fill:none;stroke:var(--anatomy-lo);stroke-width:1}
+.ff .fbox .bx{fill:var(--anatomy-face);stroke:var(--anatomy-lo)}
+.ff .bt{font-size:9.6px;fill:var(--anatomy-strong)}
+.ff .bw{font-size:9.6px;fill:#ffffff;font-weight:600}
+.ff .fc1{font-size:11px;font-weight:700;fill:var(--anatomy-strong)}.ff .fc2{font-size:10.5px;fill:var(--anatomy-text)}
+.ff .fbx{fill:var(--anatomy-card);stroke:var(--anatomy-strong);stroke-width:1.2}
+.ff .ldr{fill:none;stroke:var(--anatomy-strong);stroke-width:1}.ff .ldrw{fill:none;stroke:#fff;stroke-width:2.4}.ff .ldd{fill:#fff;stroke:var(--anatomy-strong);stroke-width:1.2}
+.ff .hbmslab{fill:#5b6b7f;stroke:#5b6b7f;stroke-width:1}
+.ff .hbmstk{fill:#5b6b7f;stroke:#5b6b7f}
+.ff .hstub{fill:none;stroke:#5b6b7f;stroke-width:1.8}
+.ff .ar .al{fill:none;stroke:var(--anatomy-text);stroke-width:1.2}.ff .ar .ah{fill:var(--anatomy-text)}
+.ff .ar.em .al{stroke:var(--anatomy-strong);stroke-width:1.8}.ff .ar.em .ah{fill:var(--anatomy-strong)}
+.ff .ac{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1}
+.ff .ao{fill:none;stroke:var(--anatomy-strong);stroke-width:1.8}
+.ff .an{font-size:9.4px;fill:var(--anatomy-strong);text-anchor:middle}
+.ff .row{fill:var(--anatomy-face);stroke:var(--anatomy-faint);stroke-width:.6}
+.ff .rl{font-size:10px;fill:var(--anatomy-text);text-anchor:end}
+.ff .tb{font-size:9.4px;font-weight:600;pointer-events:none}.ff .tbs{font-size:8px}
+.ff .bact{fill:#3e63dd}.ff .bemp{fill:#9aa0a6}.ff .bcap{fill:#fff;stroke:#b4b4b8;stroke-width:1}
+.ff .bunk{fill:var(--anatomy-face);stroke:var(--anatomy-lo);stroke-width:1.2px;stroke-dasharray:4 2}
+.ff .bwait{fill:#c7cad4;stroke:#8d91a0;stroke-width:.8}.ff .bpost{fill:#8e4ec6;stroke:#8e4ec6;stroke-width:.8}
+.ff .brk{stroke:#fff;stroke-width:1.6;fill:none}
+.ff .tk{stroke:var(--anatomy-strong);stroke-width:1.2}.ff .tkl{font-size:9.4px;fill:var(--anatomy-strong)}.ff .tkl.sm{font-size:9px}
+.ff .ctk{fill:none;stroke:var(--anatomy-text);stroke-width:.9}
+.ff .gd{fill:none;stroke:var(--anatomy-lo);stroke-width:.7}
+.ff .brk2{fill:none;stroke:var(--anatomy-strong);stroke-width:1.4}
+.ff .cur{stroke:var(--anatomy-strong);stroke-width:1.3}
+.m5g-ghost{opacity:.3;pointer-events:none}
+html.fig-atend .m5g-ghost{display:none}
+.lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 2px;font-size:12.5px;color:var(--anatomy-text)}
+.lg span{display:inline-flex;align-items:center}
+.lg i{display:inline-block;width:18px;height:10px;margin-right:6px;border:1px solid var(--anatomy-lo);box-sizing:border-box;flex:none}
+.lg .g-white{background:#fff;border-color:#b4b4b8}.lg .g-act{background:#3e63dd;border-color:#3e63dd}.lg .g-emp{background:#9aa0a6;border-color:#7b818a}.lg .g-hbm{background:#5b6b7f;border-color:#5b6b7f}
+.lg .g-unk{background:var(--anatomy-face);border:1.2px dashed var(--anatomy-text)}.lg .g-teal{background:#0b9f8c;border-color:#0b9f8c}.lg .g-post{background:#8e4ec6;border-color:#8e4ec6}.lg .g-red{background:repeating-linear-gradient(45deg,var(--anatomy-red) 0 1px,transparent 1px 4px);border-color:var(--anatomy-red)}.lg .g-wait{background:#c7cad4;border:1px solid #8d91a0}
+.cap{margin:8px 2px 0;font-size:13px;line-height:1.65;color:var(--anatomy-text)}
+.capmore{margin:4px 2px 0;font-size:12.5px;line-height:1.6;color:var(--anatomy-text)}
+.capmore summary{cursor:pointer;color:var(--anatomy-muted);font-weight:500;user-select:none}
+.capmore ul{margin:4px 0 0;padding-left:1.25em}.capmore li+li{margin-top:2px}
+.iso-plate-corner[data-corner="readout"]{white-space:pre-line;text-align:right;line-height:1.55}.iso-plate-corner,.iso-plate-corner[data-corner]{text-transform:none !important}
+.nar .nh{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.nar .nh b{white-space:nowrap;flex:none}
+.kard{margin:0;display:grid;grid-template-columns:5.4em minmax(0,1fr);gap:3px 10px;font-size:12px;line-height:1.5;color:var(--anatomy-text)}
+.kard>div{display:contents}.kard dt{font-weight:600;color:var(--anatomy-muted)}.kard dd{margin:0;overflow-wrap:anywhere}
+.kard dd.m{font-size:11.5px;color:var(--anatomy-strong)}
+.iso-plate{padding-bottom:58px}
+.iso-plate-corner[data-corner="title"]{white-space:normal;max-width:calc(100% - 96px);text-align:right;line-height:1.35}
+.iso-plate-corner[data-corner="readout"]{max-width:100%}
+@media(max-width:700px){.iso-plate{padding-left:12px;padding-right:12px}.iso-plate-corners{inset:18px 12px}}
+.ff .nar{margin:14px 8px 8px;min-height:13em;font-size:13px;line-height:1.5;color:var(--anatomy-strong)}.ff .nar b{display:inline-block;min-width:4.2em;margin-right:8px;padding:1px 8px;border-radius:10px;background:#3e63dd;color:#ffffff;font-weight:600;font-size:12px;text-align:center}
+.iso-plate [data-dim], .iso-plate [data-chip].dim, .iso-plate .dim, .iso-plate .nd.pend, .iso-plate [data-st].pend, .iso-plate .gone, .iso-plate .ac.gone, .iso-plate .wdone{opacity:.45}
+.ff .bteal{fill:#0b9f8c}
+.ff .seam{stroke:#0b3f38;stroke-width:1.6}
+.ff .bpost{fill:#8e4ec6}
+.ff .tb{fill:var(--anatomy-strong)}
+.ff .unk2 .bx{fill:var(--anatomy-face)}
+.ff .ar.em .al{stroke-dasharray:none}
+</style><figure class="iso-figure" aria-label="Figure A-2: how prefill down-projection gemm2 dispatches tiles under H200 fixed-stride persistent, H200 ordinary grid, and Blackwell cluster launch control."><div class="iso-plate"><div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Figure A-2</span><span class="iso-plate-corner" data-corner="title">Three Tile-Dispatch Schemes for Prefill Down-Projection gemm2: Fixed-Stride Persistent, Ordinary Grid, and Cluster Launch Control (CLC)</span><span class="iso-plate-corner" data-corner="readout" data-readout>CTA starts: 1 per resident slot (264 persistent CTAs)
+Per-SM mean idle: 60.3 µs (measured on H200)
+gemm2 duration: 1,468.96 µs (measured on H200)</span></div><div class="ff"><svg id="alg" class="flat" role="img" viewBox="0 0 640 64"><g id="algG"></g><g id="algO"></g></svg><svg id="top" class="flat" role="img" viewBox="0 0 640 380"><defs><pattern id="hatchT" width="2.2" height="2.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V2.2" stroke="var(--anatomy-red)" stroke-width="0.95" opacity="0.85"/></pattern></defs><g id="topG"></g></svg><div class="card nar"><div class="nh"><b id="stepN"></b><span id="stepT"></span></div><dl id="stepK" class="kard"></dl></div><svg id="flat" class="flat" role="img" viewBox="0 0 640 208">
+<defs><pattern id="hatchR" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V4" stroke="var(--anatomy-red)" stroke-width="1" opacity="0.6"/></pattern><clipPath id="clipT"><rect id="clipR0" x="84" y="0" width="0" height="400"/></clipPath></defs>
+<text class="lab2" data-rowlabel="head" id="axisT" x="12" y="12"></text>
+<text class="rl" data-rowlabel id="rl0" x="78" y="50"></text><text class="rl" data-rowlabel id="rl1" x="78" y="50"></text><text class="rl" data-rowlabel id="rl2" x="78" y="50"></text><text class="rl" data-rowlabel id="rl3" x="78" y="50"></text>
+<g id="tlBg"></g><g clip-path="url(#clipT)"><g id="tlA"></g></g><g id="tlTop"></g><path id="cur" class="cur" d=""/></svg></div></div></figure><div class="ctl"><div class="modes"><label><input type="radio" name="mode" value="1" checked>1. Fixed-Stride Persistent (H200, 264 CTAs)</label><label><input type="radio" name="mode" value="2">2. Ordinary Grid (H200, 9,216 CTAs)</label><label><input type="radio" name="mode" value="3">3. Cluster Launch Control (Blackwell sm_100+)</label></div>
+<input id="tIn" type="range" hidden min="0" max="5" step="0.05" value="0"></div><div class="lg"><span data-lgm="123"><i class="g-teal"></i>SM computing gemm2 / computing resident slot</span><span data-lgm="123"><i class="g-act"></i>Queued or stolen active tile index</span><span data-lgm="12"><i class="g-red"></i>Fast SM out of work, waiting on slow SMs (sole meaning of red)</span><span data-lgm="3" style="display:none"><i class="g-wait"></i>Thread waiting on mbarrier for 16 B response</span><span data-lgm="3" style="display:none"><i class="g-post"></i>SMEM response result (16 B) and mbarrier bar (8 B)</span><span data-lgm="123"><i class="g-unk"></i>Unspecified dispatch order / latency not measured on B200</span></div><p class="cap">Click the three cards at the top of the figure to switch dispatch schemes, then use ‹ › or the step bar to inspect the block queue, SM slots, and shared-memory handoff. Blackwell's cluster launch control lets resident CTAs cancel and take over unstarted blocks—avoiding a fresh CTA start per tile while keeping hardware load balancing, at the cost of one async request and intra-CTA synchronization per stolen tile.</p><details class="capmore"><summary>Details</summary><ul><li>Comparison scope: compares prefill down-projection gemm2 (T = 16,384, truncated main grid 288×32 = 9,216 block indices) across H200 fixed-stride persistent (264 CTAs), H200 ordinary grid (9,216 CTAs), and Blackwell (sm_100+) cluster launch control (clusterlaunchcontrol.try_cancel).</li><li>Measured vs. unmeasured basis: per-SM mean idle (60.3 µs → 18.6 µs) and kernel duration (1,468.96 µs → 1,443.17 µs; gap cause not determined) in the Mode 1–2 readouts are measured on H200; H200 lacks cluster launch control, and Mode 3 request latency and kernel runtime on B200 were not measured in this book.</li><li>Timeline and queue basis: the bottom horizontal axis and representative SM rows show step and handoff order only, not microsecond scale (exact hardware dispatch and cancellation order is unspecified and drawn schematically).</li></ul></details></main><script type="module">const D={"K":{"fig.num":"Figure A-2","fig.title":"Three Tile-Dispatch Schemes for Prefill Down-Projection gemm2: Fixed-Stride Persistent, Ordinary Grid, and Cluster Launch Control (CLC)","page.title":"Figure A-2 Three Tile-Dispatch Schemes for Prefill Down-Projection gemm2","aria":"Figure A-2: how prefill down-projection gemm2 dispatches tiles under H200 fixed-stride persistent, H200 ordinary grid, and Blackwell cluster launch control.","variant.axis":"Choose a tile-dispatch scheme for prefill gemm2 (T = 16,384, 9,216 tile indices)","mode.1":"Fixed-Stride Persistent (H200, 264 CTAs)","mode.2":"Ordinary Grid (H200, 9,216 CTAs)","mode.3":"Cluster Launch Control (Blackwell sm_100+)","outcome.1":"1 start/slot · Mean SM idle 60.3 µs","outcome.2":"Fresh start/tile · Mean SM idle 18.6 µs","outcome.3":"Initial wave stays + takes over unstarted · Not measured on B200","readout.m1":"CTA starts: 1 per resident slot (264 persistent CTAs)\nPer-SM mean idle: 60.3 µs (measured on H200)\ngemm2 duration: 1,468.96 µs (measured on H200)","readout.m2":"CTA starts: 9,216 ordinary CTAs (fresh prologue per active tile, cost not measured)\nPer-SM mean idle: 18.6 µs (−41.7 µs, measured on H200)\ngemm2 duration: 1,443.17 µs (−25.8 µs; gap cause not determined)","readout.m3":"CTA starts: 1 initial wave fills slots (stolen tiles loop in place, no new CTA starts unless preempted)\nPer stolen tile: 1 try_cancel request + 1 mbarrier wait (24 B SMEM fixed per CTA)\nB200 latency: not measured","alg.m1.title":"Algorithm: claim tiles in a loop at fixed stride +264","alg.m2.title":"Algorithm: 9,216 ordinary CTAs, dispatched by hardware","alg.m3.title":"Algorithm: compute the current tile while asking hardware to cancel an unstarted block","alg.m1.chip.0":"264 persistent start","alg.m1.chip.1":"+264 fixed stride","alg.m1.chip.2":"Fast SM idles 60.3 µs","alg.m2.chip.0":"Launch 9,216 ordinary","alg.m2.chip.1":"First free slot takes next","alg.m2.chip.2":"Idle 18.6 µs · fresh start per tile","alg.m3.chip.0":"Launch full grid","alg.m3.chip.1":"One thread issues try_cancel","alg.m3.chip.2":"mbarrier waits for 16 B","alg.m3.chip.3":"Success: compute bx in place","alg.m3.chip.4":"Failure: exit","alg.m1.f.0":"idx = blockIdx.x + m × 264","alg.m1.f.1":"","alg.m2.f.0":"blockIdx.x ← hardware block distributor (0 … 9,215)","alg.m2.f.1":"","alg.m3.f.0":"try_cancel(&result, &bar)","alg.m3.f.1":"query_cancel(result)","alg.aria.m1":"Mode 1 algorithm strip: three step chips (264 persistent CTAs start, fixed stride +264, fast SM idles 60.3 µs); the loop formula is on the right.","alg.aria.m2":"Mode 2 algorithm strip: three step chips (launch 9,216 ordinary CTAs, first free slot takes the next, idle 18.6 µs); the dispatch formula is on the right.","alg.aria.m3":"Mode 3 algorithm strip: five step chips (launch full grid, one thread issues try_cancel, mbarrier waits for 16 B, success computes bx in place, failure exits); the try_cancel and query_cancel calls are on the right.","die.h":"H200 die (132 SMs × 2 slots = 264 slots)","die.b":"Blackwell die schematic (sm_100+, SM count unspecified)","queue.lab":"Unstarted blocks (0 … 9,215)","note.sch":"Schematic, not per-SM measured scale; dispatch order unspecified","top.m1.r.1":"One H200 SM: 2 resident CTAs (inferred from 264 = 2 × 132), prologue runs once","top.m1.r.2":"Successor post-norm kernel: waits about 117 µs on ACQBULK","top.m2.r.1":"Block distributor + unstarted queue: the first 264 fill the resident slots, 8,952 wait (dispatch order unspecified)","top.m2.r.2":"SM slots: per CTA 256 threads, 128 registers, 110.1 KiB SMEM; whichever slot frees first gets the next CTA","top.m2.r.3":"Every active ordinary CTA reruns CTA start and prologue (this cost was not measured separately)","top.m3.r.sch":"Block distributor","top.m3.r.async":"Async proxy","top.m3.r.t0":"Thread 0: clusterlaunchcontrol.try_cancel","top.m3.r.smem":"SMEM (result 16 B + bar 8 B)","top.m3.r.res":"result 16 B","top.m3.r.bar":"bar 8 B","top.m3.r.work":"Worker warps: compute_tile(bx)","top.m3.r.unk":"Request latency not measured on B200","top.aria.m1":"Mode 1 scene: 132 SM cells; fast SMs show red hatched waiting once their persistent CTAs finish; resident slots and the successor wait are on the right.","top.aria.m2":"Mode 2 scene: the unstarted queue above 132 SM cells; the first freed slot takes the next ordinary CTA and red hatched waiting shrinks; the block distributor, slots and restart cost are on the right.","top.aria.m3":"Mode 3 scene: the unstarted queue above a Blackwell die schematic; one resident CTA cancels an unstarted block and takes it over; thread 0, the block distributor, and the 16 B response and 8 B mbarrier in SMEM are on the right.","tl.axis":"Schematic timeline (horizontal axis shows step and handoff order only, not microsecond scale; B200 not measured)","tl.m12.rl.0":"Fast SM","tl.m12.rl.1":"Slow SM","tl.m12.rl.2":"Block queue","tl.m12.rl.3":"Successor","tl.m3.rl.0":"Resident CTA (compute)","tl.m3.rl.1":"Thread 0 + CLC (async)","tl.m3.rl.2":"SMEM (result + bar)","tl.m3.rl.3":"Unstarted queue","tl.m3.unk":"not measured on B200","tl.m1.ledger":"Measured on H200: per-SM mean idle 60.3 µs; gemm2 duration 1,468.96 µs.","tl.m2.ledger":"Measured on H200: per-SM mean idle 60.3 → 18.6 µs (−41.7 µs); gemm2 duration 1,468.96 → 1,443.17 µs (−25.8 µs; gap cause not determined).","tl.m3.ledger":"Per stolen tile: 1 request + 1 mbarrier wait + 1 intra-CTA barrier; each CTA holds 24 B of SMEM. Request latency and kernel duration on B200 were not measured.","tl.aria.m1":"Mode 1 schematic timeline: the fast SM finishes early and idles (red hatch), the slow SM computes to the end, the successor waits on ACQBULK; the axis shows order only.","tl.aria.m2":"Mode 2 schematic timeline: blocks on both SMs follow one another with restart marks, the queue drains, the red hatched idle is short; the axis shows order only.","tl.aria.m3":"Mode 3 schematic timeline: try_cancel overlaps compute_tile(bx), the 16 B response lands in result and flips the bar phase, the same CTA goes on to compute_tile(k), then exits on failure; the axis shows order only, B200 not measured.","lg.0":"SM computing gemm2 / computing resident slot","lg.1":"Queued or stolen active tile index","lg.2":"Fast SM out of work, waiting on slow SMs (sole meaning of red)","lg.3":"Thread waiting on mbarrier for 16 B response","lg.4":"SMEM response result (16 B) and mbarrier bar (8 B)","lg.5":"Unspecified dispatch order / latency not measured on B200","caption":"Click the three cards at the top of the figure to switch dispatch schemes, then use ‹ › or the step bar to inspect the block queue, SM slots, and shared-memory handoff. Blackwell's cluster launch control lets resident CTAs cancel and take over unstarted blocks—avoiding a fresh CTA start per tile while keeping hardware load balancing, at the cost of one async request and intra-CTA synchronization per stolen tile.","cap.sum":"Details","capmore":["Comparison scope: compares prefill down-projection gemm2 (T = 16,384, truncated main grid 288×32 = 9,216 block indices) across H200 fixed-stride persistent (264 CTAs), H200 ordinary grid (9,216 CTAs), and Blackwell (sm_100+) cluster launch control (clusterlaunchcontrol.try_cancel).","Measured vs. unmeasured basis: per-SM mean idle (60.3 µs → 18.6 µs) and kernel duration (1,468.96 µs → 1,443.17 µs; gap cause not determined) in the Mode 1–2 readouts are measured on H200; H200 lacks cluster launch control, and Mode 3 request latency and kernel runtime on B200 were not measured in this book.","Timeline and queue basis: the bottom horizontal axis and representative SM rows show step and handoff order only, not microsecond scale (exact hardware dispatch and cancellation order is unspecified and drawn schematically)."],"card.dt.f":"Formula","card.dt.i":"Input","card.dt.o":"Output","card.dt.x":"Hand-off","card.dt.c":"Cost","card.m1.s0.t":"Launch 264 persistent CTAs; each resident slot initializes once.","card.m1.s0.f":"$\\mathrm{grid} = 2 \\times 132 = 264$ CTAs (2 resident CTAs per SM)","card.m1.s0.i":"Active gemm2 tiles (about $243 \\times 32 = 7{,}776$ on the busiest GPU; the profiled GPU's tile count was not recorded)","card.m1.s0.o":"264 persistent CTAs fill all 264 slots of the 132 SMs; the prologue runs once","card.m1.s0.x":"→ Each CTA then loops, claiming tiles at fixed stride +264","card.m1.s0.c":"Each resident slot pays CTA start and prologue once (2 resident CTAs per SM, inferred from 264 = 2 × 132).","card.m1.s1.t":"Claim active tiles at fixed stride +264 across uneven tile durations.","card.m1.s1.f":"$\\mathrm{idx} = \\mathrm{blockIdx.x} + m \\times 264$","card.m1.s1.i":"The idx-th active gemm2 tile (must first wait for the matching gemm1 tile completion count)","card.m1.s1.o":"A fast SM with a short tile chain finishes early; a slow SM with a long tile chain is still computing","card.m1.s1.x":"→ A fast SM cannot take over indices already bound to a slow SM, so it can only wait","card.m1.s1.c":"No cross-tile atomics or barriers, but a static stride cannot move work across SMs.","card.m1.s2.t":"Fast SMs sit idle until the last slow CTA finishes: 60.3 µs mean SM idle on H200.","card.m1.s2.f":"$\\overline{t}_{\\mathrm{idle}} = 60.3\\ \\mu\\mathrm{s}$ (about $3.2\\times$ the 18.6 µs idle in Mode 2)","card.m1.s2.i":"Completion-time spread of the 132 SMs at the tail of gemm2","card.m1.s2.o":"The kernel ends only when the slowest CTA exits; the successor post-norm kernel waits about 117 µs on ACQBULK","card.m1.s2.x":"→ Switch to Mode 2 to see how 9,216 ordinary CTAs and the hardware block distributor cut the waiting","card.m1.s2.c":"Measured by the H200 profiler: mean SM idle 60.3 µs, gemm2 duration 1,468.96 µs.","card.m2.s0.t":"Launch 9,216 ordinary CTAs; the first 264 fill all resident slots.","card.m2.s0.f":"$\\mathrm{grid} = 288 \\times 32 = 9{,}216$ CTAs (first wave 264 resident, 8,952 queued)","card.m2.s0.i":"288 row tiles × 32 column-tile indices, 0 … 9,215","card.m2.s0.o":"The first 264 CTAs go onto SMs; the other 8,952 stay in the hardware block-distributor queue (dispatch order unspecified)","card.m2.s0.x":"→ When any slot finishes and exits, hardware immediately fills it with the next queued CTA","card.m2.s0.c":"CUDA Graph capture must still truncate the main grid at 288 row tiles (otherwise 33,792 CTAs in the worst case).","card.m2.s1.t":"Whichever SM slot frees first immediately receives the next queued CTA.","card.m2.s1.f":"free slot $s \\leftarrow$ next unstarted CTA (dynamic dispatch with no software barrier)","card.m2.s1.i":"The slot just freed by an exiting CTA and the queued CTAs (surplus blocks beyond active_m × 32 exit on entry)","card.m2.s1.o":"Fast SMs run more tiles and slow SMs fewer, so the tail evens out on its own","card.m2.s1.x":"→ Next: the measured H200 idle reduction and the restart cost","card.m2.s1.c":"Every active ordinary CTA reruns CTA start and prologue initialization, so on-chip state does not survive across tiles.","card.m2.s2.t":"Mean SM idle drops to 18.6 µs on H200, at the cost of giving up persistence.","card.m2.s2.f":"$\\Delta\\overline{t}_{\\mathrm{idle}} = 60.3 - 18.6 = 41.7\\ \\mu\\mathrm{s}$; $\\Delta t_{\\mathrm{gemm2}} = 1{,}468.96 - 1{,}443.17 = 25.8\\ \\mu\\mathrm{s}$","card.m2.s2.i":"Profiler comparison on H200 between 264 persistent CTAs and 9,216 ordinary CTAs","card.m2.s2.o":"Mean SM idle falls from 60.3 µs to 18.6 µs (−41.7 µs) and the kernel is 25.8 µs faster (the cause of the gap between the two was not determined)","card.m2.s2.x":"→ Switch to Mode 3 to see how Blackwell cluster launch control combines the benefits of Modes 1 and 2","card.m2.s2.c":"Removes the tail wait and allows per-tile preemption, but pays CTA start and prologue on every tile (this cost was not measured separately; Chapter 8, Section 15's gemm1 stays at 264 persistent CTAs to keep its ring state).","card.m3.s0.t":"Launch the full ordinary grid (0 … 9,215); initial CTAs enter SMs and initialize bar.","card.m3.s0.f":"mbarrier_init(&bar, 1); initial tile index $\\mathrm{bx} = \\mathrm{blockIdx.x}$","card.m3.s0.i":"Full ordinary-grid block indices 0 … 9,215 (CUDA Graph capture still fixes this grid limit)","card.m3.s0.o":"Each initial CTA occupies one SM slot and runs its prologue once; the other blocks stay unstarted in the hardware block-distributor queue","card.m3.s0.x":"→ Enter the loop: after __syncthreads(), thread 0 asynchronously asks to cancel the next unstarted block","card.m3.s0.c":"Each initial CTA does 1 start and prologue; SMEM holds uint4 result (16 B) + uint64_t bar (8 B) = 24 B.","card.m3.s1.t":"While computing tile bx, thread 0 issues try_cancel to cancel an unstarted block.","card.m3.s1.f":"clusterlaunchcontrol.try_cancel.async…b128 [&result], [&bar] + mbarrier.arrive.expect_tx(…, 16)","card.m3.s1.i":"&result in SMEM (16 B-aligned address) and &bar (expecting 16 B), after an async-proxy acquire fence","card.m3.s1.o":"The async cancellation request goes to the hardware block distributor; the whole CTA runs compute_tile(bx) concurrently","card.m3.s1.x":"→ When the current tile is done, wait on bar for the 16 B response to land","card.m3.s1.c":"One thread issues 1 async request + 1 expect_tx(16 B); each loop turn starts with 1 __syncthreads() so the previous result is not overwritten.","card.m3.s2.t":"Hardware writes the 16 B response and completes bar; threads wait for the parity flip.","card.m3.s2.f":"while (!mbarrier_try_wait_parity(sem_acquire, scope_cta, &bar, phase)) {}; phase ^= 1","card.m3.s2.i":"The 16 B opaque response that the async proxy wrote into result automatically triggers complete-tx(16 B) and flips bar's phase","card.m3.s2.o":"The 16 B response is loaded into registers, ready for query_cancel to decode success and block index","card.m3.s2.x":"→ Use query_cancel.is_canceled to tell whether an unstarted block was obtained","card.m3.s2.c":"1 mbarrier phase wait; try_cancel round-trip latency was not measured on B200.","card.m3.s3.t":"Cancellation succeeds: extract stolen index bx = k and compute tile k in place.","card.m3.s3.f":"is_canceled(result) == true ⇒ bx = get_first_ctaid_x(result)","card.m3.s3.i":"The 16 B success response in registers (the specification guarantees no second successful response in the grid returns the same k)","card.m3.s3.o":"Unstarted block k in the queue is atomically canceled; the resident CTA skips a repeated prologue and computes block k next","card.m3.s3.x":"→ After an async-proxy release fence, go back to Step 2 and keep requesting the next block while computing","card.m3.s3.c":"No new CTA start and no repeated prologue; one more is_canceled, one get_first_ctaid, and cross-proxy fences.","card.m3.s4.t":"Cancellation fails (e.g. queue empty or higher-priority kernel): the CTA exits and must not issue another request.","card.m3.s4.f":"is_canceled(result) == false ⇒ break; // CTA exits","card.m3.s4.i":"16 B failure response (e.g. no unstarted blocks remain, or a higher-priority kernel must run first)","card.m3.s4.o":"The CTA exits and frees its SM slot (if it exits on preemption, hardware resumes dispatching this grid's remaining uncanceled blocks after the higher-priority kernel finishes)","card.m3.s4.x":"→ End of this section; back to the Appendix A closing takeaway","card.m3.s4.c":"Bottom line: each stolen tile costs 1 request + 1 mbarrier wait + 1 intra-CTA barrier, and each CTA holds 24 B of SMEM; issuing try_cancel or reading a block index after a failure is undefined behavior; whether the intra-CTA barrier loses money on microsecond-scale tiles was not measured on B200.","tl.m3.txt.bx":"compute_tile(bx)","tl.m3.txt.k":"compute_tile(k)"},"C":{"act":"#3e63dd","actEdge":"#2f4bb0","empty":"#9aa0a6","emptyEdge":"#7b818a","teal":"#0b9f8c","hbm":"#5b6b7f","post":"#8e4ec6","postEdge":"#8e4ec6"},"TC":{"act":"#ffffff","empty":"#141413","teal":"#141413","hbm":"#ffffff"},"CARD":{"1":[{"t":"Launch 264 persistent CTAs; each resident slot initializes once.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">g</mi><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">i</mi><mi mathvariant=\"normal\">d</mi></mrow><mo>=</mo><mn>2</mn><mo>×</mo><mn>132</mn><mo>=</mo><mn>264</mn></mrow><annotation encoding=\"application/x-tex\">\\mathrm{grid} = 2 \\times 132 = 264</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">grid</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">2</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">132</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">264</span></span></span></span> CTAs (2 resident CTAs per SM)","i":"Active gemm2 tiles (about <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>243</mn><mo>×</mo><mn>32</mn><mo>=</mo><mn>7,776</mn></mrow><annotation encoding=\"application/x-tex\">243 \\times 32 = 7{,}776</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">243</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">32</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">7</span><span class=\"mord\"><span class=\"mpunct\">,</span></span><span class=\"mord\">776</span></span></span></span> on the busiest GPU; the profiled GPU's tile count was not recorded)","o":"264 persistent CTAs fill all 264 slots of the 132 SMs; the prologue runs once","x":"→ Each CTA then loops, claiming tiles at fixed stride +264","c":"Each resident slot pays CTA start and prologue once (2 resident CTAs per SM, inferred from 264 = 2 × 132)."},{"t":"Claim active tiles at fixed stride +264 across uneven tile durations.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">i</mi><mi mathvariant=\"normal\">d</mi><mi mathvariant=\"normal\">x</mi></mrow><mo>=</mo><mrow><mi mathvariant=\"normal\">b</mi><mi mathvariant=\"normal\">l</mi><mi mathvariant=\"normal\">o</mi><mi mathvariant=\"normal\">c</mi><mi mathvariant=\"normal\">k</mi><mi mathvariant=\"normal\">I</mi><mi mathvariant=\"normal\">d</mi><mi mathvariant=\"normal\">x</mi><mi mathvariant=\"normal\">.</mi><mi mathvariant=\"normal\">x</mi></mrow><mo>+</mo><mi>m</mi><mo>×</mo><mn>264</mn></mrow><annotation encoding=\"application/x-tex\">\\mathrm{idx} = \\mathrm{blockIdx.x} + m \\times 264</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">idx</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7778em;vertical-align:-0.0833em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">blockIdx.x</span></span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\">m</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">264</span></span></span></span>","i":"The idx-th active gemm2 tile (must first wait for the matching gemm1 tile completion count)","o":"A fast SM with a short tile chain finishes early; a slow SM with a long tile chain is still computing","x":"→ A fast SM cannot take over indices already bound to a slow SM, so it can only wait","c":"No cross-tile atomics or barriers, but a static stride cannot move work across SMs."},{"t":"Fast SMs sit idle until the last slow CTA finishes: 60.3 µs mean SM idle on H200.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msub><mover accent=\"true\"><mi>t</mi><mo stretchy=\"true\">‾</mo></mover><mrow><mi mathvariant=\"normal\">i</mi><mi mathvariant=\"normal\">d</mi><mi mathvariant=\"normal\">l</mi><mi mathvariant=\"normal\">e</mi></mrow></msub><mo>=</mo><mn>60.3</mn><mtext> </mtext><mi>μ</mi><mi mathvariant=\"normal\">s</mi></mrow><annotation encoding=\"application/x-tex\">\\overline{t}_{\\mathrm{idle}} = 60.3\\ \\mu\\mathrm{s}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.9651em;vertical-align:-0.15em;\"></span><span class=\"mord\"><span class=\"mord katex-overline\"><span class=\"vlist-t\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.8151em;\"><span style=\"top:-3em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">t</span></span></span><span style=\"top:-3.7351em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"overline-line\" style=\"border-bottom-width:0.04em;\"></span></span></span></span></span></span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3361em;\"><span style=\"top:-2.55em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mtight\"><span class=\"mord mathrm mtight\">idle</span></span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">60.3</span><span class=\"mspace\"> </span><span class=\"mord mathnormal\">μ</span><span class=\"mord mathrm\">s</span></span></span></span> (about <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mn>3.2</mn><mo>×</mo></mrow><annotation encoding=\"application/x-tex\">3.2\\times</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">3.2</span><span class=\"mord\">×</span></span></span></span> the 18.6 µs idle in Mode 2)","i":"Completion-time spread of the 132 SMs at the tail of gemm2","o":"The kernel ends only when the slowest CTA exits; the successor post-norm kernel waits about 117 µs on ACQBULK","x":"→ Switch to Mode 2 to see how 9,216 ordinary CTAs and the hardware block distributor cut the waiting","c":"Measured by the H200 profiler: mean SM idle 60.3 µs, gemm2 duration 1,468.96 µs."}],"2":[{"t":"Launch 9,216 ordinary CTAs; the first 264 fill all resident slots.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">g</mi><mi mathvariant=\"normal\">r</mi><mi mathvariant=\"normal\">i</mi><mi mathvariant=\"normal\">d</mi></mrow><mo>=</mo><mn>288</mn><mo>×</mo><mn>32</mn><mo>=</mo><mn>9,216</mn></mrow><annotation encoding=\"application/x-tex\">\\mathrm{grid} = 288 \\times 32 = 9{,}216</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8889em;vertical-align:-0.1944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">grid</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">288</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">×</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">32</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">9</span><span class=\"mord\"><span class=\"mpunct\">,</span></span><span class=\"mord\">216</span></span></span></span> CTAs (first wave 264 resident, 8,952 queued)","i":"288 row tiles × 32 column-tile indices, 0 … 9,215","o":"The first 264 CTAs go onto SMs; the other 8,952 stay in the hardware block-distributor queue (dispatch order unspecified)","x":"→ When any slot finishes and exits, hardware immediately fills it with the next queued CTA","c":"CUDA Graph capture must still truncate the main grid at 288 row tiles (otherwise 33,792 CTAs in the worst case)."},{"t":"Whichever SM slot frees first immediately receives the next queued CTA.","f":"free slot <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>s</mi><mo>←</mo></mrow><annotation encoding=\"application/x-tex\">s \\leftarrow</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\">s</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">←</span></span></span></span> next unstarted CTA (dynamic dispatch with no software barrier)","i":"The slot just freed by an exiting CTA and the queued CTAs (surplus blocks beyond active_m × 32 exit on entry)","o":"Fast SMs run more tiles and slow SMs fewer, so the tail evens out on its own","x":"→ Next: the measured H200 idle reduction and the restart cost","c":"Every active ordinary CTA reruns CTA start and prologue initialization, so on-chip state does not survive across tiles."},{"t":"Mean SM idle drops to 18.6 µs on H200, at the cost of giving up persistence.","f":"<span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi mathvariant=\"normal\">Δ</mi><msub><mover accent=\"true\"><mi>t</mi><mo stretchy=\"true\">‾</mo></mover><mrow><mi mathvariant=\"normal\">i</mi><mi mathvariant=\"normal\">d</mi><mi mathvariant=\"normal\">l</mi><mi mathvariant=\"normal\">e</mi></mrow></msub><mo>=</mo><mn>60.3</mn><mo>−</mo><mn>18.6</mn><mo>=</mo><mn>41.7</mn><mtext> </mtext><mi>μ</mi><mi mathvariant=\"normal\">s</mi></mrow><annotation encoding=\"application/x-tex\">\\Delta\\overline{t}_{\\mathrm{idle}} = 60.3 - 18.6 = 41.7\\ \\mu\\mathrm{s}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.9651em;vertical-align:-0.15em;\"></span><span class=\"mord\">Δ</span><span class=\"mord\"><span class=\"mord katex-overline\"><span class=\"vlist-t\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.8151em;\"><span style=\"top:-3em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"mord\"><span class=\"mord mathnormal\">t</span></span></span><span style=\"top:-3.7351em;\"><span class=\"pstrut\" style=\"height:3em;\"></span><span class=\"overline-line\" style=\"border-bottom-width:0.04em;\"></span></span></span></span></span></span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3361em;\"><span style=\"top:-2.55em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mtight\"><span class=\"mord mathrm mtight\">idle</span></span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.15em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">60.3</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">18.6</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">41.7</span><span class=\"mspace\"> </span><span class=\"mord mathnormal\">μ</span><span class=\"mord mathrm\">s</span></span></span></span>; <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi mathvariant=\"normal\">Δ</mi><msub><mi>t</mi><mrow><mi mathvariant=\"normal\">g</mi><mi mathvariant=\"normal\">e</mi><mi mathvariant=\"normal\">m</mi><mi mathvariant=\"normal\">m</mi><mn>2</mn></mrow></msub><mo>=</mo><mn>1,468.96</mn><mo>−</mo><mn>1,443.17</mn><mo>=</mo><mn>25.8</mn><mtext> </mtext><mi>μ</mi><mi mathvariant=\"normal\">s</mi></mrow><annotation encoding=\"application/x-tex\">\\Delta t_{\\mathrm{gemm2}} = 1{,}468.96 - 1{,}443.17 = 25.8\\ \\mu\\mathrm{s}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.9694em;vertical-align:-0.2861em;\"></span><span class=\"mord\">Δ</span><span class=\"mord\"><span class=\"mord mathnormal\">t</span><span class=\"msupsub\"><span class=\"vlist-t vlist-t2\"><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.3011em;\"><span style=\"top:-2.55em;margin-left:0em;margin-right:0.05em;\"><span class=\"pstrut\" style=\"height:2.7em;\"></span><span class=\"katex-sizing reset-size6 size3 mtight\"><span class=\"mord mtight\"><span class=\"mord mtight\"><span class=\"mord mathrm mtight\">gemm2</span></span></span></span></span></span><span class=\"vlist-s\">​</span></span><span class=\"vlist-r\"><span class=\"vlist\" style=\"height:0.2861em;\"><span></span></span></span></span></span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">1</span><span class=\"mord\"><span class=\"mpunct\">,</span></span><span class=\"mord\">468.96</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">1</span><span class=\"mord\"><span class=\"mpunct\">,</span></span><span class=\"mord\">443.17</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.8389em;vertical-align:-0.1944em;\"></span><span class=\"mord\">25.8</span><span class=\"mspace\"> </span><span class=\"mord mathnormal\">μ</span><span class=\"mord mathrm\">s</span></span></span></span>","i":"Profiler comparison on H200 between 264 persistent CTAs and 9,216 ordinary CTAs","o":"Mean SM idle falls from 60.3 µs to 18.6 µs (−41.7 µs) and the kernel is 25.8 µs faster (the cause of the gap between the two was not determined)","x":"→ Switch to Mode 3 to see how Blackwell cluster launch control combines the benefits of Modes 1 and 2","c":"Removes the tail wait and allows per-tile preemption, but pays CTA start and prologue on every tile (this cost was not measured separately; Chapter 8, Section 15's gemm1 stays at 264 persistent CTAs to keep its ring state)."}],"3":[{"t":"Launch the full ordinary grid (0 … 9,215); initial CTAs enter SMs and initialize bar.","f":"mbarrier_init(&amp;bar, 1); initial tile index <span class=\"katex\"><span class=\"katex-mathml\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mrow><mi mathvariant=\"normal\">b</mi><mi mathvariant=\"normal\">x</mi></mrow><mo>=</mo><mrow><mi mathvariant=\"normal\">b</mi><mi mathvariant=\"normal\">l</mi><mi mathvariant=\"normal\">o</mi><mi mathvariant=\"normal\">c</mi><mi mathvariant=\"normal\">k</mi><mi mathvariant=\"normal\">I</mi><mi mathvariant=\"normal\">d</mi><mi mathvariant=\"normal\">x</mi><mi mathvariant=\"normal\">.</mi><mi mathvariant=\"normal\">x</mi></mrow></mrow><annotation encoding=\"application/x-tex\">\\mathrm{bx} = \\mathrm{blockIdx.x}</annotation></semantics></math></span><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">bx</span></span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"katex-base\"><span class=\"katex-strut\" style=\"height:0.6944em;\"></span><span class=\"mord\"><span class=\"mord mathrm\">blockIdx.x</span></span></span></span></span>","i":"Full ordinary-grid block indices 0 … 9,215 (CUDA Graph capture still fixes this grid limit)","o":"Each initial CTA occupies one SM slot and runs its prologue once; the other blocks stay unstarted in the hardware block-distributor queue","x":"→ Enter the loop: after __syncthreads(), thread 0 asynchronously asks to cancel the next unstarted block","c":"Each initial CTA does 1 start and prologue; SMEM holds uint4 result (16 B) + uint64_t bar (8 B) = 24 B."},{"t":"While computing tile bx, thread 0 issues try_cancel to cancel an unstarted block.","f":"clusterlaunchcontrol.try_cancel.async…b128 [&amp;result], [&amp;bar] + mbarrier.arrive.expect_tx(…, 16)","i":"&amp;result in SMEM (16 B-aligned address) and &amp;bar (expecting 16 B), after an async-proxy acquire fence","o":"The async cancellation request goes to the hardware block distributor; the whole CTA runs compute_tile(bx) concurrently","x":"→ When the current tile is done, wait on bar for the 16 B response to land","c":"One thread issues 1 async request + 1 expect_tx(16 B); each loop turn starts with 1 __syncthreads() so the previous result is not overwritten."},{"t":"Hardware writes the 16 B response and completes bar; threads wait for the parity flip.","f":"while (!mbarrier_try_wait_parity(sem_acquire, scope_cta, &amp;bar, phase)) {}; phase ^= 1","i":"The 16 B opaque response that the async proxy wrote into result automatically triggers complete-tx(16 B) and flips bar's phase","o":"The 16 B response is loaded into registers, ready for query_cancel to decode success and block index","x":"→ Use query_cancel.is_canceled to tell whether an unstarted block was obtained","c":"1 mbarrier phase wait; try_cancel round-trip latency was not measured on B200."},{"t":"Cancellation succeeds: extract stolen index bx = k and compute tile k in place.","f":"is_canceled(result) == true ⇒ bx = get_first_ctaid_x(result)","i":"The 16 B success response in registers (the specification guarantees no second successful response in the grid returns the same k)","o":"Unstarted block k in the queue is atomically canceled; the resident CTA skips a repeated prologue and computes block k next","x":"→ After an async-proxy release fence, go back to Step 2 and keep requesting the next block while computing","c":"No new CTA start and no repeated prologue; one more is_canceled, one get_first_ctaid, and cross-proxy fences."},{"t":"Cancellation fails (e.g. queue empty or higher-priority kernel): the CTA exits and must not issue another request.","f":"is_canceled(result) == false ⇒ break; // CTA exits","i":"16 B failure response (e.g. no unstarted blocks remain, or a higher-priority kernel must run first)","o":"The CTA exits and frees its SM slot (if it exits on preemption, hardware resumes dispatching this grid's remaining uncanceled blocks after the higher-priority kernel finishes)","x":"→ End of this section; back to the Appendix A closing takeaway","c":"Bottom line: each stolen tile costs 1 request + 1 mbarrier wait + 1 intra-CTA barrier, and each CTA holds 24 B of SMEM; issuing try_cancel or reading a block index after a failure is undefined behavior; whether the intra-CTA barrier loses money on microsecond-scale tiles was not measured on B200."}]},"INK":"var(--anatomy-strong)"};
+
+const $=(id)=>document.getElementById(id);
+const NS="http://www.w3.org/2000/svg", EPS=1e-9;
+const mk=(tag,attrs,text)=>{ const e=document.createElementNS(NS,tag); for(const a in attrs) e.setAttribute(a,attrs[a]); if(text!==undefined) e.textContent=text; return e; };
+const S=(k)=>{ if(!(k in D.K)) throw new Error("missing string key "+k); return D.K[k]; };
+const C=D.C, TC=D.TC, tin=$("tIn");
+const modeOf=()=>{ const r=document.querySelector("input[name=mode]:checked"); return r?r.value:"1"; };
+const fmtN=(n)=>n.toLocaleString("en-US");
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const r2=(x)=>Math.round(x*1e6+1e-7)/1e6;
+
+// ===== text measuring and wrapping =====
+const CTX=document.createElement("canvas").getContext("2d"), FONTS={}, WCACHE=new Map();
+function fontOf(parent,cls){ if(!FONTS[cls]){ const p=mk("text",{class:cls}); p.style.visibility="hidden"; parent.appendChild(p); const cs=getComputedStyle(p); FONTS[cls]=cs.fontStyle+" "+cs.fontWeight+" "+cs.fontSize+" "+cs.fontFamily; p.remove(); } return FONTS[cls]; }
+function tw(parent,cls,s){ const font=fontOf(parent,cls), key=font+"|"+s; let v=WCACHE.get(key); if(v===undefined){ CTX.font=font; v=CTX.measureText(s).width; WCACHE.set(key,v); } return v; }
+function wrapLines(parent,cls,srcLines,maxW){
+  const w=(s)=>tw(parent,cls,s);
+  const NOSTART=/^[，。、；：）)」』·%]/, NOEND=/[（(「『]$/;
+  const atomsOf=(s)=>s.match(/[\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]|[^\s\u2e80-\u9fff\uff00-\uffef\u3000-\u303f\u2460-\u24ff]+\s*|\s+/g)||[s];
+  const fit=(atoms,mw)=>{ const out=[]; let cur="";
+    atoms.forEach((a)=>{ const joined=cur+a, jw=w(joined.trimEnd()); if(cur&&jw>mw&&!NOSTART.test(a)&&!NOEND.test(cur)){ out.push(cur.trimEnd()); cur=a; } else cur=joined; });
+    if(cur.trim()) out.push(cur.trimEnd()); return out; };
+  const out=[];
+  srcLines.forEach((s)=>{ const atoms=atomsOf(s); let ln=fit(atoms,maxW);
+    if(ln.length>1){ let lo=maxW/2, hi=maxW; for(let i=0;i<8;i++){ const mid=(lo+hi)/2; if(fit(atoms,mid).length===ln.length) hi=mid; else lo=mid; } ln=fit(atoms,hi); }
+    out.push(...ln); });
+  return out;
+}
+const setLines=(t,ls,x,y,lh,anchor)=>{ t.textContent=""; ls.forEach((ln,i)=>t.appendChild(mk("tspan",{x:x,y:+(y+i*lh).toFixed(1)},ln))); };
+// a wrapped paragraph: appends a <text> to g, returns {t, n, h, w}. y is the first baseline.
+function para(g,cls,src,x,y,maxW,lh,attrs){
+  const t=mk("text",Object.assign({class:cls},attrs||{})); g.appendChild(t);
+  const lines=wrapLines(g,cls,Array.isArray(src)?src:[src],maxW); setLines(t,lines,x,y,lh);
+  let w=0; lines.forEach((l)=>{ w=Math.max(w,tw(g,cls,l)); });
+  return {t,n:lines.length,h:lines.length*lh,w};
+}
+const rect=(g,x,y,w,h,cls,attrs)=>{ const e=mk("rect",Object.assign({x:+x.toFixed(2),y:+y.toFixed(2),width:+w.toFixed(2),height:+h.toFixed(2)},cls?{class:cls}:{},attrs||{})); g.appendChild(e); return e; };
+// a text box: rect + wrapped text, height from the text
+function tbox(g,cls,src,x,y,w,opt){ opt=opt||{}; const pad=opt.pad??5, lh=opt.lh??11.4, tcls=opt.tcls||"bt";
+  const grp=mk("g",{class:cls||"bx0"}); g.appendChild(grp);
+  const r=rect(grp,x,y,w,10,"bx",{rx:3}); const p=para(grp,tcls,src,x+pad,y+pad+8.2,w-2*pad,lh);
+  const h=Math.max(opt.minH||0,p.h+2*pad-1.5); r.setAttribute("height",h.toFixed(1)); return {g:grp,r,h,p}; }
+
+const INKC="var(--anatomy-strong)";
+const arrowTo=(g,x1,y1,x2,y2,cls)=>{ const a=Math.atan2(y2-y1,x2-x1), L=6, W=3;
+  const bx=x2-L*Math.cos(a), by=y2-L*Math.sin(a), px=-Math.sin(a)*W, py=Math.cos(a)*W;
+  const e=mk("g",{class:cls||"ar"}); e.appendChild(mk("path",{class:"al",d:"M"+x1+" "+y1+"L"+bx.toFixed(1)+" "+by.toFixed(1)}));
+  e.appendChild(mk("path",{class:"ah",d:"M"+x2+" "+y2+"L"+(bx+px).toFixed(1)+" "+(by+py).toFixed(1)+"L"+(bx-px).toFixed(1)+" "+(by-py).toFixed(1)+"Z"})); g.appendChild(e); return e; };
+
+
+// ===== model: 3 modes, one step = one time unit; the cursor and the reveal clip are linear in t =====
+const MODES=["1","2","3"], MS={"1":3,"2":3,"3":5}, END={"1":3,"2":3,"3":5};
+const STEPS={}; MODES.forEach((m)=>{ STEPS[m]=Array.from({length:MS[m]},(_,k)=>k); });
+const TL0=84, TLW=272, GX=12, INK=D.INK;
+const stepIdx=(m,t)=>{ let k=0; STEPS[m].forEach((s,i)=>{ if(s<=t+EPS) k=i; }); return k; };
+function settledTimes(m){ const M=MS[m]; return Array.from({length:M},(_,k)=>k>=M-1?END[m]:+(k+0.95).toFixed(2)); }
+const curX=(m,t)=>TL0+TLW*clamp(t,0,END[m])/END[m];
+const xT=(m,t)=>TL0+TLW*t/END[m];
+
+// schematic per-SM end positions (no measured per-SM trace exists): seeded, then scaled so the ordinary grid ends closer together
+let SEED=11; const rnd=()=>{ SEED=(Math.imul(SEED,1664525)+1013904223)>>>0; return SEED/4294967296; };
+const EP=Array.from({length:132},()=>{ let s=0; for(let j=0;j<6;j++) s+=rnd(); return clamp(0.62+0.38*(s-3)/1.2+0.0,0.3,1); });
+EP[0]=1; EP[57]=0.3;
+const ED=EP.map((e)=>1-(1-e)*0.25);
+
+// ===== drawing =====
+const ALG=$("alg"), ALGG=$("algG"), ALGO=$("algO"), TOP=$("top"), TG=$("topG"), FLAT=$("flat");
+const RED="var(--anatomy-red)";
+const chipLines=(m,i,w)=>wrapLines(ALGG,"an",[S("alg.m"+m+".chip."+i)],w-8);
+function drawAlg(m,k){
+  ALGG.textContent=""; ALGO.textContent="";
+  const N=MS[m], gap=4, cw=(296-(N-1)*gap)/N, hd=para(ALGG,"lab2",S("alg.m"+m+".title"),12,13,296,11.4);
+  const all=Array.from({length:N},(_,i)=>chipLines(m,i,cw)), ch=Math.max(28,Math.max(...all.map((l)=>l.length))*10.4+8), cy=13+(hd.n-1)*11.4+9;
+  for(let i=0;i<N;i++){ const x=12+i*(cw+gap), g=mk("g",{"data-chip":String(i),class:i===k?"":"dim"}); ALGG.appendChild(g);
+    rect(g,x,cy,cw,ch,"ac",{rx:4}); const t=mk("text",{class:"an"}); g.appendChild(t);
+    const y0=cy+ch/2+3.2-(all[i].length-1)*5.2; all[i].forEach((l,j)=>t.appendChild(mk("tspan",{x:+(x+cw/2).toFixed(1),y:+(y0+j*10.4).toFixed(1)},l))); }
+  rect(ALGO,12+k*(cw+gap)-1.5,cy-1.5,cw+3,ch+3,"ao",{rx:5});
+  const fb=tbox(ALGG,"fbox",[S("alg.m"+m+".f.0"),S("alg.m"+m+".f.1")].filter(Boolean),336,4,296,{pad:6});
+  ALG.setAttribute("viewBox","0 0 640 "+Math.ceil(Math.max(cy+ch+5,fb.h+8)));
+}
+
+// die: cells of one SM (H200) or of a schematic Blackwell SM; a cell is a teal run part, a red hatched idle part and a white rest
+const H200={cols:22,rows:6,mx:13.0,my:9.6,cw:11.6,ch:8.6}, BW={cols:8,rows:3,mx:36,my:22,cw:32,ch:18};
+function cellSvg(x,y,w,h,run,idle,hi){ let s="";
+  const wb=w*run, wr=w*idle, ww=w-wb-wr;
+  if(wb>0.01) s+='<rect x="'+x.toFixed(2)+'" y="'+y.toFixed(2)+'" width="'+wb.toFixed(2)+'" height="'+h+'" fill="'+C.teal+'"/>';
+  if(wr>0.01) s+='<rect x="'+(x+wb).toFixed(2)+'" y="'+y.toFixed(2)+'" width="'+wr.toFixed(2)+'" height="'+h+'" fill="url(#hatchT)"'+(wr>=0.6?' stroke="'+RED+'" stroke-width=".45"':'')+'/>';
+  if(ww>0.01) s+='<rect x="'+(x+wb+wr).toFixed(2)+'" y="'+y.toFixed(2)+'" width="'+ww.toFixed(2)+'" height="'+h+'" fill="#ffffff"/>';
+  s+='<rect x="'+x.toFixed(2)+'" y="'+y.toFixed(2)+'" width="'+w+'" height="'+h+'" fill="none" stroke="'+(hi?INK:"#9aa0a6")+'" stroke-width="'+(hi?1.8:0.4)+'"/>';
+  return s; }
+function dieGrid(g,y,G,fn){ let h=""; const n=G.cols*G.rows;
+  for(let i=0;i<n;i++){ const c=i%G.cols, r=(i-c)/G.cols, f=fn(i), x=GX+c*G.mx, yy=y+r*G.my;
+    h+='<g data-hw="sm:'+i+'">'+cellSvg(x,yy,G.cw,G.ch,f[0],f[1],f[2])+(f[3]?'<g class="tkx">'+f[3](x,yy,G)+'</g>':"")+'</g>'; }
+  const gg=mk("g",{}); g.appendChild(gg); gg.innerHTML=h; return G.rows*G.my; }
+const cellPos=(G,i,y)=>{ const c=i%G.cols, r=(i-c)/G.cols; return [GX+c*G.mx+G.cw/2, y+r*G.my+G.ch/2]; };
+// queue of unstarted blocks: dashed frame (order unspecified), one token per mark
+const NTOK=48, TPITCH=296/NTOK;
+function queueBar(g,y,fn){ let h=""; for(let i=0;i<NTOK;i++){ const st=fn(i), x=GX+i*TPITCH;
+    h+='<rect x="'+(x+0.3).toFixed(2)+'" y="'+(y+2)+'" width="'+(TPITCH-1).toFixed(2)+'" height="10" fill="'+(st==="on"?C.act:"#ffffff")+'" stroke="'+(st==="on"?C.actEdge:"#b4b4b8")+'" stroke-width=".5"/>';
+    if(st==="x") h+='<path d="M'+(x+1)+' '+(y+3)+'L'+(x+TPITCH-1.5)+' '+(y+11)+'M'+(x+TPITCH-1.5)+' '+(y+3)+'L'+(x+1)+' '+(y+11)+'" stroke="'+INK+'" stroke-width="1.3"/>'; }
+  const gg=mk("g",{"data-hw":"sched_q"}); g.appendChild(gg); gg.innerHTML=h; rect(g,GX-1,y,298,14,"unk",{rx:2}); return 14; }
+const tokX=(i)=>GX+(i+0.5)*TPITCH;
+const XTOK=21, FREE=50, RES=10;
+
+function drawLeft(m,k){
+  const g=mk("g",{}); TG.appendChild(g); let y=4, A={};
+  if(m!=="1"){ const q=para(g,"lab2",S("queue.lab"),GX,y+8,296,11.4); y+=q.h+2; A.q=y;
+    const fn=m==="2"?(k===0?()=>"on":k===1?(i)=>(i<20?"off":"on"):()=>"off"):(k===3?(i)=>(i===XTOK?"x":"on"):k===4?()=>"off":()=>"on");
+    y+=queueBar(g,y,fn)+16; }
+  const G=m==="3"?BW:H200, dl=para(g,"lab2",S(m==="3"?"die.b":"die.h"),GX,y+8,296,11.4); y+=dl.h+3; A.d=y;
+  let fn;
+  if(m==="1") fn=(i)=>k<2?[1,0,false]:[EP[i],1-EP[i],false];
+  else if(m==="2") fn=(i)=>k===0?[1,0,false]:k===1?(i===FREE?[0,0,true]:[1,0,false]):[ED[i],1-ED[i],false];
+  else fn=(i)=>k===4&&i===RES?[0,0,true]:[1,0,i===RES];
+  const gh=dieGrid(g,y,G,fn); y+=gh+3;
+  const nt=para(g,"bt",S("note.sch"),GX,y+8,296,10.6); y+=nt.h+4;
+  if(m==="2"&&k===1){ const [cx,cy]=cellPos(G,FREE,A.d); arrowTo(g,tokX(20),A.q+16,cx,cy-G.ch/2-1,"ar em"); }
+  if(m==="3"&&k===3){ const [cx,cy]=cellPos(G,RES,A.d); arrowTo(g,cx,cy-G.ch/2-1,tokX(XTOK),A.q+15,"ar em"); }
+  return y;
+}
+function box(g,cls,key,x,y,w,on,attrs){ const gg=mk("g",{class:on?"":"dim"}); g.appendChild(gg); const b=tbox(gg,cls,S(key),x,y,w,{}); if(attrs) Object.keys(attrs).forEach((a)=>b.g.setAttribute(a,attrs[a])); return b; }
+function drawRight(m,k){
+  const g=mk("g",{}); TG.appendChild(g); const RX=336, RW=296; let y=4;
+  if(m==="1"){ y+=box(g,"bx0","top.m1.r.1",RX,y,RW,k<2).h+10; y+=box(g,"bx0 wt","top.m1.r.2",RX,y,RW,k===2).h+10; }
+  else if(m==="2"){ y+=box(g,"bx0 unk2","top.m2.r.1",RX,y,RW,k<2,{"data-hw":"sched_q"}).h+10; y+=box(g,"bx0","top.m2.r.2",RX,y,RW,k<2).h+10; y+=box(g,"bx0 unk2","top.m2.r.3",RX,y,RW,k===2).h+10; }
+  else {
+    const sch=box(g,"bx0 unk2","top.m3.r.sch",RX,y,RW,k===1||k===2||k===3||k===4); const sy=y; y+=sch.h+4;
+    const ax=RX+RW/2, a0=y; y+=20;                                       // async proxy arrow (dashed = latency not measured on B200)
+    const on1=k===1||k===4, onW=k===2;
+    const ag=mk("g",{class:(on1||onW)?"":"dim"}); g.appendChild(ag); arrowTo(ag,ax,y,ax,a0+1,"ar"+(onW?" em":""));
+    ag.appendChild(mk("rect",{class:"unk",x:ax-3,y:a0+3,width:6,height:12,fill:"none"}));
+    para(ag,"lab2",S("top.m3.r.async"),ax+10,a0+13,150,11);
+    const t0=box(g,"bx0","top.m3.r.t0",RX,y,RW,on1); y+=t0.h+8;
+    box(g,"bx0 unk2","top.m3.r.unk",RX,y,RW,onW); y+=24; 
+    const gs=mk("g",{class:(k===0||k===2||k===3)?"":"dim"}); g.appendChild(gs);
+    const sm=para(gs,"lab2",S("top.m3.r.smem"),RX,y+9,RW,11.2); y+=sm.h+4;
+    const hw=RW/2-2;
+    [["top.m3.r.res",C.post,"res_clc",k===3||k===2],["top.m3.r.bar",C.post,"mbar_clc",k===0||k===2]].forEach(([key,col,id,act],i)=>{ const x=RX+i*(RW/2+2);
+      rect(gs,x,y,hw,20,"bx",{rx:3,"data-hw":id,style:"fill:"+col+(act?"":";opacity:.45")}); const t=mk("text",{class:"bw",x:x+hw/2,y:y+13.5,"text-anchor":"middle"},S(key)); t.style.fill="#fff"; gs.appendChild(t); });
+    y+=28;
+    y+=box(g,"bx0","top.m3.r.work",RX,y,RW,k===0||k===1||k===3).h+10;
+  }
+  return y;
+}
+const SCENE=new Map(), TLC=new Map(), kids=(e)=>Array.from(e.childNodes);
+function drawTop(m,k){
+  TG.textContent=""; const yl=drawLeft(m,k), yr=drawRight(m,k);
+  TOP.setAttribute("viewBox","0 0 640 "+Math.ceil(Math.max(yl,yr)+6));
+}
+
+// --- timeline (svg#flat): bars are revealed up to the cursor by one clip
+const CLR0=$("clipR0"), CUR=$("cur"), TLA=$("tlA"), TLT=$("tlTop"), AXT=$("axisT"), RLS=[0,1,2,3].map((i)=>$("rl"+i));
+function barText(g,cls,txt,x,y,w,h,fill){
+  let ls=wrapLines(g,cls,[txt],Math.max(10,w-4)), lh=10, t=mk("text",{class:cls,fill:fill||""}); g.appendChild(t);
+  if(ls.length*lh>h+1){ t.style.fontSize="8px"; lh=8.8; ls=wrapLines(g,cls+" tbs",[txt],Math.max(10,w-4)); }
+  const y0=y+h/2+3-(ls.length-1)*lh/2; ls.forEach((l,i)=>t.appendChild(mk("tspan",{x:+(x+w/2).toFixed(1),y:+(y0+i*lh).toFixed(1),"text-anchor":"middle"},l)));
+  return t; }
+function setRowLabels(ys,labels,rowH){
+  RLS.forEach((e,i)=>{ e.textContent=""; if(i>=labels.length) return; const ls=wrapLines(FLAT,"rl",[labels[i]],64), lh=10.2, y0=ys[i]+rowH[i]/2+3-(ls.length-1)*lh/2;
+    ls.forEach((l,j)=>e.appendChild(mk("tspan",{x:78,y:+(y0+j*lh).toFixed(1),"text-anchor":"end"},l))); }); }
+function setAxis(txt){ AXT.textContent=""; const ls=wrapLines(FLAT,"lab2",[txt],292); ls.forEach((l,i)=>AXT.appendChild(mk("tspan",{x:12,y:12+i*11.4},l))); return 12+(ls.length-1)*11.4+9; }
+
+let tlCur=[0,0];
+const RH=28;
+function drawTimeline(m){
+  TLA.textContent=""; TLT.textContent=""; const bg=$("tlBg"); bg.textContent="";
+  const yAx=setAxis(S("tl.axis")), y0=yAx+4, ys=[0,1,2,3].map((i)=>y0+i*RH), X=(t)=>xT(m,t), h=RH-5;
+  ys.forEach((y)=>rect(bg,TL0,y,TLW,RH-3,"row"));
+  setRowLabels(ys,[0,1,2,3].map((i)=>S(m==="3"?"tl.m3.rl."+i:"tl.m12.rl."+i)),ys.map(()=>RH-3));
+  const bar=(row,a,b,cls,txt,tcol,more)=>{ const x=X(a), w=X(b)-x, y=ys[row]+1; const r=rect(TLA,x,y,w,h,cls,more); if(txt) barText(TLA,"tb",txt,x,y,w,h,tcol); return r; };
+  const seam=(row,t)=>TLA.appendChild(mk("path",{class:"seam",d:"M"+X(t).toFixed(1)+" "+(ys[row]+1)+"V"+(ys[row]+1+h)}));
+  const hatch=(row,a,b)=>{ rect(TLA,X(a),ys[row]+1,X(b)-X(a),h,"",{fill:"url(#hatchR)"}); };
+  if(m==="1"){
+    bar(0,0,1.9,"bteal"); seam(0,0.06); hatch(0,1.9,3);
+    bar(1,0,3,"bteal"); seam(1,0.06);
+    bar(2,0,0.35,"bact"); rect(TLA,X(0.35),ys[2]+1,X(3)-X(0.35),h,"bunk");
+    bar(3,1.95,3,"bwait");
+  } else if(m==="2"){
+    bar(0,0,2.75,"bteal"); [0.06,0.75,1.35,2.05].forEach((t)=>seam(0,t)); hatch(0,2.75,3);
+    bar(1,0,3,"bteal"); [0.06,0.95,1.9,2.6].forEach((t)=>seam(1,t));
+    const qh=[h,h*0.62,h*0.25]; [[0,1],[1,2],[2,2.85]].forEach(([a,b],i)=>{ rect(TLA,X(a),ys[2]+1+(h-qh[i]),X(b)-X(a),qh[i],"bact"); });
+    rect(TLA,X(0),ys[2]+1,X(3)-X(0),h,"unk");
+    bar(3,2.8,3,"bpost");
+  } else {
+    bar(0,0,1,"bteal"); seam(0,0.06); bar(0,1,3,"bteal",S("tl.m3.txt.bx"),TC.teal); bar(0,3,4.4,"bteal",S("tl.m3.txt.k"),TC.teal);
+    bar(1,1,1.9,"bact","try_cancel",TC.act); bar(1,1.9,3,"bunk"); barText(TLA,"tb",S("tl.m3.unk"),X(1.9),ys[1]+1,X(3)-X(1.9),h,"var(--anatomy-strong)");
+    bar(1,3,3.9,"bact","try_cancel",TC.act); bar(1,3.9,5,"bunk"); barText(TLA,"tb",S("tl.m3.unk"),X(3.9),ys[1]+1,X(5)-X(3.9),h,"var(--anatomy-strong)");
+    bar(2,0,1,"bpost","bar",TC.post); bar(2,2.8,3.4,"bpost","16 B",TC.post); bar(2,4.8,5,"bpost");
+    bar(3,0,4.8,"bact"); TLA.appendChild(mk("path",{class:"brk2",d:"M"+X(3).toFixed(1)+" "+(ys[3]+3)+"l8 "+(h-4)+"m0 -"+(h-4)+"l-8 "+(h-4)}));
+    rect(TLA,X(4.8),ys[3]+1,X(5)-X(4.8),h,"bunk");
+  }
+  const lg=tbox(TLT,"bx0 "+(m==="3"?"unk2":""),S("tl.m"+m+".ledger"),368,y0,264,{});
+  const H=Math.max(ys[3]+RH+8,y0+lg.h+8); tlCur=[y0-2,ys[3]+RH-4];
+  FLAT.setAttribute("viewBox","0 0 640 "+Math.ceil(H));
+}
+const TLEL=()=>[TLA,TLT,AXT,$("tlBg"),...RLS];
+function drawTimelineCached(m){
+  const e=TLC.get(m);
+  if(e){ TLEL().forEach((el,i)=>el.replaceChildren(...e.k[i])); FLAT.setAttribute("viewBox",e.vb); tlCur=e.cur; return; }
+  drawTimeline(m); TLC.set(m,{k:TLEL().map(kids),vb:FLAT.getAttribute("viewBox"),cur:tlCur});
+}
+function drawCursor(m,t){
+  const x=curX(m,t); CUR.setAttribute("d","M"+x.toFixed(2)+" "+tlCur[0]+"V"+tlCur[1]);
+  CLR0.setAttribute("width",(TLW*clamp(t,0,END[m])/END[m]).toFixed(2));
+}
+
+// ===== FIG.hw: state of one mode at one settled time =====
+const SMU=Array.from({length:132},(_,s)=>({id:"sm:"+s,kind:"sm",n:1,cap:{warps:64,ctas:32,regs:65536,smemB:233472}}));
+const CONSTS={sm:132,ctaSlots:32,warpSlots:64,regsPerSm:65536,smemPerSmB:233472,dispatchGap:0};
+const shw=(id,text,value,unit,more)=>Object.assign({id,text,value},unit?{unit}:{},more||{});
+function shown(m){ const o={
+ "1":[shw("smCount","132",132),shw("ctasPerSm","2",2),shw("persCtas","264",264,null,{expr:"ctasPerSm * smCount"}),shw("smIdlePersUs","60.3",60.3,"us"),shw("gemm2PersUs","1,468.96",1468.96,"us")],
+ "2":[shw("smCount","132",132),shw("ctasPerSm","2",2),shw("persCtas","264",264,null,{expr:"ctasPerSm * smCount"}),shw("capRowTiles","288",288),shw("gemm2ColTiles","32",32),shw("ordCtas","9,216",9216,null,{expr:"capRowTiles * gemm2ColTiles"}),shw("queuedWave1","8,952",8952,null,{expr:"ordCtas - persCtas"}),
+   shw("smIdlePersUs","60.3",60.3,"us"),shw("smIdleOrdUs","18.6",18.6,"us"),shw("smIdleSaveUs","41.7",41.7,"us",{expr:"smIdlePersUs - smIdleOrdUs"}),
+   shw("gemm2PersUs","1,468.96",1468.96,"us"),shw("gemm2OrdUs","1,443.17",1443.17,"us"),shw("gemm2SaveUs","25.8",25.8,"us",{expr:"gemm2PersUs - gemm2OrdUs"})],
+ "3":[shw("resultB","16",16,"B"),shw("barB","8",8,"B"),shw("smemClcB","24",24,"B",{expr:"resultB + barB"})] }; return o[m]; }
+function hwState(m,t){
+  const k=stepIdx(m,t); let units, ents=[], events=[], waits=[];
+  if(m==="3"){
+    units=[{id:"sm_b",kind:"sm",n:1,subsetOf:"sm:132"},{id:"sched_q_b",kind:"queue",n:1,order:"unknown",located:false},{id:"smem_b",kind:"smem",parent:"sm_b",n:1},
+      {id:"mbar_clc",kind:"mbarrier",parent:"smem_b",n:1,bytes:8,expected:1},{id:"res_clc",kind:"data",n:1,bytes:16,at:"smem_b"}];
+  } else units=[...SMU,{id:"sched_q",kind:"queue",n:1,order:"unknown",located:false,cap:{items:9216}}];
+  return {tUnit:"order",t:+t,consts:CONSTS,units,ents,events,waits,work:[],workTotal:0,shown:shown(m),order:[]};
+}
+
+// ===== init =====
+FIG.variants({kind:"compare",aligned:false,axis:S("variant.axis"),outcomes:[1,2,3].map((i)=>S("outcome."+i))});
+FIG.timeline({ steps:()=>{ const m=modeOf(); return STEPS[m].map((t,k)=>({t,title:D.CARD[m][k].t})); }, end:()=>END[modeOf()], rate:2 });
+const drawn={m:null,k:-1};
+function setMode(m){
+  drawn.m=m; drawn.k=-1; tin.max=String(END[m]);
+  document.querySelector("[data-readout]").textContent=S("readout.m"+m);
+  document.querySelectorAll("[data-lgm]").forEach((e)=>{ e.style.display=e.dataset.lgm.includes(m)?"":"none"; });
+  ALG.setAttribute("aria-label",S("alg.aria.m"+m)); TOP.setAttribute("aria-label",S("top.aria.m"+m)); FLAT.setAttribute("aria-label",S("tl.aria.m"+m));
+  drawTimelineCached(m);
+  document.querySelectorAll(".fig-pan").forEach((p)=>{ p.scrollLeft=0; });
+}
+function sceneFor(m,k){
+  const key=m+"|"+k, e=SCENE.get(key);
+  if(e){ ALGG.replaceChildren(...e.algG); ALGO.replaceChildren(...e.algO); TG.replaceChildren(...e.top); ALG.setAttribute("viewBox",e.algVB); TOP.setAttribute("viewBox",e.topVB); }
+  else { drawAlg(m,k); drawTop(m,k); SCENE.set(key,{algG:kids(ALGG),algO:kids(ALGO),top:kids(TG),algVB:ALG.getAttribute("viewBox"),topVB:TOP.getAttribute("viewBox")}); }
+}
+function warmOtherMode(){
+  const cur=modeOf();
+  MODES.filter((m)=>m!==cur).forEach((m)=>{ drawTimelineCached(m); for(let k=0;k<MS[m];k++) sceneFor(m,k); });
+  setMode(cur); drawn.k=-1; show();
+}
+addEventListener("load",()=>setTimeout(warmOtherMode,0));
+function show(){
+  const m=modeOf(), t=+tin.value, k=stepIdx(m,t);
+  if(drawn.m!==m) setMode(m);
+  $("stepN").textContent=FIG.stepLabel();
+  if(drawn.k!==k){ drawn.k=k; const c=D.CARD[m][k]; $("stepT").textContent=c.t;
+    $("stepK").innerHTML=["f","i","o","x","c"].map((f)=>"<div><dt>"+S("card.dt."+f)+"</dt><dd"+(f==="f"?' class="m"':"")+">"+c[f]+"</dd></div>").join("");
+    sceneFor(m,k); }
+  drawCursor(m,t);
+}
+tin.addEventListener("input",show);
+document.querySelectorAll("input[name=mode]").forEach((r)=>r.addEventListener("change",()=>{ setMode(modeOf()); }));
+window.FIG?.hw?.({ modes:MODES, frames:(m)=>settledTimes(m), state:hwState });
+{ const pl=document.querySelector(".iso-plate"), ti=pl.querySelector('[data-corner="title"]'), ro=pl.querySelector('[data-corner="readout"]');
+  const fit=()=>{ pl.style.paddingTop=Math.max(52,ti.offsetHeight+34)+"px"; pl.style.paddingBottom=Math.max(58,ro.offsetHeight+34)+"px"; };
+  new ResizeObserver(fit).observe(pl); fit(); }
+setMode(modeOf()); show();
+</script><style>body{display:flow-root}.iso-page{margin:16px auto 12px!important}</style><link rel="stylesheet" href="../../vendor/katex/katex.min.css"><script>(function(){function s(){var h=Math.ceil(document.body.getBoundingClientRect().height);parent.postMessage({figH:h},"*");}window.addEventListener("load",s);new ResizeObserver(s).observe(document.body);})();</script></body></html>

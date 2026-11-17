@@ -477,11 +477,11 @@ def substitute(page, items):
 
 
 SHORT_TOPIC = {"导引一": "一句话怎样变成下一个词元", "导引三": "最小的 CUDA 程序", "第 9 章": "一层排上 132 个 SM",
-               "第 10 章": "诊断一个慢 kernel", "附录 A": "改不动的硬件限制", "附录 B": "SASS 指令速查", "附录 D": "H200 推理硬件一览"}
+               "第 10 章": "诊断一个慢 kernel", "附录 A": "从 H200 到 B200", "附录 B": "SASS 指令速查", "附录 D": "H200 推理硬件一览"}
 
 
 SHORT_TOPIC_EN = {"Intro 1": "How a sentence becomes the next token", "Intro 3": "The smallest CUDA program", "Chapter 9": "One layer on 132 SMs",
-                  "Chapter 10": "Diagnosing a slow kernel", "Appendix A": "Hardware limits you cannot change", "Appendix B": "SASS instruction cheat sheet", "Appendix D": "H200 inference hardware"}
+                  "Chapter 10": "Diagnosing a slow kernel", "Appendix A": "From H200 to B200", "Appendix B": "SASS instruction cheat sheet", "Appendix D": "H200 inference hardware"}
 
 
 def split_title(title):
